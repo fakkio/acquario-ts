@@ -8,6 +8,8 @@ The full design lives in [`docs/vision.md`](./docs/vision.md); decisions and the
 
 Code, documentation, ADRs and commit messages are written in English, using the terms defined below.
 
+The dev-log in [`docs/devlog/`](./docs/devlog/) is the one deliberate exception: it is written in Italian. It is public-facing prose about the project rather than documentation of it, so it follows its audience rather than the codebase. Its English domain terms stay in English — an *organism* is not a *creatura*.
+
 ### Life
 
 **Organism**:

@@ -21,3 +21,7 @@ Each spec/feature lives on its own `feature/<slug>` branch off `develop` (git-fl
 ### Commit messages
 
 Conventional Commits structure with a gitmoji in place of the type word. See `docs/agents/commits.md`.
+
+### Dev-log
+
+One Italian article per milestone in `docs/devlog/`, written from a fragment pile captured during implementation. When a notable choice lands, **offer** to run `/writing-fragments` — never run it or write to the pile unasked. See `docs/agents/devlog.md`.
