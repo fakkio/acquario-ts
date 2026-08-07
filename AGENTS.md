@@ -16,7 +16,7 @@ Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs
 
 ### Branching
 
-Each spec/feature lives on its own `feature/<slug>` branch off `develop` (git-flow). See `docs/agents/branching.md`.
+A feature (an issue set from `/to-tickets`, a milestone) gets its own `feature/<slug>` branch off `develop`; a one-off change commits straight to `develop`. See `docs/agents/branching.md`.
 
 ### Commit messages
 
