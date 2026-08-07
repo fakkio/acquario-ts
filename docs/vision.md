@@ -229,6 +229,8 @@ The `c₀/r²` term is what prevents a race to zero: without a flat cost, smalle
 
 Position matters too: an eye near the centre sees almost omnidirectionally, an eye near the rim sees a narrow, specialised cone.
 
+Sublinear effectiveness has a known tension with the goal of producers and consumers diverging: at equal area it favours the generalist carrying both pathways over the specialist committed to one. Sublinearity stands; the incentive that rewards specialisation is an open v0.2 question — see ADR-0014.
+
 ---
 
 ## Nervous system
