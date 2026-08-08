@@ -42,7 +42,7 @@ La prima risposta è banale: perché era scritto malissimo. Duemila righe in un 
 
 La seconda è tecnica. Quel mondo era discreto: coordinate intere, tutto su griglia. Portarlo in uno spazio continuo voleva dire comunque riscriverlo da capo.
 
-La terza riguarda la parte interessante di una simulazione del genere. Nel vecchio acquario non potevo cliccare un essere e guardargli dentro. Non potevo capire *perché* stesse facendo quello che faceva. E se la parte bella di un acquario artificiale è osservare il comportamento che emerge, questa non è una mancanza secondaria: è la mancanza principale.
+La terza riguarda la parte interessante di una simulazione del genere. Nel vecchio acquario non potevo cliccare un essere e guardargli dentro. Non potevo capire _perché_ stesse facendo quello che faceva. E se la parte bella di un acquario artificiale è osservare il comportamento che emerge, questa non è una mancanza secondaria: è la mancanza principale.
 
 Ma il motivo vero per cui l'ho ripreso in mano dopo venticinque anni è un altro: volevo costruire qualcosa di serio con gli agenti. Non l'ennesima app fatta in vibecoding per vedere un'interfaccia comparire in fretta. Volevo un progetto abbastanza ostinato da mettere davvero alla prova il metodo. E questo acquario ce l'avevo in testa da sempre.
 
@@ -58,7 +58,7 @@ class PesceRosso : Essere
 class PesceGiallo : Essere
 ```
 
-Ero io a decidere che l'alga fa fotosintesi e il pesce rosso mangia le alghe. L'evoluzione poteva al massimo regolare i parametri dentro quelle scatole, ma le scatole le avevo disegnate io, e di nuove non poteva costruirne. In AcquarioTS non esiste nessuna sottoclasse: esiste un organismo e un genoma, e il principio che sta in cima al documento di visione, *tutto è un organello*, è tecnicamente il rifiuto di quella gerarchia. Se emergeranno produttori e consumatori sarà perché conveniva, non perché li ho dichiarati in cima al file.
+Ero io a decidere che l'alga fa fotosintesi e il pesce rosso mangia le alghe. L'evoluzione poteva al massimo regolare i parametri dentro quelle scatole, ma le scatole le avevo disegnate io, e di nuove non poteva costruirne. In AcquarioTS non esiste nessuna sottoclasse: esiste un organismo e un genoma, e il principio che sta in cima al documento di visione, _tutto è un organello_, è tecnicamente il rifiuto di quella gerarchia. Se emergeranno produttori e consumatori sarà perché conveniva, non perché li ho dichiarati in cima al file.
 
 Il prezzo va detto subito, perché è alto: la v0.1 non ha cervello, non ha occhi, non ha predazione e non ha movimento diretto. Si muove di moto browniano e basta. `Brain`, `Neuron` e `Sinapsi` li ho già scritti una volta, da ragazzo, e riparto smontando quello che già avevo. Di proposito.
 
@@ -124,7 +124,7 @@ Anche questa sembra ragionevole: un corpo più grande costa di più, in proporzi
 reproductiveRate(r) ∝ (α·r − β·r²) / r² = α/r − β
 ```
 
-cioè una funzione monotòna decrescente. Nessun massimo. Più piccolo è *sempre* più adatto, senza limite: lasciata girare, la v0.1 avrebbe spinto `bodyRadius` fino al minimo numero rappresentabile in virgola mobile e si sarebbe fermata lì.
+cioè una funzione monotòna decrescente. Nessun massimo. Più piccolo è _sempre_ più adatto, senza limite: lasciata girare, la v0.1 avrebbe spinto `bodyRadius` fino al minimo numero rappresentabile in virgola mobile e si sarebbe fermata lì.
 
 Sullo schermo, però, il risultato sarebbe sembrato plausibile: una popolazione che si rimpicciolisce, si stabilizza su un valore e ci resta, cioè esattamente come appare l'evoluzione quando trova un ottimo. Avrei festeggiato un fondo scala scambiandolo per un risultato.
 
@@ -158,7 +158,7 @@ E qui arriva la parte scomoda. La v0.1 è finita quando succedono tre cose:
 
 1. **Conservazione** — carbonio e ossigeno costanti a meno dell'errore in virgola mobile.
 2. **Determinismo** — lo stesso seme produce lo stesso hash di stato al tick N.
-3. **Selezione, non deriva** — le medie di popolazione convergono su `r_opt = 2·c₀/α`, calcolato sulla carta *prima* di far girare la simulazione.
+3. **Selezione, non deriva** — le medie di popolazione convergono su `r_opt = 2·c₀/α`, calcolato sulla carta _prima_ di far girare la simulazione.
 
 Il terzo è quello che vale, perché la deriva non converge su un numero previsto in anticipo: solo la selezione lo fa. E devo confessare che quel criterio non l'ho proposto io — è emerso dall'agente, insieme all'export CSV che serve a misurarlo.
 

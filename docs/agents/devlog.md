@@ -24,7 +24,7 @@ lang: it
 ```
 
 - `title` — the article title, quoted. The `# ` heading stays in the body as well, since GitHub is the current renderer. Drop it only once a generator renders the title from front matter.
-- `description` — one or two sentences, in Italian, quoted. This is the card text on an index page and the `<meta name="description">`, so keep it under ~160 characters: search results truncate past that. It is a hook, not a summary — it says what the article is *about*, and it may not repeat the title.
+- `description` — one or two sentences, in Italian, quoted. This is the card text on an index page and the `<meta name="description">`, so keep it under ~160 characters: search results truncate past that. It is a hook, not a summary — it says what the article is _about_, and it may not repeat the title.
 - `date` — publication date, `YYYY-MM-DD`. Never edited afterwards; add `updated:` alongside it if an article is ever revised post-publication.
 - `authors` — a list, human first. `Claude` without a model version: the byline should not go stale every model release.
 - `tags` — lowercase kebab-case, English, 4–6 per article. English because tags are domain terms, and domain terms stay in their glossary form even in Italian prose.
@@ -51,7 +51,7 @@ A choice is notable when at least one of these holds:
 - **It surprised someone.** A closed-form result, a profile that contradicted the guess, a test that failed for an interesting reason.
 - **It was funny, or a dead end.** Dead ends are good dev-log material and terrible ADR material.
 
-If the choice is also **hard to reverse**, it wants an ADR *as well* — the two are not substitutes. An ADR records the decision for future engineers; a fragment records the story for readers. Write the ADR via `/domain-modeling`, offer the fragment separately.
+If the choice is also **hard to reverse**, it wants an ADR _as well_ — the two are not substitutes. An ADR records the decision for future engineers; a fragment records the story for readers. Write the ADR via `/domain-modeling`, offer the fragment separately.
 
 ### When not to offer
 
@@ -67,7 +67,7 @@ The dev-log is also where Fabio is deliberately learning to write. The teaching 
 
 At the end of a milestone, on the milestone branch and **before the merge to `develop`**:
 
-1. **Fabio writes his share, by hand, from the pile.** How much is set by the ladder in the workspace's `NOTES.md` — for M0, the load-bearing claim plus the opening beat. Never write it for him, never show him a version of it, never offer to. If he asks for help, help him *judge* what he has written — do not supply prose.
+1. **Fabio writes his share, by hand, from the pile.** How much is set by the ladder in the workspace's `NOTES.md` — for M0, the load-bearing claim plus the opening beat. Never write it for him, never show him a version of it, never offer to. If he asks for help, help him _judge_ what he has written — do not supply prose.
 2. **Fill the rest from the pile**, treating his paragraphs as **fixed** — fit around them, don't rewrite them. Today `/writing-beats` or `/writing-shape`, chosen as below.
 3. **Commit the draft** with `📝(devlog): draft`, before editing. This is what makes the next step a diff instead of an overwrite.
 4. **Editing pass over the committed draft**, this time free to rewrite his paragraphs. Today `/writing-shape`, with the committed article itself as the pile.
@@ -82,7 +82,7 @@ Leftover fragments that don't make the article stay in the pile. That is expecte
 
 ### Choosing between beats and shape
 
-Both are *exploit* skills over the same pile and both enforce grounding. They differ in what they put in front of you each turn.
+Both are _exploit_ skills over the same pile and both enforce grounding. They differ in what they put in front of you each turn.
 
 - **`/writing-beats`** offers candidate **next moves** and asks which direction the piece goes. Use it when the milestone has a **narrative spine** — something happened, in an order, and the order is the point.
 - **`/writing-shape`** offers candidate openings, then asks what the reader needs next and argues the **form of each block**: prose or list, table or repeated structure, callout or inline, quote or paraphrase. Use it when the spine is an **argument or a measurement**, and the piece is dense with formulas, code and comparisons.
@@ -102,6 +102,12 @@ This is the decision that most affects whether an entry reads to someone outside
 `writing-fragments`, `writing-beats` and `writing-shape` are **not referenced by the `ask-matt` map**, so they sit outside the maintained flow. `/edit-article` vanished in an upstream update with no warning, and these can too.
 
 The steps above are therefore written as **jobs**, with skill names as the current implementation. If a name changes, fix the parenthetical and leave the convention alone.
+
+## Cross-references
+
+When an article contradicts, deepens, or otherwise builds on an earlier one, link forward to it by hand — an ordinary inline link, at the point in the prose where it matters.
+
+Never link backward by hand: don't edit a published article to add a pointer to a later one. `date` is never edited after publication (see Front matter above), and a hand-added backlink drifts the moment the referencing article is renamed or rewritten. If the dev-log ever gets a rendering engine, generate "referenced by" backlinks from the forward links already in the articles — that keeps published articles untouched and the backlinks always in sync.
 
 ## Language
 
