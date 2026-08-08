@@ -25,3 +25,11 @@ Conventional Commits structure with a gitmoji in place of the type word. See `do
 ### Dev-log
 
 One Italian article per milestone in `docs/devlog/`, written from a fragment pile captured during implementation. When a notable choice lands, **offer** to run `/writing-fragments` — never run it or write to the pile unasked. See `docs/agents/devlog.md`.
+
+### Release process
+
+Semantic Versioning; every pre-1.0 release is a minor bump, cut as a `release/vX.Y.Z` git-flow branch off `develop`. See `docs/agents/release.md`.
+
+### Quality gates
+
+Pre-commit lints and formats staged files via Husky; pre-push will gate on tests once a real test suite exists. See `docs/agents/quality-gates.md`.
