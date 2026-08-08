@@ -1,0 +1,32 @@
+{
+  "name": "acquario-ts",
+  "description": "",
+  "version": "0.0.1",
+  "author": "fakkio (fabiolazzaroni.dev)",
+  "bugs": {
+    "url": "https://github.com/fakkio/acquario-ts/issues"
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "homepage": "https://github.com/fakkio/acquario-ts#readme",
+  "license": "ISC",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fakkio/acquario-ts.git"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "type": "commonjs",
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.8.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0"
+  }
+}
