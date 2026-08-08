@@ -4,6 +4,32 @@ A public dev-log in Italian, one article per milestone, living in `docs/devlog/0
 
 It is written from a **fragment pile** that accumulates during implementation, not reconstructed from the diff at the end. The diff records what changed; it does not record what was surprising, what was thrown away, or why a choice was hard.
 
+## Front matter
+
+Every article opens with YAML front matter — the de-facto convention across Jekyll, Hugo, Astro and Eleventy, so the files stay portable if the dev-log ever becomes a blog.
+
+```yaml
+---
+title: "Venticinque anni per cancellare una sottoclasse"
+description: "Riscrivo in TypeScript un acquario in C# di venticinque anni fa. Quattro giri di brainstorming con due modelli: un design rigoroso, e tre bug che nessun test boccia."
+date: 2026-08-07
+authors:
+  - Fabio Lazzaroni
+  - Claude
+tags:
+  - artificial-life
+  - simulation
+lang: it
+---
+```
+
+- `title` — the article title, quoted. The `# ` heading stays in the body as well, since GitHub is the current renderer. Drop it only once a generator renders the title from front matter.
+- `description` — one or two sentences, in Italian, quoted. This is the card text on an index page and the `<meta name="description">`, so keep it under ~160 characters: search results truncate past that. It is a hook, not a summary — it says what the article is *about*, and it may not repeat the title.
+- `date` — publication date, `YYYY-MM-DD`. Never edited afterwards; add `updated:` alongside it if an article is ever revised post-publication.
+- `authors` — a list, human first. `Claude` without a model version: the byline should not go stale every model release.
+- `tags` — lowercase kebab-case, English, 4–6 per article. English because tags are domain terms, and domain terms stay in their glossary form even in Italian prose.
+- `lang` — `it`, per the language exception below.
+
 ## Capture fragments as you go
 
 `/implement` clears context between tickets. A noticing that isn't written to disk is gone by the next session — so it has to land in a file the moment it happens.
