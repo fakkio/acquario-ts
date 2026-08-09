@@ -101,6 +101,8 @@ This is the decision that most affects whether an entry reads to someone outside
 
 `writing-fragments`, `writing-beats` and `writing-shape` are **not referenced by the `ask-matt` map**, so they sit outside the maintained flow. `/edit-article` vanished in an upstream update with no warning, and these can too.
 
+`/edit-article` has since resurfaced at `.agents/skills/edit-article`, but stays out of this flow: it's a generic, non-pedagogical clarity pass, not a substitute for `writing-shape`'s block-by-block argument in step 4. Reach for it directly on other docs — a README, an ADR — that don't carry the teaching goal above.
+
 The steps above are therefore written as **jobs**, with skill names as the current implementation. If a name changes, fix the parenthetical and leave the convention alone.
 
 ## Cross-references
