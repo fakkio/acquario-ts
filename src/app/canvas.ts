@@ -1,8 +1,8 @@
-export function mountCanvas(doc: Document): HTMLCanvasElement {
-  const canvas = doc.createElement("canvas");
+export function mountCanvas(): HTMLCanvasElement {
+  const canvas = document.createElement("canvas");
   canvas.width = window.innerWidth;
   canvas.height = window.innerHeight;
-  doc.body.appendChild(canvas);
+  document.body.appendChild(canvas);
 
   window.addEventListener("resize", () => {
     canvas.width = window.innerWidth;
