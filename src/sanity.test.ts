@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import {describe, expect, it} from "vitest";
 
 describe("toolchain", () => {
   it("runs a passing test through Vitest", () => {

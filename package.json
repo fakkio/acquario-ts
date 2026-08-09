@@ -6,25 +6,6 @@
   "bugs": {
     "url": "https://github.com/fakkio/acquario-ts/issues"
   },
-  "directories": {
-    "doc": "docs"
-  },
-  "homepage": "https://github.com/fakkio/acquario-ts#readme",
-  "license": "ISC",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/fakkio/acquario-ts.git"
-  },
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "lint": "eslint .",
-    "prepare": "husky"
-  },
-  "type": "module",
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.8.1",
@@ -36,8 +17,30 @@
     "vite": "^8.2.1",
     "vitest": "^4.1.10"
   },
+  "directories": {
+    "doc": "docs"
+  },
+  "homepage": "https://github.com/fakkio/acquario-ts#readme",
+  "license": "ISC",
   "lint-staged": {
     "*.{js,mjs,cjs,ts,tsx}": "eslint --fix",
     "*": "prettier --ignore-unknown --write"
-  }
+  },
+  "main": "index.js",
+  "prettier": {
+    "bracketSpacing": false
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fakkio/acquario-ts.git"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "lint": "eslint .",
+    "prepare": "husky",
+    "preview": "vite preview",
+    "test": "vitest run"
+  },
+  "type": "module"
 }

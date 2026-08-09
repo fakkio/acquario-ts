@@ -1,3 +1,3 @@
-import { mountCanvas } from "./app/canvas";
+import {mountCanvas} from "./app/canvas";
 
 mountCanvas();
