@@ -1,0 +1,48 @@
+{
+  "name": "acquario-ts",
+  "description": "",
+  "version": "0.0.2",
+  "author": "fakkio (fabiolazzaroni.dev)",
+  "bugs": {
+    "url": "https://github.com/fakkio/acquario-ts/issues"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
+    "eslint": "^10.8.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.3.0",
+    "prettier": "^3.9.6",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.66.0",
+    "vite": "^8.2.1",
+    "vitest": "^4.1.10"
+  },
+  "directories": {
+    "doc": "docs"
+  },
+  "homepage": "https://github.com/fakkio/acquario-ts#readme",
+  "license": "ISC",
+  "lint-staged": {
+    "*.{js,mjs,cjs,ts,tsx}": "eslint --fix",
+    "*": "prettier --ignore-unknown --write"
+  },
+  "main": "index.js",
+  "prettier": {
+    "bracketSpacing": false
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fakkio/acquario-ts.git"
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "lint": "eslint .",
+    "prepare": "husky",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "type": "module"
+}
