@@ -8,17 +8,24 @@ export interface CameraController {
   getCamera(): Camera;
 }
 
+interface Point {
+  readonly x: number;
+  readonly y: number;
+}
+
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 8;
 
 /**
- * Untested per M0's TDD policy (DOM input handling) — mouse drag pans,
- * wheel zooms toward the cursor. Listens on `canvas` for the gestures that
- * start there, but on `window` for move/up so a drag doesn't break when the
- * pointer leaves the canvas mid-gesture; nothing here reaches into `World`.
- * `onChange` fires after every pan/zoom update so the caller can repaint
- * immediately even while the sim is paused — camera motion is independent
- * of `World` ticks.
+ * Untested per M0's TDD policy (DOM input handling) — mouse drag or a
+ * single touch pans, wheel or a two-finger pinch zooms toward the
+ * cursor/pinch midpoint. Mouse move/up listen on `window` so a drag doesn't
+ * break when the pointer leaves the canvas mid-gesture; touch move/end stay
+ * on `canvas` since, unlike mouse events, they keep firing on their original
+ * target regardless of where the finger moves. Nothing here reaches into
+ * `World`. `onChange` fires after every pan/zoom update so the caller can
+ * repaint immediately even while the sim is paused — camera motion is
+ * independent of `World` ticks.
  */
 export function mountCamera(
   canvas: HTMLCanvasElement,
@@ -30,6 +37,22 @@ export function mountCamera(
   let dragging = false;
   let lastClientX = 0;
   let lastClientY = 0;
+  const activeTouches = new Map<number, Point>();
+  let pinchStartDistance = 0;
+  let pinchStartScale = 1;
+
+  const panBy = (dx: number, dy: number): void => {
+    offsetX += dx;
+    offsetY += dy;
+    onChange();
+  };
+
+  const zoomAt = (point: Point, nextScale: number): void => {
+    offsetX = point.x - ((point.x - offsetX) * nextScale) / scale;
+    offsetY = point.y - ((point.y - offsetY) * nextScale) / scale;
+    scale = nextScale;
+    onChange();
+  };
 
   canvas.addEventListener("mousedown", (event) => {
     dragging = true;
@@ -42,11 +65,9 @@ export function mountCamera(
       return;
     }
 
-    offsetX += event.clientX - lastClientX;
-    offsetY += event.clientY - lastClientY;
+    panBy(event.clientX - lastClientX, event.clientY - lastClientY);
     lastClientX = event.clientX;
     lastClientY = event.clientY;
-    onChange();
   });
 
   window.addEventListener("mouseup", () => {
@@ -59,22 +80,102 @@ export function mountCamera(
       event.preventDefault();
 
       const rect = canvas.getBoundingClientRect();
-      const pointerX = event.clientX - rect.left;
-      const pointerY = event.clientY - rect.top;
-
       const nextScale = clamp(
         scale * Math.exp(-event.deltaY * 0.001),
         MIN_SCALE,
         MAX_SCALE,
       );
 
-      offsetX = pointerX - ((pointerX - offsetX) * nextScale) / scale;
-      offsetY = pointerY - ((pointerY - offsetY) * nextScale) / scale;
-      scale = nextScale;
-      onChange();
+      zoomAt(
+        {x: event.clientX - rect.left, y: event.clientY - rect.top},
+        nextScale,
+      );
     },
     {passive: false},
   );
+
+  const touchPoint = (touch: Touch, rect: DOMRect): Point => ({
+    x: touch.clientX - rect.left,
+    y: touch.clientY - rect.top,
+  });
+
+  const distance = (a: Point, b: Point): number =>
+    Math.hypot(a.x - b.x, a.y - b.y);
+
+  const midpoint = (a: Point, b: Point): Point => ({
+    x: (a.x + b.x) / 2,
+    y: (a.y + b.y) / 2,
+  });
+
+  const startPinch = (): void => {
+    const [a, b] = [...activeTouches.values()];
+    pinchStartDistance = distance(a, b);
+    pinchStartScale = scale;
+  };
+
+  canvas.addEventListener(
+    "touchstart",
+    (event) => {
+      event.preventDefault();
+
+      const rect = canvas.getBoundingClientRect();
+      for (const touch of event.changedTouches) {
+        activeTouches.set(touch.identifier, touchPoint(touch, rect));
+      }
+
+      if (activeTouches.size === 2) {
+        startPinch();
+      }
+    },
+    {passive: false},
+  );
+
+  canvas.addEventListener(
+    "touchmove",
+    (event) => {
+      event.preventDefault();
+
+      const rect = canvas.getBoundingClientRect();
+      const previousTouches = new Map(activeTouches);
+      for (const touch of event.changedTouches) {
+        activeTouches.set(touch.identifier, touchPoint(touch, rect));
+      }
+
+      if (activeTouches.size === 1) {
+        const [[id, point]] = [...activeTouches.entries()];
+        const previousPoint = previousTouches.get(id);
+        if (previousPoint) {
+          panBy(point.x - previousPoint.x, point.y - previousPoint.y);
+        }
+      } else if (activeTouches.size === 2) {
+        const [a, b] = [...activeTouches.values()];
+        const nextScale =
+          pinchStartDistance > 0
+            ? clamp(
+                (distance(a, b) / pinchStartDistance) * pinchStartScale,
+                MIN_SCALE,
+                MAX_SCALE,
+              )
+            : scale;
+
+        zoomAt(midpoint(a, b), nextScale);
+      }
+    },
+    {passive: false},
+  );
+
+  const endTouch = (event: TouchEvent): void => {
+    for (const touch of event.changedTouches) {
+      activeTouches.delete(touch.identifier);
+    }
+
+    if (activeTouches.size === 2) {
+      startPinch();
+    }
+  };
+
+  canvas.addEventListener("touchend", endTouch);
+  canvas.addEventListener("touchcancel", endTouch);
 
   return {
     getCamera() {
