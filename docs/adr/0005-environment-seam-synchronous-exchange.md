@@ -4,10 +4,10 @@ Metabolic code never touches a pool. It talks to an `Environment` whose signatur
 
 ```ts
 interface Environment {
-  concentration(resource: Resource, pos: Vec2): number
-  light(pos: Vec2): number
+  concentration(resource: Resource, pos: Vec2): number;
+  light(pos: Vec2): number;
   // returns the amount ACTUALLY exchanged, which may be less than requested
-  exchange(resource: Resource, pos: Vec2, amount: number): number
+  exchange(resource: Resource, pos: Vec2, amount: number): number;
 }
 ```
 
@@ -19,6 +19,6 @@ Writing metabolism directly against the global pools and refactoring when fluids
 
 ## Consequences
 
-- `exchange` returning the amount *actually* transferred looks pointless against an effectively infinite pool, but it forces the partial-fulfilment path to exist from day one — otherwise every routine acquires a hidden assumption that breaks the day a fluid cell runs dry.
+- `exchange` returning the amount _actually_ transferred looks pointless against an effectively infinite pool, but it forces the partial-fulfilment path to exist from day one — otherwise every routine acquires a hidden assumption that breaks the day a fluid cell runs dry.
 - A tick is order-independent: reorder the population and results are bit-identical. This composes with per-organism PRNG streams (ADR-0007) and keeps the WebGPU path open.
 - The proportional-scaling rule is the same code needed later when a single fluid cell is exhausted.

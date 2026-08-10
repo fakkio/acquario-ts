@@ -11,4 +11,4 @@ Adding sinking, so that body size determines equilibrium depth and couples the o
 - Depth is not under genetic control in v0.1; the doc's earlier claim that light "introduces a natural selective pressure" is only true in a weaker, lineage-level sense.
 - What light does provide: spatial heterogeneity of income, and a **positional founder effect** — because children are born tangent to their parents, position is quasi-heritable and a lineage in the photic zone passes on the good address.
 - Two strategies exist from one genome: organisms in the light fix carbon, organisms in the dark subsist on dissolved food that corpses put into the pool.
-- Combined with Stokes drag (ADR-0008), large organisms wander slowly and stay where born, so size means *higher variance* in lifetime light income.
+- Combined with Stokes drag (ADR-0008), large organisms wander slowly and stay where born, so size means _higher variance_ in lifetime light income.

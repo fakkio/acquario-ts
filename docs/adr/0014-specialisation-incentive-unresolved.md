@@ -24,7 +24,7 @@ Recorded so the question does not restart from zero in v0.2.
 
 - **Drop sublinearity, make effectiveness superlinear in size.** Rejected above: it destroys the size/number trade-off.
 
-- **A flat overhead per *capability*, not per organelle.** Holding any photosynthetic machinery at all costs a fixed amount, so a generalist pays two overheads and a specialist one. Sublinearity in size survives untouched; what gets rewarded is abandoning a whole pathway rather than enlarging one organelle. This is the same shape as the existence cost in ADR-0009 — a flat term is what creates an interior optimum there too — which is weak evidence it is the right shape here.
+- **A flat overhead per _capability_, not per organelle.** Holding any photosynthetic machinery at all costs a fixed amount, so a generalist pays two overheads and a specialist one. Sublinearity in size survives untouched; what gets rewarded is abandoning a whole pathway rather than enlarging one organelle. This is the same shape as the existence cost in ADR-0009 — a flat term is what creates an interior optimum there too — which is weak evidence it is the right shape here.
 
 - **Ecological rather than physiological.** Let specialisation pay through the environment: light is spatially heterogeneous, and producers vent the O₂ that consumers need. Niches then come from the world rather than from a cost curve. Requires the v0.2 spatial fluid simulation to be meaningful, since well-mixed pools erase exactly the gradients this depends on.
 

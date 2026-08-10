@@ -10,7 +10,7 @@ Convergence on a number predicted in advance is the strong form of the test: dri
 
 ## Considered options
 
-A `selectionDisabled` control mode — reproduction on a timer, ignoring the energy gate — as a null model to compare gene distributions against. Dropped: the analytic `r_opt` prediction is a strictly stronger control for less code, since a null model can only show that *something* differs, while the closed form says exactly where the population should land.
+A `selectionDisabled` control mode — reproduction on a timer, ignoring the energy gate — as a null model to compare gene distributions against. Dropped: the analytic `r_opt` prediction is a strictly stronger control for less code, since a null model can only show that _something_ differs, while the closed form says exactly where the population should land.
 
 ## Consequences
 

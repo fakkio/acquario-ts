@@ -4,7 +4,7 @@ Motion is overdamped: velocity is proportional to force rather than to its deriv
 
 ## Considered options
 
-Inertia, friction and bouncing collisions, as the earlier draft specified. Rejected on physical grounds: at the scale of microorganisms in water, inertia is irrelevant — Purcell's *Life at Low Reynolds Number* — and a bacterium that stops swimming coasts roughly an atom's width. Momentum-based motion is not a simplification of that world, it is a different one.
+Inertia, friction and bouncing collisions, as the earlier draft specified. Rejected on physical grounds: at the scale of microorganisms in water, inertia is irrelevant — Purcell's _Life at Low Reynolds Number_ — and a bacterium that stops swimming coasts roughly an atom's width. Momentum-based motion is not a simplification of that world, it is a different one.
 
 Dropping collisions from v0.1 entirely was also considered, since nothing yet has a reason to interact. Rejected because light is the only spatially localised resource, so volume exclusion is what makes the photic zone finite and the only way one organism's existence costs another anything. Without it v0.1 has zero organism–organism interaction and the uniform grid is untestable dead code.
 
