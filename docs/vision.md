@@ -23,18 +23,18 @@ This document describes **what AcquarioTS is**. The reasoning behind each contes
 
 Every advanced capability is implemented as an organelle.
 
-| Capability | Organelle |
-| --- | --- |
-| Sight | Eye |
-| Processing | Neuron |
-| Movement | Thruster |
-| Photosynthesis | Chloroplast |
-| Advanced respiration | Lung / Gill |
-| Sexual reproduction | Gonad |
-| Egg laying | Uterus |
-| Defence | Carapace |
-| Attack | Teeth / Spines |
-| Storage | Vesicle |
+| Capability           | Organelle      |
+| -------------------- | -------------- |
+| Sight                | Eye            |
+| Processing           | Neuron         |
+| Movement             | Thruster       |
+| Photosynthesis       | Chloroplast    |
+| Advanced respiration | Lung / Gill    |
+| Sexual reproduction  | Gonad          |
+| Egg laying           | Uterus         |
+| Defence              | Carapace       |
+| Attack               | Teeth / Spines |
+| Storage              | Vesicle        |
 
 Organisms can survive with no organelles at all. Organelles are evolutionary optimisations of capabilities every organism already has.
 
@@ -62,13 +62,13 @@ In v0.1 every organism is a circle. A body has position, velocity, rotation and 
 
 ### Organelles
 
-*(v0.2+ — no organelles exist in v0.1.)*
+_(v0.2+ — no organelles exist in v0.1.)_
 
 Each organelle is a circle with a type, a position relative to the body centre, a radius, an orientation and type-specific parameters. Size determines both energy cost and effectiveness: a larger lung holds more gas, a larger thruster produces more thrust, a larger eye sees further.
 
 ### Body construction
 
-*(v0.2+.)* The genome defines organelle layout. When an organism is generated:
+_(v0.2+.)_ The genome defines organelle layout. When an organism is generated:
 
 1. organelles are created
 2. overlaps are detected
@@ -88,7 +88,7 @@ In v0.1 these stores are independent rather than competing for one shared volume
 cap(resource) = kCap × bodyArea
 ```
 
-Because a cap scales with area, it is really a maximum internal *concentration*. Direct competition for a single internal volume is deferred to a later version.
+Because a cap scales with area, it is really a maximum internal _concentration_. Direct competition for a single internal volume is deferred to a later version.
 
 ---
 
@@ -148,10 +148,10 @@ Organisms never touch a pool directly. They talk to an `Environment` whose signa
 
 ```ts
 interface Environment {
-  concentration(resource: Resource, pos: Vec2): number
-  light(pos: Vec2): number
+  concentration(resource: Resource, pos: Vec2): number;
+  light(pos: Vec2): number;
   // returns the amount ACTUALLY exchanged, which may be less than requested
-  exchange(resource: Resource, pos: Vec2, amount: number): number
+  exchange(resource: Resource, pos: Vec2, amount: number): number;
 }
 ```
 
@@ -179,11 +179,11 @@ On death:
 
 ### Predation
 
-*(v0.2+.)* Organisms will be able to obtain energy by eating other organisms. This requires dedicated organelles and behaviour.
+_(v0.2+.)_ Organisms will be able to obtain energy by eating other organisms. This requires dedicated organelles and behaviour.
 
 ### Scavenging
 
-*(v0.2+.)* Corpses will persist as entities releasing organic matter that can be consumed. In v0.1 this is simplified to instant conversion to food on death; a corpse only becomes worth modelling once something exists that can interact with it.
+_(v0.2+.)_ Corpses will persist as entities releasing organic matter that can be consumed. In v0.1 this is simplified to instant conversion to food on death; a corpse only becomes worth modelling once something exists that can interact with it.
 
 ---
 
@@ -225,7 +225,7 @@ The `c₀/r²` term is what prevents a race to zero: without a flat cost, smalle
 
 ### Organelle costs
 
-*(v0.2+.)* Each organelle pays a **flat overhead plus an area-scaled cost**, with sublinear effectiveness. That combination is what makes the size/number trade-off real: many small organelles pay many fixed overheads, while one large organelle pays a single overhead but suffers diminishing returns. Where the balance falls depends on the organelle type — which is exactly the variety worth having.
+_(v0.2+.)_ Each organelle pays a **flat overhead plus an area-scaled cost**, with sublinear effectiveness. That combination is what makes the size/number trade-off real: many small organelles pay many fixed overheads, while one large organelle pays a single overhead but suffers diminishing returns. Where the balance falls depends on the organelle type — which is exactly the variety worth having.
 
 Position matters too: an eye near the centre sees almost omnidirectionally, an eye near the rim sees a narrow, specialised cone.
 
@@ -235,17 +235,17 @@ Sublinear effectiveness has a known tension with the goal of producers and consu
 
 ## Nervous system
 
-*(v0.2+.)*
+_(v0.2+.)_
 
 ### Philosophy
 
-No layered neural networks. The target is evolved recurrent networks whose *topology* is inspired by liquid state machines, reservoir computing and recurrent neural networks: sparse, recurrent, not organised into layers.
+No layered neural networks. The target is evolved recurrent networks whose _topology_ is inspired by liquid state machines, reservoir computing and recurrent neural networks: sparse, recurrent, not organised into layers.
 
 These references concern topology only, not learning. There is no training within an organism's lifetime — no trained readout, no backpropagation. Every network parameter changes solely through mutation between generations, exactly like any other gene.
 
 ### Neurons
 
-Neurons are organelles. Updates are synchronous: at each tick every neuron computes its new output from the *previous* tick's outputs of its source neurons, which is necessary because a recurrent network has cycles and therefore no valid topological order.
+Neurons are organelles. Updates are synchronous: at each tick every neuron computes its new output from the _previous_ tick's outputs of its source neurons, which is necessary because a recurrent network has cycles and therefore no valid topological order.
 
 ```text
 inputSum   = bias + Σ (weightᵢ × previousOutput(sourceᵢ))
@@ -269,7 +269,7 @@ Organelles can have inputs and outputs: eyes produce sensory signals, thrusters 
 
 ## Sight
 
-*(v0.2+.)*
+_(v0.2+.)_
 
 Eyes observe a vision cone whose shape depends on the eye's position: closer to the rim means narrower and more specialised, closer to the centre means broader coverage and less specialisation. Viewing distance depends on eye size.
 
@@ -301,7 +301,7 @@ In v0.1 the only force is brownian. Rotation follows the same law with rotationa
 
 A consequence worth stating: an organism that stops pushing stops immediately. There is no coasting, and inertial gliding can never become an evolvable strategy.
 
-Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means *higher variance* in lifetime light income.
+Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means _higher variance_ in lifetime light income.
 
 ### Collisions
 
@@ -311,7 +311,7 @@ Collisions are not decoration. Light is the only spatially localised resource in
 
 ### Thrusters
 
-*(v0.2+.)* Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed.
+_(v0.2+.)_ Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed.
 
 ---
 
@@ -325,7 +325,7 @@ A vertical gradient, strongest at the surface and weakest at depth.
 
 **v0.1**: no spatial fluid grid. O₂, CO₂ and food are global well-mixed pools.
 
-**v0.2+**: O₂ and CO₂ become spatial fields simulated with a simple fluid solver, following *Real-Time Fluid Dynamics for Games* (Jos Stam) and *Fluid Simulation for Dummies* (Mike Ash).
+**v0.2+**: O₂ and CO₂ become spatial fields simulated with a simple fluid solver, following _Real-Time Fluid Dynamics for Games_ (Jos Stam) and _Fluid Simulation for Dummies_ (Mike Ash).
 
 ### Boundaries
 
@@ -354,7 +354,7 @@ The child's body mass is paid out of the parent's internal food store — matter
 
 Further details:
 
-- the child's genome is mutated *before* its area, costs and caps are computed
+- the child's genome is mutated _before_ its area, costs and caps are computed
 - `childAllocationRatio` is a single gene shared by all internal resources
 - if a child cannot hold its full allocation, it receives up to its own caps and the excess stays with the parent
 - the child is born tangent to the parent at a random angle; any residual overlap is resolved by the normal collision system
@@ -368,7 +368,7 @@ Each organism's initial internal resources are set by configurable global fill r
 
 ### Sexual reproduction
 
-*(v0.2+.)* Requires dedicated organelles. Possible strategies include direct fertilisation, gamete release, egg laying, internal gestation and seeds. Crossover will be defined together with the final genome structure.
+_(v0.2+.)_ Requires dedicated organelles. Possible strategies include direct fertilisation, gamete release, egg laying, internal gestation and seeds. Crossover will be defined together with the final genome structure.
 
 ---
 
@@ -378,12 +378,12 @@ Each organism's initial internal resources are set by configurable global fill r
 
 The v0.1 genome is a minimal organism-level record, not yet the structural `Gene[]`:
 
-| Gene | Range | Mutation | Role |
-| --- | --- | --- | --- |
-| `bodyRadius` | > 0 | multiplicative | body size |
-| `mitosisEnergyThreshold` | `[0, 1]` | additive, clamped | fraction of energy cap before reproducing |
-| `childAllocationRatio` | `[0, 1]` | additive, clamped | share of remaining resources given to a child |
-| `lineageHue` | `[0, 1)` | additive drift, wrapping | neutral visual marker |
+| Gene                     | Range    | Mutation                 | Role                                          |
+| ------------------------ | -------- | ------------------------ | --------------------------------------------- |
+| `bodyRadius`             | > 0      | multiplicative           | body size                                     |
+| `mitosisEnergyThreshold` | `[0, 1]` | additive, clamped        | fraction of energy cap before reproducing     |
+| `childAllocationRatio`   | `[0, 1]` | additive, clamped        | share of remaining resources given to a child |
+| `lineageHue`             | `[0, 1)` | additive drift, wrapping | neutral visual marker                         |
 
 Both reproduction genes are dimensionless ratios. Making them fractions rather than absolute amounts is what keeps them independent of `bodyRadius` and makes sterile lineages impossible.
 
@@ -472,7 +472,7 @@ Steps 3–5 are purely internal, so the metabolic core is order-independent by c
 
 Newborns are appended at step 12 and are therefore **inert for their first tick** — the current iteration never sees them, which rules out half-initialised organisms metabolising and birth cascades within one tick.
 
-Deaths are applied at step 11, before births at step 12, deliberately: a corpse's carbon lands in the pool for the *next* tick's diffusion. Every carbon transfer within a tick is one-directional, which makes the conservation assertion checkable at exactly one point — the end of step 13.
+Deaths are applied at step 11, before births at step 12, deliberately: a corpse's carbon lands in the pool for the _next_ tick's diffusion. Every carbon transfer within a tick is one-directional, which makes the conservation assertion checkable at exactly one point — the end of step 13.
 
 In v0.2 the missing steps (eyes, neurons, active organelles, thrust) slot in between steps 5 and 6.
 
@@ -584,14 +584,14 @@ Non-dimensionalise rather than guess. Fix `kCap = 1` (defining the concentration
 
 Each milestone is independently runnable and adds exactly one invariant. The ordering exists so that a broken invariant has one possible cause.
 
-| # | Branch | Ships | Invariant added |
-| --- | --- | --- | --- |
-| M0 | `feature/simulation-skeleton` | toolchain; fixed-step accumulator with catch-up cap; seeded PRNG and per-organism streams; canvas, pan/zoom, play/pause/step, HUD shell | same seed ⇒ same state hash |
-| M1 | `feature/bodies-and-motion` | organism circles, Stokes drag and brownian motion, uniform grid, positional separation, walls, `lineageHue` rendering | no overlaps after resolution; correct grid queries |
-| M2 | `feature/metabolism` | `Environment` seam, pools, light LUT, signed diffusion, photosynthesis, respiration, maintenance, caps — **fixed, immortal population** | carbon and oxygen conserved over 100k ticks |
-| M3 | `feature/death` | death by starvation; mass and contents returned to pools | conservation survives death |
-| M4 | `feature/reproduction` | genome, mutation, mitosis costs, allocation, tangent birth, baseline population | conservation survives birth |
-| M5 | `feature/calibration` | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs | population converges to predicted `r_opt` |
+| #   | Branch                        | Ships                                                                                                                                   | Invariant added                                    |
+| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| M0  | `feature/simulation-skeleton` | toolchain; fixed-step accumulator with catch-up cap; seeded PRNG and per-organism streams; canvas, pan/zoom, play/pause/step, HUD shell | same seed ⇒ same state hash                        |
+| M1  | `feature/bodies-and-motion`   | organism circles, Stokes drag and brownian motion, uniform grid, positional separation, walls, `lineageHue` rendering                   | no overlaps after resolution; correct grid queries |
+| M2  | `feature/metabolism`          | `Environment` seam, pools, light LUT, signed diffusion, photosynthesis, respiration, maintenance, caps — **fixed, immortal population** | carbon and oxygen conserved over 100k ticks        |
+| M3  | `feature/death`               | death by starvation; mass and contents returned to pools                                                                                | conservation survives death                        |
+| M4  | `feature/reproduction`        | genome, mutation, mitosis costs, allocation, tangent birth, baseline population                                                         | conservation survives birth                        |
+| M5  | `feature/calibration`         | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs                                                     | population converges to predicted `r_opt`          |
 
 M2 runs with a fixed, immortal population on purpose: metabolism is where conservation bugs live, and isolating a leak is far easier with `N` pinned. M3 and M4 then each add exactly one new way to move mass.
 

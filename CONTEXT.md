@@ -8,7 +8,7 @@ The full design lives in [`docs/vision.md`](./docs/vision.md); decisions and the
 
 Code, documentation, ADRs and commit messages are written in English, using the terms defined below.
 
-The dev-log in [`docs/devlog/`](./docs/devlog/) is the one deliberate exception: it is written in Italian. It is public-facing prose about the project rather than documentation of it, so it follows its audience rather than the codebase. Its English domain terms stay in English — an *organism* is not a *creatura*.
+The dev-log in [`docs/devlog/`](./docs/devlog/) is the one deliberate exception: it is written in Italian. It is public-facing prose about the project rather than documentation of it, so it follows its audience rather than the codebase. Its English domain terms stay in English — an _organism_ is not a _creatura_.
 
 ### Life
 
@@ -47,7 +47,7 @@ The gene, in `[0, 1]`, giving the fraction of its energy cap an organism must re
 _Avoid_: reproduction threshold, breeding energy
 
 **Child Allocation Ratio**:
-The gene, in `[0, 1]`, giving the fraction of the parent's *remaining* internal resources handed to a child after the mitosis costs are paid.
+The gene, in `[0, 1]`, giving the fraction of the parent's _remaining_ internal resources handed to a child after the mitosis costs are paid.
 _Avoid_: split ratio, inheritance ratio
 
 **Lineage Hue**:
@@ -65,11 +65,11 @@ One of the four quantities an organism holds internally: `energy`, `oxygen`, `ca
 _Avoid_: substance, material, nutrient
 
 **Food**:
-Fixed carbon. The currency of *matter* — bodies are built from it, and it is modelled as pure carbon.
+Fixed carbon. The currency of _matter_ — bodies are built from it, and it is modelled as pure carbon.
 _Avoid_: biomass, nutrient, organic matter, sugar
 
 **Energy**:
-The currency of *work* — paid for existing, maintaining a body and reproducing. Produced only by respiration, never conserved.
+The currency of _work_ — paid for existing, maintaining a body and reproducing. Produced only by respiration, never conserved.
 _Avoid_: ATP, fuel, calories
 
 **Photosynthesis**:
