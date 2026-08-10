@@ -82,6 +82,14 @@ export function advance(world: World, elapsedMs: number): AdvanceResult {
   };
 }
 
+export function getTick(world: World): number {
+  return toState(world).tick;
+}
+
+export function getSeed(world: World): number {
+  return toState(world).seed;
+}
+
 export function hashState(world: World): string {
   const state = toState(world);
   const input = `${String(state.seed)}|${String(state.tick)}|${String(state.globalRng.state)}`;
