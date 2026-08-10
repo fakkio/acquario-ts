@@ -23,11 +23,14 @@ const loop = createRenderLoop({
 renderWorld(ctx, canvas, world);
 
 const controls = mountControls();
-controls.playButton.addEventListener("click", () => {
-  loop.play();
-});
-controls.pauseButton.addEventListener("click", () => {
-  loop.pause();
+controls.playPauseButton.addEventListener("click", () => {
+  if (loop.isRunning()) {
+    loop.pause();
+    controls.playPauseButton.textContent = "Play";
+  } else {
+    loop.play();
+    controls.playPauseButton.textContent = "Pause";
+  }
 });
 controls.stepButton.addEventListener("click", () => {
   loop.step();
