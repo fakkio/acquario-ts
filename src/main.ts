@@ -1,3 +1,4 @@
+import {mountCamera} from "./app/camera";
 import {mountCanvas} from "./app/canvas";
 import {mountControls} from "./app/controls";
 import {mountHud} from "./app/hud";
@@ -13,6 +14,7 @@ if (!ctx) {
 
 const seed = Date.now() >>> 0;
 const world = createWorld(seed);
+let latestWorld = world;
 
 const hud = mountHud();
 const updateHud = (currentWorld: World): void => {
@@ -20,15 +22,20 @@ const updateHud = (currentWorld: World): void => {
   hud.setField("seed", "Seed", String(getSeed(currentWorld)));
 };
 
+const camera = mountCamera(canvas, () => {
+  renderWorld(ctx, canvas, latestWorld, camera.getCamera());
+});
+
 const loop = createRenderLoop({
   world,
   onAdvance: (nextWorld) => {
-    renderWorld(ctx, canvas, nextWorld);
+    latestWorld = nextWorld;
+    renderWorld(ctx, canvas, nextWorld, camera.getCamera());
     updateHud(nextWorld);
   },
 });
 
-renderWorld(ctx, canvas, world);
+renderWorld(ctx, canvas, world, camera.getCamera());
 updateHud(world);
 
 const controls = mountControls();
