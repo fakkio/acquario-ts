@@ -42,13 +42,19 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
 
   return {
     play() {
-      if (running) return;
+      if (running) {
+        return;
+      }
+
       running = true;
       lastTimestampMs = null;
       frameHandle = requestFrame(onFrame);
     },
     pause() {
-      if (!running) return;
+      if (!running) {
+        return;
+      }
+
       running = false;
       if (frameHandle !== null) {
         cancelFrame(frameHandle);
@@ -56,7 +62,10 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
       }
     },
     step() {
-      if (running) return;
+      if (running) {
+        return;
+      }
+
       ({world} = advance(world, FIXED_DT_MS));
       options.onAdvance(world);
     },
