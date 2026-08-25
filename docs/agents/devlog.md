@@ -34,30 +34,53 @@ lang: it
 
 `/implement` clears context between tickets. A noticing that isn't written to disk is gone by the next session — so it has to land in a file the moment it happens.
 
-The pile for the milestone in progress lives at `docs/devlog/fragments/00N-<slug>.md`, and is committed alongside the code.
+The pile for the milestone in progress lives at `docs/devlog/fragments/00N-<slug>.md`, and is committed alongside the code. If it does not exist yet, create it with a working slug at the first offer — a missing filename is never a reason to skip the checkpoint below.
 
-### When to offer
+### The checkpoint
 
-When a **notable choice** lands — one made by the agent, by Fabio, or jointly — offer to capture it:
+**Every ticket ends by asking, out loud: _where did reality differ from the plan?_**
 
-> _This feels like dev-log material. Shall I run `/writing-fragments` on `docs/devlog/fragments/002-bodies-and-motion.md`?_
+Ask it after the last test goes green and before the commit. Do not carry it as a standing intention to be exercised whenever something feels notable — M0 shipped with an empty pile precisely because there was no fixed moment at which the question had to be answered. It is a step, at a fixed point, and it gets an answer either way:
+
+- Something differed → **offer** to capture it.
+- Genuinely nothing differed → say so in one line, and move on.
+
+Silence is not an acceptable answer to the checkpoint, because an unasked question is indistinguishable from a question answered "no".
+
+The offer itself:
+
+> _This feels like dev-log material. Shall I run `/writing-fragments` on `docs/devlog/fragments/002-m0-skeleton.md`?_
 
 Then stop and wait. Never start the skill unasked, and never write to the pile directly — `/writing-fragments` is a grilling session whose whole value is the material it pulls out of Fabio. An agent silently appending its own summary produces the pile's worst possible content.
+
+### What clears the bar
 
 A choice is notable when at least one of these holds:
 
 - **It could have gone the other way.** A real alternative was considered and rejected for a reason worth stating.
-- **The naive version would have been wrong, and wrong invisibly.** Especially where a bug would have looked like working behaviour — the recurring theme of this project.
-- **It surprised someone.** A closed-form result, a profile that contradicted the guess, a test that failed for an interesting reason.
+- **The naive version would have been wrong, and wrong invisibly.** Especially where a bug would have looked like working behaviour.
+- **It surprised someone.** Anything that contradicted the guess.
 - **It was funny, or a dead end.** Dead ends are good dev-log material and terrible ADR material.
+
+**Calibrate on implementation, not on design.** The examples this project reaches for by instinct — a closed-form result, a conservation law that turned into the best bug detector in the codebase — come from the design phase and are unusually large. Measuring an ordinary milestone against them is how a milestone comes to feel like it contained nothing. Every one of these is from M0, and every one clears the bar:
+
+- an approach built half-way and then abandoned (`ba708d0`, a `Document` injection dropped from `mountCanvas`)
+- a decision made and then reversed (`3aa0d6c`, two buttons merged into one toggle)
+- a fiddly setting flipped, with the whole repo reformatted behind it (`575dd59`, `b73edfa`)
+- a dependency taken on for a use that has not arrived yet (`10b0685`, Playwright)
+- scope widened mid-flight (`7c770d0`, touch support on pan and zoom)
+
+None of them is momentous. All of them are a story: something was tried, something was learned, something changed.
 
 If the choice is also **hard to reverse**, it wants an ADR _as well_ — the two are not substitutes. An ADR records the decision for future engineers; a fragment records the story for readers. Write the ADR via `/domain-modeling`, offer the fragment separately.
 
 ### When not to offer
 
-Routine implementation, style, and naming choices. Anything already fully stated in an ADR or in `vision.md` — the pile is for what those documents don't hold. If offering would interrupt a red-green cycle, wait until the cycle closes.
+When the work genuinely has no story behind it: the plan was made, the plan was followed, nothing was learned. Note that this is a claim about **this specific piece of work**, not about a category of work — "routine implementation" is where most of M0's lost material was, and excluding it by category is what lost it.
 
-Offering twice in one ticket is almost always too often.
+Anything already fully stated in an ADR or in `vision.md` — the pile is for what those documents don't hold. If offering would interrupt a red-green cycle, wait until the cycle closes.
+
+Offering twice in one ticket is almost always too often. But a milestone that reaches its end with an empty pile is a **defect, not a neutral outcome** — surface it before the article is written. The fallback is a recovery session interrogating the commit log weeks later, which is a much worse substitute for having been there.
 
 ## Shaping the article
 

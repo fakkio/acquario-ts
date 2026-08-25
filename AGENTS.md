@@ -24,7 +24,7 @@ Conventional Commits structure with a gitmoji in place of the type word. See `do
 
 ### Dev-log
 
-One Italian article per milestone in `docs/devlog/`, written from a fragment pile captured during implementation. When a notable choice lands, **offer** to run `/writing-fragments` — never run it or write to the pile unasked. See `docs/agents/devlog.md`.
+One Italian article per milestone in `docs/devlog/`, written from a fragment pile captured during implementation. **Every ticket ends by asking where reality differed from the plan**; if something did, **offer** to run `/writing-fragments` — never run it or write to the pile unasked. See `docs/agents/devlog.md`.
 
 ### Release process
 
