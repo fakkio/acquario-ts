@@ -74,6 +74,24 @@ None of them is momentous. All of them are a story: something was tried, somethi
 
 If the choice is also **hard to reverse**, it wants an ADR _as well_ — the two are not substitutes. An ADR records the decision for future engineers; a fragment records the story for readers. Write the ADR via `/domain-modeling`, offer the fragment separately.
 
+### A fragment about a decision must say who made it
+
+Write the agent in when the agent decided. Fabio is the one dictating the fragment, so first person is the natural voice — and first person quietly deletes the most interesting fact in the sentence. Two real M0 fragments came out of the recovery session like this:
+
+> _Avevo iniettato `Document` in `mountCanvas` pensando che rendesse il codice più testabile… mi sono accorto che quel test non aggiungeva valore._
+
+> _Primo istinto: gestire lo stato disabilitato/abilitato di ciascuno… Solo dopo mi sono accorto che non serviva._
+
+Both read as Fabio's own instinct, caught by Fabio. Neither is: both were the agent's choices. On the first the agent reversed itself and he approved the reversal; on the second he judged the buttons redundant and had it changed. Read as written, they are evidence of nothing — the whole point evaporates.
+
+This is not tidiness. The division of decisions between him and the agent is a recurring subject of this dev-log, and a fragment that hides who decided is unusable as evidence for it. So each one records:
+
+- **Who proposed it** — him, or the agent.
+- **Who caught the problem** — him, or the agent. These are different facts and they are not interchangeable: an agent that corrects itself and an agent corrected in review say opposite things about how far it can be trusted.
+- **Which kind of "how" it was** — the project _how_ (stack, tooling, conventions, structure: his) or the execution _how_ (how the code is actually shaped inside that perimeter: the agent's). Fabio makes this distinction explicitly and the fragments should preserve it.
+
+Ask during the grilling session, not afterwards. Weeks later nobody remembers, and the fragment is already written in a voice that makes the question sound answered.
+
 ### When not to offer
 
 When the work genuinely has no story behind it: the plan was made, the plan was followed, nothing was learned. Note that this is a claim about **this specific piece of work**, not about a category of work — "routine implementation" is where most of M0's lost material was, and excluding it by category is what lost it.
