@@ -16,17 +16,24 @@ tutto il repo in un commit separato.
 
 ---
 
-Avevo capito male io stesso `hashState`, rileggendolo a distanza di settimane:
-non è quello che rende il mondo deterministico — quello lo fa `createWorld` col
-seed e gli stream di PRNG per organismo. `hashState` è la sonda che verifica il
-determinismo: confronta se due mondi partiti dallo stesso seed sono arrivati
-allo stesso stato dopo N tick. Il test in `world.test.ts` lo esercita già, ma
-solo sulla meccanica sintetica del `World` core — accumulator, PRNG. Non l'ho
-ancora visto messo alla prova da un comportamento di simulazione vero, perché
-non esiste ancora niente che possa divergere in modo interessante. Dovremo
-stare attenti, mano a mano che lo sviluppo aggiunge comportamento, a
+_Tagliato dall'articolo 002: prosa buona, ma non pagava niente rispetto alla
+sua frase portante. Riprenderlo nella milestone in cui `hashState` può
+finalmente fallire._
+
+Il modo per sapere se un accumulatore a passo fisso funziona davvero è
+verificare che due mondi partiti dallo stesso seed arrivino, tick dopo tick,
+allo stesso stato. Per questo esiste `hashState` — e l'ho capito male anche
+io, rileggendolo a distanza di settimane. Non è quello che rende il mondo
+deterministico: quel lavoro lo fa `createWorld`, con il seed e gli stream di
+PRNG assegnati a ogni organismo. `hashState` è la sonda che confronta due
+mondi e dice se sono ancora uguali. Il test in `world.test.ts` per ora la
+esercita solo sulla meccanica sintetica del `World` — accumulator, PRNG —
+perché non esiste ancora niente che possa divergere in modo interessante.
+
+Dovremo stare attenti, mano a mano che lo sviluppo aggiunge comportamento, a
 controllare che due seed uguali continuino a produrre davvero due mondi
-uguali.
+uguali. Non è una cosa che si può dare per scontata solo perché il test passa
+oggi.
 
 ---
 
