@@ -10,7 +10,6 @@ tags:
   - simulation
   - typescript
   - ai-agents
-  - determinism
   - canvas
 lang: it
 ---
@@ -23,11 +22,11 @@ Sto implementando la M0 di AcquarioTS, la milestone che porta a un loop di aggio
 
 Già, il come. Non mi interessa imporre all'agente dettagli implementativi come la forma o lo stile di programmazione. In questo gli agenti ormai sono fortissimi. Fatico ancora a fidarmi però: a volte ha bisogno di una correzione, a volte è lui a convincere me.
 
-Per esempio, durante l'implementazione di questa milestone l'agente ha deciso di creare tre bottoni: "avvia", "pausa" e "step". Solo dopo è stato chiaro che "avvia" e "pausa" sono la stessa faccia di un concetto, e potevano fondersi in un unico bottone.
+Per esempio, durante l'implementazione di questa milestone l'agente ha deciso di creare tre bottoni: "avvia", "pausa" e "step". Solo dopo mi sono accorto che "avvia" e "pausa" erano la stessa faccia di un concetto, e potevano fondersi in un unico bottone.
 
 In altre scelte invece è stato lui a convincermi che il suo punto fosse migliore, come quando ha scelto di implementare tutto in stile funzionale alla JavaScript, e non OOP come avrei probabilmente fatto io.
 
-M0 è la prima milestone: prima che ci sia comportamento, deve esserci uno scheletro che si regge da solo. Dentro c'è un accumulatore a passo fisso, che decide quanti `tick` di simulazione far girare a ogni frame indipendentemente da quanto sia irregolare il framerate del browser, e c'è `mountCanvas`, la funzione che prende un elemento del DOM e ci disegna dentro la griglia zoomabile.
+M0 è la prima milestone: prima che ci sia comportamento, deve esserci uno scheletro che si regge da solo. C'è `mountCanvas`, la funzione che prende un elemento del DOM e ci disegna dentro la griglia zoomabile.
 
 `mountCanvas`, in realtà, non è rimasta tale e quale alla prima stesura. A un certo punto l'agente ci aveva iniettato `Document`: invece di prendere il `document` globale del browser, la funzione riceveva l'elemento da montare come parametro, pensando che rendesse il codice più testabile. L'ha lasciata a metà: si è accorto da solo che quel test non aggiungeva valore, perché il loop di rendering lo si verifica avviando l'applicazione, non isolando `mountCanvas`. È tornato indietro, e `document` è rimasto globale.
 
@@ -41,7 +40,7 @@ Torniamo all'esempio funzionale-contro-OOP dell'apertura, perché lì la metafor
 
 Il come di progetto non finisce all'avvio del repository: a volte è quello che noto strada facendo. Playwright, per esempio, non l'ho preso solo per gli e2e test in senso classico: sto facendo scrivere il codice a un agente, e Playwright è un modo per dargli "vista" mentre lavora. Invece di doversi basare solo sul codice e sul risultato dell'esecuzione, può vedere davvero cosa succede nel browser.
 
-Il touch, invece, è una lacuna che ho scoperto provandola io stesso. Ho provato pan e zoom su un dispositivo touch e non funzionava niente: né il dito che trascina, né il pizzico per zoomare. Mancavano proprio gli event listener. Non era emerso quando avevo discusso i requisiti con l'agente. L'ho fatto implementare subito, senza rimandarlo: con poco sforzo in più si supportano anche tablet e smartphone.
+Il touch è la prova più diretta di cosa significhi fare review di correttezza. Ho provato pan e zoom su un dispositivo touch e non funzionava niente: né il dito che trascina, né il pizzico per zoomare. Mancavano proprio gli event listener. Nessun test lo avrebbe detto, perché nessuno aveva scritto un test per il touch, e il gap non era emerso nemmeno discutendo i requisiti con l'agente. L'ho scoperto col dito, letteralmente, provandolo su un telefono. L'ho fatto implementare subito, senza rimandarlo: con poco sforzo in più si supportano anche tablet e smartphone.
 
 Si dice che il ruolo dell'ingegnere sia ormai diventato fare il PM, decidere cosa costruire e non più scriverlo. Non è il mio caso, o non ancora: se lo fossi davvero, non avrei scelto nemmeno gli strumenti tecnologici, mi sarei fidato abbastanza da lasciare anche quelli all'agente. Sono l'architetto: decido la struttura, gli strumenti, faccio review di correttezza. Non sono ancora pronto a fare solo il PM: non mi fido abbastanza dell'IA, per ora, da lasciarle anche le decisioni tecniche.
 
