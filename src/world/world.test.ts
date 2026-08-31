@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 
-import {FIXED_DT_MS, advance, createWorld, hashState} from "./world";
+import {FIXED_DT_MS, advance, createWorld, getTick, hashState} from "./world";
 
 describe("createWorld + advance + hashState determinism", () => {
   it("produces the same sequence of state hashes for the same seed and the same advance calls", () => {
@@ -82,5 +82,47 @@ describe("fixed-step accumulator", () => {
     const {ticksRun} = advance(world, FIXED_DT_MS);
 
     expect(ticksRun).toBe(1);
+  });
+});
+
+describe("per-tick pipeline", () => {
+  const TICKS = 7;
+
+  // Weak on purpose, for now. Nothing happens inside a tick yet and
+  // `hashState` covers only the clock and the global stream, so both paths
+  // land on tick 7 with an untouched stream and this would hold for any
+  // pipeline that counts ticks. It grows teeth in the next ticket, when
+  // organism positions enter the hash: from then on it is the guard that
+  // a caught-up frame and a run of single ticks simulate the same run.
+  it("reaches the same state whether the ticks are caught up in one call or run one at a time", () => {
+    let caughtUp = createWorld(99);
+    ({world: caughtUp} = advance(caughtUp, TICKS * FIXED_DT_MS));
+
+    let oneAtATime = createWorld(99);
+    for (let i = 0; i < TICKS; i++) {
+      ({world: oneAtATime} = advance(oneAtATime, FIXED_DT_MS));
+    }
+
+    expect(hashState(caughtUp)).toBe(hashState(oneAtATime));
+  });
+
+  it("advances the tick counter once per whole tick of elapsed time", () => {
+    let world = createWorld(99);
+    ({world} = advance(world, TICKS * FIXED_DT_MS));
+
+    expect(getTick(world)).toBe(TICKS);
+  });
+
+  it("leaves the tick counter alone when no whole tick has elapsed", () => {
+    let world = createWorld(99);
+    ({world} = advance(world, 0.9 * FIXED_DT_MS));
+
+    expect(getTick(world)).toBe(0);
+  });
+
+  it("runs exactly as many ticks as the capped catch-up reports", () => {
+    const {world, ticksRun} = advance(createWorld(99), 60 * 60 * 1000);
+
+    expect(getTick(world)).toBe(ticksRun);
   });
 });

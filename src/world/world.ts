@@ -28,6 +28,14 @@ declare const worldBrand: unique symbol;
  * Opaque outside this module: the type carries none of its own fields, so
  * a consumer can hold a `World` and pass it to `advance`/`hashState` but
  * cannot read its tick count, accumulator remainder or PRNG state directly.
+ *
+ * **A `World` is not a snapshot of the past.** Its own record is immutable
+ * and `advance` returns a new one, but from M1's next ticket onward the
+ * population it holds is an array of mutable `Organism` instances mutated
+ * in place, per ADR-0013's choice of OOP over SoA. A caller holding an
+ * older `World` therefore reads *current* body positions, not the ones
+ * that were current when it captured the reference. Only the clock, the
+ * accumulator and the global PRNG stream are versioned per `advance`.
  */
 export interface World {
   readonly [worldBrand]: never;
@@ -62,6 +70,50 @@ export function createWorld(seed: number): World {
   });
 }
 
+/**
+ * One tick of simulated time, laid out as ADR-0006's three phases.
+ *
+ * Deliberately private: `advance` stays the only door the App layer walks
+ * through, so nothing outside this module can run half a tick or run one
+ * out of order. The accumulator's remainder stays `advance`'s bookkeeping
+ * and is written once the catch-up loop is done, so a tick never reads a
+ * half-updated one; a tick's only clock business is the increment at
+ * step 13.
+ *
+ * The numbered steps are ADR-0006's. Every step that has no work yet is
+ * named below with the milestone that fills it, so later work has a place
+ * to land rather than a decision to re-make.
+ */
+function runTick(state: WorldState): WorldState {
+  // ---- Read: sample the environment into a snapshot ----------------
+  // 1. Snapshot concentrations and light — M2.
+  //    Nothing to sample yet: the Environment seam (ADR-0005) arrives
+  //    with M2, and until it does there is no snapshot to hand to the
+  //    phases below.
+
+  // ---- Resolve: per organism, no writes to the world ---------------
+  // Every step here reads the snapshot and writes only to the organism
+  // it is running for. That restriction is what makes the phase
+  // order-independent by construction, and it is the whole reason the
+  // metabolic core is unit-testable against one organism and a snapshot.
+  // 2. Passive exchange — M2.
+  // 3. Photosynthesis — M2.
+  // 4. Respiration — M2.
+  // 5. Maintenance — M2.
+  // 6. Brownian motion — M1, the motion ticket.
+  // 7. Evaluate mitosis, enqueue — M4.
+  // 8. Evaluate death, enqueue — M3.
+
+  // ---- Commit: every world mutation, in a fixed order --------------
+  // 9. Apply delta buffer — M2.
+  // 10. Collisions and walls — M1, the motion and separation tickets.
+  // 11. Deaths — M3.
+  // 12. Births — M4. Newborns are appended here and stay inert for
+  //     their first tick, so no birth cascades within a tick.
+  // 13. Tick++.
+  return {...state, tick: state.tick + 1};
+}
+
 export function advance(world: World, elapsedMs: number): AdvanceResult {
   const state = toState(world);
   const maxAccumulatorMs = MAX_TICKS_PER_ADVANCE * FIXED_DT_MS;
@@ -72,10 +124,14 @@ export function advance(world: World, elapsedMs: number): AdvanceResult {
 
   const ticksRun = Math.floor((accumulatorMs + EPSILON_MS) / FIXED_DT_MS);
 
+  let ticked = state;
+  for (let i = 0; i < ticksRun; i++) {
+    ticked = runTick(ticked);
+  }
+
   return {
     world: toWorld({
-      ...state,
-      tick: state.tick + ticksRun,
+      ...ticked,
       accumulatorMs: Math.max(0, accumulatorMs - ticksRun * FIXED_DT_MS),
     }),
     ticksRun,
