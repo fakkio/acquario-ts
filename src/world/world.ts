@@ -1,3 +1,10 @@
+import {EMPTY_HASH, foldString, toHashString} from "./hash";
+import {
+  createPopulation,
+  foldPopulation,
+  type Organism,
+  type OrganismView,
+} from "./organism";
 import {createRngStream, type RngStream} from "./rng";
 
 /**
@@ -30,12 +37,12 @@ declare const worldBrand: unique symbol;
  * cannot read its tick count, accumulator remainder or PRNG state directly.
  *
  * **A `World` is not a snapshot of the past.** Its own record is immutable
- * and `advance` returns a new one, but from M1's next ticket onward the
- * population it holds is an array of mutable `Organism` instances mutated
- * in place, per ADR-0013's choice of OOP over SoA. A caller holding an
- * older `World` therefore reads *current* body positions, not the ones
- * that were current when it captured the reference. Only the clock, the
- * accumulator and the global PRNG stream are versioned per `advance`.
+ * and `advance` returns a new one, but the population it holds is an array
+ * of mutable `Organism` instances mutated in place, per ADR-0013's choice
+ * of OOP over SoA. A caller holding an older `World` therefore reads
+ * *current* body positions, not the ones that were current when it captured
+ * the reference. Only the clock, the accumulator and the global PRNG stream
+ * are versioned per `advance`.
  */
 export interface World {
   readonly [worldBrand]: never;
@@ -46,6 +53,9 @@ interface WorldState {
   readonly tick: number;
   readonly accumulatorMs: number;
   readonly globalRng: RngStream;
+  /** Carried by reference across `advance`: the array is versioned with the
+   * record, the organisms inside it are not. */
+  readonly population: readonly Organism[];
 }
 
 function toWorld(state: WorldState): World {
@@ -62,11 +72,14 @@ export interface AdvanceResult {
 }
 
 export function createWorld(seed: number): World {
+  const {population, stream} = createPopulation(createRngStream(seed));
+
   return toWorld({
     seed,
     tick: 0,
     accumulatorMs: 0,
-    globalRng: createRngStream(seed),
+    globalRng: stream,
+    population,
   });
 }
 
@@ -147,6 +160,16 @@ export function getSeed(world: World): number {
 }
 
 /**
+ * The render layer's one window onto the population. `OrganismView` is the
+ * read-only face of `Organism`, so the App layer can draw a body without
+ * being able to move one: positions change inside a tick's commit phase or
+ * nowhere.
+ */
+export function getPopulation(world: World): readonly OrganismView[] {
+  return toState(world).population;
+}
+
+/**
  * The determinism probe: it does not make the world deterministic, it
  * compares two worlds and says whether they are still the same one. The
  * invariant it serves is precisely **same seed and same tick number ⇒ same
@@ -167,19 +190,15 @@ export function getSeed(world: World): number {
  * after the same wall-clock span. That is divergence in how far each got,
  * never in what either computed.
  *
- * From M1's next ticket on, every organism's position, radius and stream
- * state folds in here too. Anything later milestones add to an organism must
- * be added here as well, or the invariant quietly stops covering it.
+ * Every organism's position, radius and stream state folds in too, via
+ * `foldPopulation`. Anything later milestones add to an organism must be
+ * added there as well, or the invariant quietly stops covering it.
  */
 export function hashState(world: World): string {
   const state = toState(world);
-  const input = `${String(state.seed)}|${String(state.tick)}|${String(state.globalRng.state)}`;
+  const worldOwnState = `${String(state.seed)}|${String(state.tick)}|${String(state.globalRng.state)}`;
 
-  let hash = 0x811c9dc5;
-  for (let i = 0; i < input.length; i++) {
-    hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
-  }
-
-  return (hash >>> 0).toString(16).padStart(8, "0");
+  return toHashString(
+    foldPopulation(foldString(EMPTY_HASH, worldOwnState), state.population),
+  );
 }

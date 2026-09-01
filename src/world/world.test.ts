@@ -1,6 +1,15 @@
 import {describe, expect, it} from "vitest";
 
-import {FIXED_DT_MS, advance, createWorld, getTick, hashState} from "./world";
+import {STARTING_POPULATION, createPopulation} from "./organism";
+import {createRngStream} from "./rng";
+import {
+  FIXED_DT_MS,
+  advance,
+  createWorld,
+  getPopulation,
+  getTick,
+  hashState,
+} from "./world";
 
 describe("createWorld + advance + hashState determinism", () => {
   it("produces the same sequence of state hashes for the same seed and the same advance calls", () => {
@@ -29,7 +38,7 @@ describe("createWorld + advance + hashState determinism", () => {
     expect(hashState(worldA)).not.toBe(hashState(worldB));
   });
 
-  it("changes the hash tick-over-tick even with no organisms present", () => {
+  it("changes the hash tick-over-tick", () => {
     let world = createWorld(42);
     const hashes = new Set<string>();
 
@@ -40,6 +49,48 @@ describe("createWorld + advance + hashState determinism", () => {
     }
 
     expect(hashes.size).toBe(6);
+  });
+});
+
+describe("population", () => {
+  it("is reachable from a created world through the read-only accessor", () => {
+    expect(getPopulation(createWorld(3))).toHaveLength(STARTING_POPULATION);
+  });
+
+  // Stated as an equality rather than by re-asserting placement's properties
+  // here: it says the one thing `createWorld` is responsible for — that the
+  // population is placed from *this seed's* global stream — and inherits
+  // containment, radius spread and stream derivation from the tests that
+  // already cover `createPopulation`.
+  it("places its population from the seed's own global stream", () => {
+    expect(getPopulation(createWorld(3))).toEqual(
+      createPopulation(createRngStream(3)).population,
+    );
+  });
+
+  it("is identical between two worlds created from the same seed", () => {
+    expect(getPopulation(createWorld(3))).toEqual(
+      getPopulation(createWorld(3)),
+    );
+  });
+
+  it("differs between two worlds created from different seeds", () => {
+    expect(getPopulation(createWorld(3))).not.toEqual(
+      getPopulation(createWorld(4)),
+    );
+  });
+
+  it("makes two worlds from the same seed hash identically at tick 0", () => {
+    expect(hashState(createWorld(3))).toBe(hashState(createWorld(3)));
+  });
+
+  // The population is carried across `advance` by reference, so the bodies a
+  // caller reads are always the live ones — the consequence of ADR-0013's
+  // mutable organisms that the `World` doc comment warns about.
+  it("survives an advance, still reachable from the returned world", () => {
+    const {world} = advance(createWorld(3), 5 * FIXED_DT_MS);
+
+    expect(getPopulation(world)).toHaveLength(STARTING_POPULATION);
   });
 });
 
@@ -88,12 +139,12 @@ describe("fixed-step accumulator", () => {
 describe("per-tick pipeline", () => {
   const TICKS = 7;
 
-  // Weak on purpose, for now. Nothing happens inside a tick yet and
-  // `hashState` covers only the clock and the global stream, so both paths
-  // land on tick 7 with an untouched stream and this would hold for any
-  // pipeline that counts ticks. It grows teeth in the next ticket, when
-  // organism positions enter the hash: from then on it is the guard that
-  // a caught-up frame and a run of single ticks simulate the same run.
+  // Still weak, for now. Body positions are in the hash from this ticket
+  // on, but nothing inside a tick moves them yet, so both paths land on
+  // tick 7 with an untouched population and this would hold for any
+  // pipeline that counts ticks. It grows teeth in the motion ticket: from
+  // then on it is the guard that a caught-up frame and a run of single
+  // ticks simulate the same run.
   it("reaches the same state whether the ticks are caught up in one call or run one at a time", () => {
     let caughtUp = createWorld(99);
     ({world: caughtUp} = advance(caughtUp, TICKS * FIXED_DT_MS));
