@@ -146,6 +146,31 @@ export function getSeed(world: World): number {
   return toState(world).seed;
 }
 
+/**
+ * The determinism probe: it does not make the world deterministic, it
+ * compares two worlds and says whether they are still the same one. The
+ * invariant it serves is precisely **same seed and same tick number ⇒ same
+ * hash**, not "same seed and same wall-clock time elapsed".
+ *
+ * `accumulatorMs` is deliberately left out, and the omission is load-bearing.
+ * It is the only state here that is a function of how the browser chopped up
+ * real time rather than of the simulation, and absorbing that jitter so the
+ * simulation never sees it is the fixed-step accumulator's whole job. Two
+ * runs from one seed, one at a steady 60fps and one with long frames, reach
+ * tick 100 with identical simulated state and different leftover remainders
+ * — hashing the remainder would fail them as divergent when they are as
+ * deterministic as a run can be. The carried remainder is covered by the
+ * accumulator's own tests instead.
+ *
+ * Note what this does *not* promise: the catch-up cap drops excess elapsed
+ * time, so two runs that stalled differently sit at different tick counts
+ * after the same wall-clock span. That is divergence in how far each got,
+ * never in what either computed.
+ *
+ * From M1's next ticket on, every organism's position, radius and stream
+ * state folds in here too. Anything later milestones add to an organism must
+ * be added here as well, or the invariant quietly stops covering it.
+ */
 export function hashState(world: World): string {
   const state = toState(world);
   const input = `${String(state.seed)}|${String(state.tick)}|${String(state.globalRng.state)}`;
