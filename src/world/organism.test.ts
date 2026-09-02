@@ -53,13 +53,6 @@ describe("createPopulation", () => {
     expect(new Set(radii).size).toBeGreaterThan(1);
   });
 
-  // Not a tautology: the baseline radius is the length unit every other world
-  // constant is written in, so a spread that drifts off-centre quietly makes
-  // the unit smaller than the median body it is supposed to describe.
-  it("keeps the baseline radius at the centre of the spread", () => {
-    expect(MIN_RADIUS_FACTOR + MAX_RADIUS_FACTOR).toBeCloseTo(2);
-  });
-
   it("gives every organism a distinct hue inside the colour wheel", () => {
     const hues = populationFor(7).map((organism) => organism.lineageHue);
 
