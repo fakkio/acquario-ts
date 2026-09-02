@@ -270,3 +270,162 @@ vuoto era un posto rischioso dove chiudere un milestone.
 
 M0 ha consegnato tutto quello che doveva consegnare e ha passato tutti i suoi
 test. Non aveva abbastanza mondo dentro per far vedere cosa non funzionava.
+
+---
+
+È successo di nuovo, nello stesso milestone.
+
+`CONTEXT.md`, voce **Brownian Motion**: _Avoid: drift, jitter, wander, random
+walk_. L'agente che ha implementato il #10 le ha usate tutte e quattro. Una
+funzione `drift`, due test intitolati "wanders" e "drifting", i commenti pieni
+di "jitter" e "random walk". Nel ticket che si chiama _Brownian motion_.
+Quattro su quattro. La review ha aperto il glossario e le ha segnate tutte,
+esattamente come per `step`.
+
+La differenza è che stavolta la storia era già scritta. L'avevo messa io in
+questo file, quaranta righe più su, in italiano, dentro il repo: _il glossario
+va tenuto presente durante l'implementazione, non solo durante la revisione_.
+Non ha cambiato niente.
+
+---
+
+Quindi cambio idea rispetto a quelle quaranta righe più su. La review è il
+posto giusto per quel controllo.
+
+Non è una resa. È che quella verifica non si fa scrivendo, si fa rileggendo.
+Un agente che sta scrivendo una funzione di venti righe non può tenersi in
+testa quaranta voci di glossario con le loro liste `_Avoid_` mentre decide come
+chiamare una variabile locale. Non è distrazione, è il momento sbagliato.
+
+La review non è la rete di sicurezza che scatta quando il processo fallisce. È
+il posto dove quel controllo va fatto, e pretenderlo dall'implementazione
+significa pretendere la cosa giusta dal momento sbagliato.
+
+---
+
+L'agente mi ha fatto notare che così ho solo spostato il problema. "Alla fine
+lancia la code-review" sta scritta in `.claude/skills/implement`, e sono tre
+righe di markdown senza nessun hook che le imponga. Ho spostato il controllo da
+una convenzione che non si è accesa a un'altra convenzione. Tartarughe. Poi ha
+proposto di spostare le liste `_Avoid_` dentro la skill di review.
+
+No. Gli `_Avoid_` stanno bene in `CONTEXT.md`.
+
+`/implement` contiene la code-review, ed è lì che deve stare. E sì, una skill
+eseguita da un agente non è deterministica. Ma qui si parla di qualità del
+codice: se la review si perde un nome che non segue le convenzioni, non è una
+cosa grave. L'importante è che il software faccia quello che deve, e quello lo
+verificano i test deterministici, type, unit, integration ed e2e.
+
+La domanda giusta su un controllo non è se può sbagliare. È quanto costa
+quando sbaglia.
+
+---
+
+E allora rileggo l'apertura di questo file e l'allarme era troppo alto.
+
+La storia di `step` l'avevo scritta con inquietudine vera, tre agenti e io
+fuori dalla catena. Per il criterio che ho stabilito dopo è quasi un
+non-evento: un nome, beccato dalla review, con i test verdi tutto il tempo.
+
+La verità sta sempre nel mezzo, in ogni caso. Un nome sbagliato non è un
+fallimento importante. Però è comunque preferibile che l'agente trovi al più
+presto queste incongruenze, in modo che in futuro non si creino
+fraintendimenti. Il costo non è il nome di oggi. È che il codice e il glossario
+finiscano a dire due cose diverse, e che qualcuno più avanti legga i due e
+capisca due cose diverse.
+
+---
+
+_Scritto dall'agente, bocciato dalla sua stessa review, ribaltato da me._
+
+Per dare una direzione a caso a ogni corpo, l'agente aveva pescato un angolo e
+ne aveva preso seno e coseno. La review gliel'ha bocciato: seno e coseno non
+sono identici all'ultima cifra fra engine diversi, e ADR-0007, sotto
+Consequences, si era annotata che il loop interno di v0.1 usa solo aritmetica,
+quindi per avere un giorno il determinismo bit a bit basterebbe congelare una
+tabella invece di rivedere ogni formula. Non una regola. Una proprietà arrivata
+gratis, e annotata.
+
+L'agente ha riscritto la direzione con un rejection sampling: peschi due numeri,
+se il punto cade fuori dal cerchio lo butti e ripeschi. Circa uno su cinque nel
+cestino.
+
+Non sono d'accordo. Buttare un numero su cinque, in un ambiente TypeScript che
+già non è performante, non mi piace. È vero che adesso l'efficienza non è
+prioritaria, però teniamola sott'occhio.
+
+Si torna a seno e coseno. La regola è quella scritta: run uguali sono uguali
+sullo stesso engine. Se cambia l'engine cambia il mondo, e ce lo facciamo
+andare bene.
+
+---
+
+Prima del revert ho chiesto il numero. Meno male.
+
+Dieci milioni di chiamate, cinque round, ordine alternato. Seno e coseno: 65 ns
+a chiamata. Rejection sampling: 40,6 ns. Il metodo che butta un draw su cinque
+costa 0,62 di quello che non ne butta nessuno, cioè è il 38% più veloce. Le due
+distribuzioni non si toccano nemmeno: il caso peggiore del rejection è più
+rapido del caso migliore della trigonometria.
+
+A dirlo dopo è ovvio. Quello che butti è la roba a buon mercato: uno scarto
+sono due draw di mulberry32, una manciata di operazioni su interi. Quello che
+eviti sono due funzioni trascendenti, che V8 calcola in software. Ne butti una
+su cinque e ti conviene lo stesso.
+
+"Buttare un numero su cinque" suona come uno spreco, e io l'ho letto come uno
+spreco. Spreco di cosa, non me l'ero chiesto.
+
+Teniamo il rejection sampling. E siccome resta, la frase di ADR-0007 continua a
+essere vera: nessun documento da correggere, e la porta che l'ADR aveva lasciato
+aperta resta aperta senza che nessuno debba difenderla.
+
+---
+
+Nota a margine con i numeri veri: con quaranta organism, il moto browniano di
+un tick costa lo 0,02% di un frame con la trigonometria e lo 0,01% con il
+rejection. La differenza per cui ho aperto la discussione inizia a contare
+intorno ai diecimila organism.
+
+---
+
+_Analisi dell'agente, verdetto mio._
+
+Terzo test che non può fallire in tre ticket, e stavolta di una specie diversa.
+
+Il test sulla lunghezza del passo calcolava il valore atteso con la stessa
+formula dell'implementazione, `forza / (attrito · raggio)`, riscritta dentro il
+test. Se la formula nel codice fosse stata sbagliata, il test l'avrebbe
+ricopiata sbagliata e sarebbe passato contento. L'ha beccato la review.
+
+Gli altri due non potevano fallire perché il mondo era troppo semplice, e si
+sarebbero accesi da soli appena il mondo si riempiva. Questo non si sarebbe
+acceso mai: chiedeva al codice di controllare sé stesso.
+
+Adesso il test asserisce un numero scritto a mano, `0.1061032953945969`. E fa
+una cosa strana. Se qualcuno ritocca la costante della forza browniana, il test
+si rompe apposta, anche quando il codice è giusto. Si rompe per obbligare
+qualcuno a rifare la valutazione che quella costante richiede: far girare
+l'app e decidere se il movimento sembra microscopia o sembra un formicolio. Un
+criterio che nessuna macchina può verificare.
+
+Quel test non verifica che la costante sia giusta. Verifica che nessuno la
+cambi senza guardare lo schermo.
+
+Io di test non me ne intendo molto. Mi sembra un test onesto.
+
+---
+
+_Filo aperto, segnato dall'agente, senza risposta mia: da riprendere quando si
+scrive l'articolo._
+
+In questo milestone ci sono due regimi. Dove esiste un numero, Fabio chiede la
+misura e accetta che lo smentisca: è successo sul rejection sampling, dove
+l'istinto puntava dalla parte sbagliata e la misura ha deciso. Dove il numero
+non esiste, e sui nomi non esiste, resta una convenzione che lui stesso ha
+appena ammesso non essersi accesa.
+
+Non è un'incoerenza. È che uno dei due ha uno strumento e l'altro no. Ma forse
+spiega perché la faccenda dei nomi gli dà fastidio senza che riesca a dire bene
+cosa pretendere.
