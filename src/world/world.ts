@@ -1,4 +1,5 @@
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
+import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
   foldPopulation,
@@ -8,9 +9,11 @@ import {
 import {createRngStream, type RngStream} from "./rng";
 
 /**
- * Fixed simulation step, decoupled from `requestAnimationFrame`. Every
- * world quantity from M1 onward is expressed as a rate × this value, never
- * per frame.
+ * Fixed simulation step, decoupled from `requestAnimationFrame`: how much real
+ * time one tick stands for. The tick is the simulation's own unit of time, so
+ * every world quantity is expressed per tick and never per frame; this
+ * constant is only the exchange rate between the two, and belongs to the
+ * accumulator below rather than to any quantity the world computes.
  */
 export const FIXED_DT_MS = 1000 / 60;
 
@@ -113,13 +116,21 @@ function runTick(state: WorldState): WorldState {
   // 3. Photosynthesis — M2.
   // 4. Respiration — M2.
   // 5. Maintenance — M2.
-  // 6. Brownian motion — M1, the motion ticket.
+  // 6. Brownian motion.
+  for (const organism of state.population) {
+    applyBrownianMotion(organism);
+  }
   // 7. Evaluate mitosis, enqueue — M4.
   // 8. Evaluate death, enqueue — M3.
 
   // ---- Commit: every world mutation, in a fixed order --------------
   // 9. Apply delta buffer — M2.
-  // 10. Collisions and walls — M1, the motion and separation tickets.
+  // 10. Collisions and walls. Separation lands here too, ahead of the
+  //     wall constraint, so a body pushed out of another body still ends
+  //     the tick inside the aquarium — M1, the separation ticket.
+  for (const organism of state.population) {
+    constrainToAquarium(organism);
+  }
   // 11. Deaths — M3.
   // 12. Births — M4. Newborns are appended here and stay inert for
   //     their first tick, so no birth cascades within a tick.

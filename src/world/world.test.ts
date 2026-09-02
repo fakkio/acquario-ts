@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest";
 
+import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 import {STARTING_POPULATION, createPopulation} from "./organism";
 import {createRngStream} from "./rng";
 import {
@@ -9,6 +10,7 @@ import {
   getPopulation,
   getTick,
   hashState,
+  type World,
 } from "./world";
 
 describe("createWorld + advance + hashState determinism", () => {
@@ -94,6 +96,56 @@ describe("population", () => {
   });
 });
 
+describe("motion", () => {
+  const TICKS = 120;
+
+  const positionsOf = (world: World) =>
+    getPopulation(world).map((organism) => ({x: organism.x, y: organism.y}));
+
+  it("moves every organism as ticks run", () => {
+    const world = createWorld(5);
+    const before = positionsOf(world);
+
+    const {world: moved} = advance(world, TICKS * FIXED_DT_MS);
+
+    positionsOf(moved).forEach((position, i) => {
+      expect(position).not.toEqual(before[i]);
+    });
+  });
+
+  // The invariant, checked where it has to hold rather than only in the
+  // motion unit test: every tick of a real run, for a whole population that
+  // started scattered against the walls.
+  it("never lets a body cross the aquarium boundary, tick after tick", () => {
+    let world = createWorld(5);
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+
+      for (const organism of getPopulation(world)) {
+        expect(organism.x - organism.bodyRadius).toBeGreaterThanOrEqual(0);
+        expect(organism.y - organism.bodyRadius).toBeGreaterThanOrEqual(0);
+        expect(organism.x + organism.bodyRadius).toBeLessThanOrEqual(
+          AQUARIUM_WIDTH,
+        );
+        expect(organism.y + organism.bodyRadius).toBeLessThanOrEqual(
+          AQUARIUM_HEIGHT,
+        );
+      }
+    }
+  });
+
+  // M0's determinism invariant, now that the hash covers something that
+  // actually changes inside a tick.
+  it("reaches the same hash at tick N in two runs from the same seed", () => {
+    const runTo = (seed: number) =>
+      hashState(advance(createWorld(seed), TICKS * FIXED_DT_MS).world);
+
+    expect(runTo(5)).toBe(runTo(5));
+    expect(runTo(5)).not.toBe(runTo(6));
+  });
+});
+
 describe("fixed-step accumulator", () => {
   it("converts elapsed time into a whole number of ticks and carries the remainder forward", () => {
     let world = createWorld(1);
@@ -139,12 +191,10 @@ describe("fixed-step accumulator", () => {
 describe("per-tick pipeline", () => {
   const TICKS = 7;
 
-  // Still weak, for now. Body positions are in the hash from this ticket
-  // on, but nothing inside a tick moves them yet, so both paths land on
-  // tick 7 with an untouched population and this would hold for any
-  // pipeline that counts ticks. It grows teeth in the motion ticket: from
-  // then on it is the guard that a caught-up frame and a run of single
-  // ticks simulate the same run.
+  // The guard that a caught-up frame and a run of single ticks simulate the
+  // same run. It has teeth now that bodies move: seven ticks of brownian
+  // motion are in the hash, so a pipeline that ran the tick body once per
+  // `advance` call rather than once per tick fails here.
   it("reaches the same state whether the ticks are caught up in one call or run one at a time", () => {
     let caughtUp = createWorld(99);
     ({world: caughtUp} = advance(caughtUp, TICKS * FIXED_DT_MS));
