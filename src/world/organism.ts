@@ -28,6 +28,20 @@ export const MIN_RADIUS_FACTOR = 0.6;
 export const MAX_RADIUS_FACTOR = 1.4;
 
 /**
+ * The largest body the world allows, and so the reach every structure that
+ * has to bound how far a body extends past its own centre is derived from —
+ * the uniform grid's cell size first. Kept here rather than in the grid so
+ * there is one answer to "how big can a body get", and the grid asks it
+ * rather than restating it.
+ *
+ * In M1 nothing grows and nothing is born, so this is exactly the top of
+ * generation 0's spread. From M4 `bodyRadius` mutates, and whatever mutation
+ * does it has to keep this a real ceiling: a body wider than a cell is a body
+ * a query can miss.
+ */
+export const MAX_BODY_RADIUS = MAX_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
+
+/**
  * Everything the App layer is allowed to know about an organism. `World`
  * hands out `OrganismView[]`, never `Organism[]`, so the render layer can
  * read a body without being able to move it — the population is the world's

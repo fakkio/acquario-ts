@@ -6,8 +6,9 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
-import {Organism} from "./organism";
-import {createRngStream, nextRng, type RngStream} from "./rng";
+import type {Organism} from "./organism";
+import {createRngStream} from "./rng";
+import {organismAt, shuffle} from "./testing";
 
 interface Point {
   readonly x: number;
@@ -25,21 +26,6 @@ const CENTRE_Y = AQUARIUM_HEIGHT / 2;
  * against how the run looks, which is the only place that call can be made.
  */
 const BASELINE_STEP = 0.1061032953945969;
-
-function organismAt(
-  x: number,
-  y: number,
-  bodyRadius = BASELINE_BODY_RADIUS,
-  seed = 11,
-): Organism {
-  return new Organism({
-    x,
-    y,
-    bodyRadius,
-    lineageHue: 200,
-    rng: createRngStream(seed),
-  });
-}
 
 const positionOf = (point: Point): Point => ({x: point.x, y: point.y});
 
@@ -277,18 +263,3 @@ describe("constrainToAquarium", () => {
     }
   });
 });
-
-/** Seeded Fisher-Yates, so the permutation is a real shuffle and still the
- * same one on every run. */
-function shuffle(items: Organism[], stream: RngStream): Organism[] {
-  let current = stream;
-
-  for (let i = items.length - 1; i > 0; i--) {
-    const draw = nextRng(current);
-    current = draw.stream;
-    const j = Math.floor(draw.value * (i + 1));
-    [items[i], items[j]] = [items[j], items[i]] as [Organism, Organism];
-  }
-
-  return items;
-}

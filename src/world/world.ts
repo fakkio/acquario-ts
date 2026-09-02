@@ -1,3 +1,4 @@
+import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
@@ -178,6 +179,23 @@ export function getSeed(world: World): number {
  */
 export function getPopulation(world: World): readonly OrganismView[] {
   return toState(world).population;
+}
+
+/**
+ * What the grid debug overlay draws: the population bucketed by the same
+ * rule neighbour queries bucket by, flattened to counts.
+ *
+ * It builds a grid of its own on every call, and throws it away. That is the
+ * point rather than a shortcut. An overlay is only worth drawing if it cannot
+ * disagree with the index it depicts, and the way to guarantee that is to
+ * call `buildUniformGrid` rather than to re-derive cell boundaries in the
+ * render layer — a grid is a pure function of the population, so the cells
+ * this reads are the cells any other build would read. Handing the render
+ * layer a *stored* grid instead would be the thing to avoid: a grid belongs
+ * to the tick that built it and outlives nothing.
+ */
+export function getGridOccupancy(world: World): GridOccupancy {
+  return buildUniformGrid(toState(world).population).occupancy();
 }
 
 /**
