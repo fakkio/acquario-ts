@@ -152,3 +152,121 @@ ha calcolato.
 
 Il perché adesso è scritto su `hashState`. Era una domanda che mi sono fatto
 guardando il codice, e nel codice non c'era la risposta.
+
+---
+
+Avevo scritto che il test sempre verde si sarebbe acceso in #9. L'agente che
+ha implementato #9 mi ha fatto notare che non è successo: le posizioni sono
+entrate in `hashState` esattamente lì, come previsto, ma il test è rimasto
+verde. Finché niente muove i corpi, la popolazione al tick 7 è identica
+comunque tu ci arrivi, con una `advance` sola o con sette.
+
+Ho sbagliato il ticket, non l'argomento. Si accende in #10, quando i corpi si
+muovono. E che sia #9 o #10 non cambia la sostanza: nessuno deve ricordarsi
+di riscriverlo, e il movimento non è un ticket che si può saltare — è il
+motivo per cui il milestone si chiama "corpi e movimento".
+
+---
+
+`getPopulation` poteva essere una riga sola: restituisce `readonly
+Organism[]`. Compila, e a leggerla sembra una cosa chiusa a chiave.
+
+Non protegge niente. Quel `readonly` congela l'array, non gli organismi
+dentro, che restano oggetti mutabili con `x` e `y` pubblici. Il layer di
+rendering potrebbe spostare tutti i corpi dell'acquario dentro la funzione
+di disegno, e il compilatore non fiata.
+
+L'agente ha deciso da solo di non scriverla così: un tipo a parte,
+`OrganismView`, quattro campi in sola lettura, e `getPopulation` restituisce
+quello. Il render legge un corpo e non può muoverlo.
+
+Il prezzo l'ha trovato dopo, implementando. Un criterio di accettazione di #9
+dice che `hashState` deve cambiare se cambia la posizione, il raggio o lo
+stream di un organismo. Con l'accessor davvero in sola lettura quel criterio
+non è più testabile dove è scritto: nessun test fuori dal modulo può spostare
+un corpo. Il test è sceso su `foldPopulation`. Il criterio nomina la porta
+pubblica, il test sta dentro casa.
+
+Gliel'ho ratificato dopo. È il come di esecuzione, quello che gli lascio.
+
+---
+
+L'agente ha scelto la variazione dei raggi di generazione 0 senza pensarci:
+da 0.6 a 1.6 volte il raggio baseline. Media 1.1. Nessun test rosso, niente
+si rompe, la simulazione gira identica.
+
+Solo che `BASELINE_BODY_RADIUS` non è un numero qualsiasi, è l'unità di
+lunghezza. Il metodo di calibrazione dice di fissare l'unità al raggio
+baseline e di scrivere tutto il resto in quella: le dimensioni
+dell'acquario, `r_opt`, `c₀`. Con quello spread il corpo mediano della
+popolazione è 1.1 unità, e l'unità con cui misuri il mondo è più piccola
+dell'organismo tipico che dovrebbe descrivere. Non si rompe niente: è
+l'unità che smette lentamente di voler dire quello che dice.
+
+L'ha beccata l'agente della review sulla spec, leggendo una preposizione. Il
+ticket dice: `bodyRadius` varied **around** the baseline. La regola stava
+lì. Non in un test, non in un tipo, non nel lint: in una parola inglese
+dentro il testo di un ticket.
+
+---
+
+Corretto lo spread, l'agente aveva aggiunto anche un test: la somma dei due
+fattori deve fare 2, cioè il baseline deve restare al centro. Un test su due
+costanti, che non esercita niente e non può accendersi da solo. Me l'ha
+chiesto, e l'ho buttato.
+
+Non perché sia tautologico. Perché quelle due costanti servono solo adesso,
+per avere un po' di variabilità da guardare: poi sarà tutto evolutivo, la
+variazione la faranno ereditarietà e mutazione, e lo spread di generazione 0
+diventerà irrilevante.
+
+La domanda giusta su un test non è solo cosa verifica. È quanto dura la cosa
+che sta verificando. Quello spread è un'impalcatura, sta in piedi al posto
+della mutazione finché la mutazione non esiste. Un test su un'impalcatura non
+è un test interessante.
+
+---
+
+Il centraggio della vasca non l'aveva chiesto nessuno. Il ticket voleva solo
+che il bordo dell'acquario fosse visibile: l'agente ha fatto girare l'app, ha
+deciso che la vasca appiccicata nell'angolo in alto a sinistra era brutta, e
+ha aggiunto `frameAquarium` cambiando la firma di `mountCamera`, che è roba
+di M0.
+
+L'agente della review gliel'ha segnata come scope creep. E insieme ha trovato
+che il centraggio si scentra al resize, perché `mountCanvas` riassegna
+`canvas.width` — e assegnare `canvas.width` azzera il bitmap del canvas — e
+poi non ridisegna nessuno.
+
+Quel difetto è di M0 ed è lì dal primo giorno: in tutta la storia del repo,
+`resize` compare in `src/` in due commit soltanto, lo scheletro iniziale e
+questo. È un difetto di M0 che abbiamo infilato dentro un ticket che parlava
+d'altro.
+
+Io nel testing manuale non me n'ero mai accorto, e la prima spiegazione è che
+il guasto quasi non aveva superficie: mentre la simulazione gira viene
+riparato al frame successivo, e da fermo si auto-guarisce al primo pan o
+zoom, perché ogni gesto della camera ridisegna. Restava una finestra stretta,
+ridimensionare da fermo e non toccare più niente.
+
+Ma la ragione vera è un'altra. A M0 lo schermo era un riempimento quasi nero
+e una griglia bianca all'otto per cento di opacità: un canvas vuoto, contro
+quella roba lì, è una differenza che devi andare a cercare. Adesso ci sono
+una vasca bordata di ciano e quaranta cerchi saturi, e lo stesso identico
+guasto è impossibile non vederlo.
+
+Il bug non è cambiato. È cambiato quanto c'era da perdere.
+
+---
+
+L'agente ha fatto notare che la storia del resize ha la stessa forma del test
+sempre verde. Il test non poteva fallire finché non c'era niente da muovere.
+Il bug non si poteva vedere finché non c'era niente da cancellare. In nessuno
+dei due casi è cambiato il codice: è cambiato che il mondo si è riempito
+abbastanza da rendere osservabile una cosa che c'era già.
+
+Per me non è un'analogia fra due episodi. È la ragione per cui un acquario
+vuoto era un posto rischioso dove chiudere un milestone.
+
+M0 ha consegnato tutto quello che doveva consegnare e ha passato tutti i suoi
+test. Non aveva abbastanza mondo dentro per far vedere cosa non funzionava.
