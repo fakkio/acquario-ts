@@ -1,5 +1,14 @@
-import {BASELINE_BODY_RADIUS} from "./aquarium";
-import {Organism} from "./organism";
+import {
+  AQUARIUM_HEIGHT,
+  AQUARIUM_WIDTH,
+  BASELINE_BODY_RADIUS,
+} from "./aquarium";
+import {
+  MAX_BODY_RADIUS,
+  MIN_RADIUS_FACTOR,
+  Organism,
+  type OrganismView,
+} from "./organism";
 import {createRngStream, nextRng, type RngStream} from "./rng";
 
 /**
@@ -45,4 +54,81 @@ export function shuffle(items: Organism[], stream: RngStream): Organism[] {
   }
 
   return items;
+}
+
+/**
+ * The smallest body the world allows, the counterpart of `MAX_BODY_RADIUS`.
+ * It lives here rather than beside its opposite in `organism.ts` because
+ * nothing the simulation does needs it: the grid derives its cell size from
+ * the largest body, and only tests ever ask how small a body can be.
+ */
+export const MIN_BODY_RADIUS = MIN_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
+
+/** A cursor over a seeded stream of unit draws, so a test that wants a
+ * random-looking population wants the same one on every run. */
+export function openDraws(seed: number): () => number {
+  let current: RngStream = createRngStream(seed);
+
+  return () => {
+    const draw = nextRng(current);
+    current = draw.stream;
+    return draw.value;
+  };
+}
+
+/**
+ * A population scattered over the whole aquarium, every body wholly inside
+ * the walls, each with a stream of its own so it can be stepped. Overlaps
+ * between them are expected — placement does not look at who is already
+ * there, which is exactly what makes it useful as a starting crowd.
+ *
+ * `size` sets the crowding, and the crowding is what most callers are
+ * really choosing: the aquarium is fixed, so forty bodies is the world the
+ * app runs and a few hundred is denser than v0.1 will ever get.
+ */
+export function randomPopulation(
+  seed: number,
+  size: number,
+  minRadius = MIN_BODY_RADIUS,
+  maxRadius = MAX_BODY_RADIUS,
+): Organism[] {
+  const draw = openDraws(seed);
+  const population: Organism[] = [];
+
+  for (let i = 0; i < size; i++) {
+    const bodyRadius = minRadius + draw() * (maxRadius - minRadius);
+    population.push(
+      organismAt(
+        bodyRadius + draw() * (AQUARIUM_WIDTH - 2 * bodyRadius),
+        bodyRadius + draw() * (AQUARIUM_HEIGHT - 2 * bodyRadius),
+        bodyRadius,
+        i + 1,
+      ),
+    );
+  }
+
+  return population;
+}
+
+/**
+ * How far the worst-placed body hangs outside the aquarium, negative while
+ * every body is clear of every wall.
+ *
+ * A number rather than four assertions per body, because the tests that
+ * check containment check it on every tick of a long run: a million
+ * assertions cost more time than the run they are checking, and a single
+ * carried worst case says the same thing.
+ */
+export function worstExcursion(population: readonly OrganismView[]): number {
+  return population.reduce(
+    (worst, organism) =>
+      Math.max(
+        worst,
+        organism.bodyRadius - organism.x,
+        organism.bodyRadius - organism.y,
+        organism.x + organism.bodyRadius - AQUARIUM_WIDTH,
+        organism.y + organism.bodyRadius - AQUARIUM_HEIGHT,
+      ),
+    Number.NEGATIVE_INFINITY,
+  );
 }

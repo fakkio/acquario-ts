@@ -9,6 +9,7 @@ import {
   getPopulation,
   getSeed,
   getTick,
+  getWorstPenetration,
   type World,
 } from "./world";
 
@@ -31,6 +32,16 @@ const updateHud = (currentWorld: World): void => {
     "population",
     "Population",
     String(getPopulation(currentWorld).length),
+  );
+  // M1's invariant, live: how deep the worst-overlapping pair stands, in
+  // baseline body radii. Three decimals, because what the row is watched for
+  // is whether the number sits at zero or holds a floor — not what its fourth
+  // digit is. On a settled run it reads 0.000 and flashes to a tenth or so
+  // when two bodies collide, a few times a minute.
+  hud.setField(
+    "penetration",
+    "Worst penetration",
+    getWorstPenetration(currentWorld).toFixed(3),
   );
 };
 

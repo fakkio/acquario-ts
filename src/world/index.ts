@@ -9,6 +9,7 @@ export {
   getPopulation,
   getSeed,
   getTick,
+  getWorstPenetration,
   hashState,
   type World,
 } from "./world";

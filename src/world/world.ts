@@ -8,6 +8,7 @@ import {
   type OrganismView,
 } from "./organism";
 import {createRngStream, type RngStream} from "./rng";
+import {separateOverlaps, worstPenetration} from "./separation";
 
 /**
  * Fixed simulation step, decoupled from `requestAnimationFrame`: how much real
@@ -126,9 +127,13 @@ function runTick(state: WorldState): WorldState {
 
   // ---- Commit: every world mutation, in a fixed order --------------
   // 9. Apply delta buffer — M2.
-  // 10. Collisions and walls. Separation lands here too, ahead of the
-  //     wall constraint, so a body pushed out of another body still ends
-  //     the tick inside the aquarium — M1, the separation ticket.
+  // 10. Collisions and walls. The grid is built here, consumed by the
+  //     separation pass, and dropped when the tick ends: it is an index of
+  //     where the bodies are *now*, and the only place that is true is
+  //     between the last write to a position and the next one. Separation
+  //     runs ahead of the wall constraint, so a body pushed out of another
+  //     body still ends the tick inside the aquarium.
+  separateOverlaps(state.population, buildUniformGrid(state.population));
   for (const organism of state.population) {
     constrainToAquarium(organism);
   }
@@ -196,6 +201,24 @@ export function getPopulation(world: World): readonly OrganismView[] {
  */
 export function getGridOccupancy(world: World): GridOccupancy {
   return buildUniformGrid(toState(world).population).occupancy();
+}
+
+/**
+ * What the HUD reads: how deep the worst-overlapping pair of bodies currently
+ * stands, in baseline body radii.
+ *
+ * Measured on demand from the population as it stands rather than recorded by
+ * the tick that separated it, for the same reason `getGridOccupancy` builds
+ * its own grid: a stored number would be a claim about a moment that has
+ * passed, and a readout of an invariant is worth having only if it cannot
+ * disagree with the state it describes. It is also not simulation state —
+ * nothing reads it back into the world — so it stays out of `hashState`,
+ * where it would only restate positions the hash already covers.
+ */
+export function getWorstPenetration(world: World): number {
+  const {population} = toState(world);
+
+  return worstPenetration(population, buildUniformGrid(population));
 }
 
 /**

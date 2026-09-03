@@ -1,16 +1,16 @@
 import {describe, expect, it} from "vitest";
 
-import {
-  AQUARIUM_HEIGHT,
-  AQUARIUM_WIDTH,
-  BASELINE_BODY_RADIUS,
-} from "./aquarium";
+import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 import {buildUniformGrid, type UniformGrid} from "./grid";
-import {MAX_BODY_RADIUS, MIN_RADIUS_FACTOR, type Organism} from "./organism";
-import {createRngStream, nextRng, type RngStream} from "./rng";
-import {organismAt, shuffle} from "./testing";
-
-const MIN_BODY_RADIUS = MIN_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
+import {MAX_BODY_RADIUS, type Organism} from "./organism";
+import {createRngStream} from "./rng";
+import {
+  MIN_BODY_RADIUS,
+  openDraws,
+  organismAt,
+  randomPopulation,
+  shuffle,
+} from "./testing";
 
 /** Cell size and extent, read off a grid built from nobody: the geometry is
  * a property of the aquarium, not of who happens to be in it. */
@@ -61,41 +61,6 @@ const expectFindsEveryBodyTouching = (
 
 const totalBucketed = (grid: UniformGrid): number =>
   grid.occupancy().counts.reduce((sum, count) => sum + count, 0);
-
-/** A cursor over a seeded stream, so every random case below is the same
- * random case on every run. */
-function openDraws(seed: number): () => number {
-  let current: RngStream = createRngStream(seed);
-
-  return () => {
-    const draw = nextRng(current);
-    current = draw.stream;
-    return draw.value;
-  };
-}
-
-function randomPopulation(
-  seed: number,
-  size: number,
-  minRadius = MIN_BODY_RADIUS,
-  maxRadius = MAX_BODY_RADIUS,
-): Organism[] {
-  const draw = openDraws(seed);
-  const population: Organism[] = [];
-
-  for (let i = 0; i < size; i++) {
-    const bodyRadius = minRadius + draw() * (maxRadius - minRadius);
-    population.push(
-      organismAt(
-        bodyRadius + draw() * (AQUARIUM_WIDTH - 2 * bodyRadius),
-        bodyRadius + draw() * (AQUARIUM_HEIGHT - 2 * bodyRadius),
-        bodyRadius,
-      ),
-    );
-  }
-
-  return population;
-}
 
 /** One body at the centre of every cell, so a query's reach can be read off
  * as a count of cells rather than inferred from a distance. */

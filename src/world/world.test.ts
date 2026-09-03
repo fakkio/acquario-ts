@@ -1,14 +1,18 @@
 import {describe, expect, it} from "vitest";
 
-import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
+import {buildUniformGrid} from "./grid";
+import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {STARTING_POPULATION, createPopulation} from "./organism";
 import {createRngStream} from "./rng";
+import {separateOverlaps} from "./separation";
+import {worstExcursion} from "./testing";
 import {
   FIXED_DT_MS,
   advance,
   createWorld,
   getPopulation,
   getTick,
+  getWorstPenetration,
   hashState,
   type World,
 } from "./world";
@@ -116,23 +120,23 @@ describe("motion", () => {
   // The invariant, checked where it has to hold rather than only in the
   // motion unit test: every tick of a real run, for a whole population that
   // started scattered against the walls.
+  //
+  // Carried as a worst case and asserted once rather than assertion by
+  // assertion, which it was until the separation ticket made a tick do real
+  // work. Three hundred thousand assertions cost several seconds on their
+  // own, and a test that spends its time inside the assertion library rather
+  // than inside the simulation is a test that goes flaky the moment the
+  // machine is busy.
   it("never lets a body cross the aquarium boundary, tick after tick", () => {
     let world = createWorld(5);
+    let worstSoFar = Number.NEGATIVE_INFINITY;
 
     for (let tick = 0; tick < 2000; tick++) {
       ({world} = advance(world, FIXED_DT_MS));
-
-      for (const organism of getPopulation(world)) {
-        expect(organism.x - organism.bodyRadius).toBeGreaterThanOrEqual(0);
-        expect(organism.y - organism.bodyRadius).toBeGreaterThanOrEqual(0);
-        expect(organism.x + organism.bodyRadius).toBeLessThanOrEqual(
-          AQUARIUM_WIDTH,
-        );
-        expect(organism.y + organism.bodyRadius).toBeLessThanOrEqual(
-          AQUARIUM_HEIGHT,
-        );
-      }
+      worstSoFar = Math.max(worstSoFar, worstExcursion(getPopulation(world)));
     }
+
+    expect(worstSoFar).toBeLessThanOrEqual(0);
   });
 
   // M0's determinism invariant, now that the hash covers something that
@@ -225,5 +229,90 @@ describe("per-tick pipeline", () => {
     const {world, ticksRun} = advance(createWorld(99), 60 * 60 * 1000);
 
     expect(getTick(world)).toBe(ticksRun);
+  });
+});
+
+describe("collisions", () => {
+  const TICKS = 600;
+
+  /**
+   * The ceiling M1's invariant is stated against, in baseline body radii, and
+   * the same one `separation.test.ts` pins for a crowd four times this dense.
+   * Read here on the population the app actually runs, through the accessor
+   * the HUD actually reads.
+   */
+  const PENETRATION_CEILING = 0.5;
+
+  // Placement scatters generation 0 without looking at who is already there,
+  // so a fresh world starts with bodies inside one another. This is the one
+  // assertion that says the pass runs inside the tick at all.
+  it("clears the overlaps generation 0 was placed with", () => {
+    const world = createWorld(8);
+    const placed = getWorstPenetration(world);
+    expect(placed).toBeGreaterThan(0);
+
+    const {world: separated} = advance(world, TICKS * FIXED_DT_MS);
+
+    expect(getWorstPenetration(separated)).toBeLessThan(placed);
+  });
+
+  it("holds the worst overlap under the ceiling, tick after tick of a real run", () => {
+    let world = createWorld(8);
+    let worst = 0;
+
+    for (let tick = 0; tick < TICKS; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      worst = Math.max(worst, getWorstPenetration(world));
+    }
+
+    expect(worst).toBeLessThan(PENETRATION_CEILING);
+  });
+
+  // Separation writes to positions, so it writes to the hash — which is the
+  // point of hashing bodies at all. A pass that ran on one world and not on
+  // its twin would show up here.
+  it("keeps two runs from the same seed hashing identically while bodies collide", () => {
+    const runTo = (seed: number) =>
+      hashState(advance(createWorld(seed), TICKS * FIXED_DT_MS).world);
+
+    expect(runTo(8)).toBe(runTo(8));
+  });
+
+  /**
+   * "Exactly one separation pass per tick", asserted where the count actually
+   * lives. The unit test next door proves that one call to `separateOverlaps`
+   * does one pass; only this can say the tick makes one call — a second one
+   * added to `runTick` is invisible from inside the pass.
+   *
+   * Written as an equality against the pipeline spelled out by hand, so it
+   * pins the whole of step 6 and step 10 and not just the pass count: motion
+   * once per organism, then one separation over the grid as it stands after
+   * motion, then the wall constraint. Any tick that ran them twice, in the
+   * other order, or against a grid built before motion, lands somewhere else.
+   */
+  it("runs motion, one separation pass and the wall constraint, once each per tick", () => {
+    const SEED = 8;
+    // Short enough to stay under the catch-up cap, so one `advance` call
+    // really does run this many ticks.
+    const PIPELINE_TICKS = 60;
+    const byHand = createPopulation(createRngStream(SEED)).population;
+
+    for (let tick = 0; tick < PIPELINE_TICKS; tick++) {
+      for (const organism of byHand) {
+        applyBrownianMotion(organism);
+      }
+      separateOverlaps(byHand, buildUniformGrid(byHand));
+      for (const organism of byHand) {
+        constrainToAquarium(organism);
+      }
+    }
+
+    const {world, ticksRun} = advance(
+      createWorld(SEED),
+      PIPELINE_TICKS * FIXED_DT_MS,
+    );
+
+    expect(ticksRun).toBe(PIPELINE_TICKS);
+    expect(getPopulation(world)).toEqual(byHand);
   });
 });
