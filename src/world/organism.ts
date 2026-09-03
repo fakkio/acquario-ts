@@ -35,9 +35,15 @@ export const MAX_RADIUS_FACTOR = 1.4;
  * rather than restating it.
  *
  * In M1 nothing grows and nothing is born, so this is exactly the top of
- * generation 0's spread. From M4 `bodyRadius` mutates, and whatever mutation
- * does it has to keep this a real ceiling: a body wider than a cell is a body
- * a query can miss.
+ * generation 0's spread, and a real ceiling.
+ *
+ * **It stops being one at M4.** `bodyRadius` is a gene with range `> 0`
+ * mutating multiplicatively, so once reproduction exists there is no largest
+ * radius for anything to derive itself from, and this constant goes on
+ * describing generation 0 while the population grows past it. Nothing fails
+ * loudly when that happens: a body wider than a cell is a body its neighbours'
+ * queries stop finding, with the suite still green. ADR-0012 records what the
+ * grid has to do instead.
  */
 export const MAX_BODY_RADIUS = MAX_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
 
