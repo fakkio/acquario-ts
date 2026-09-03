@@ -429,3 +429,92 @@ appena ammesso non essersi accesa.
 Non è un'incoerenza. È che uno dei due ha uno strumento e l'altro no. Ma forse
 spiega perché la faccenda dei nomi gli dà fastidio senza che riesca a dire bene
 cosa pretendere.
+
+---
+
+_Evento: scelta dell'agente, presa senza chiedere. Regola: mia._
+
+Il ticket #11 dice che la query restituisce i candidati «nelle celle che il
+cerchio tocca». Preso alla lettera è un bug. Gli organism finiscono nel bucket
+del loro centro, quindi un corpo con il centro una cella più in là tocca
+comunque il cerchio, e leggere solo le celle coperte lo perde. Lo perde
+raramente: proprio nelle coppie quasi a contatto, che sono l'unica ragione per
+cui le collisioni esistono.
+
+L'agente se n'è accorto e ha implementato la cosa giusta invece di quella
+scritta. Non me l'ha chiesto.
+
+E i test deterministici lì non ti salvano. Se implementi il ticket alla lettera
+e poi scrivi il test leggendo lo stesso ticket, i due sono d'accordo fra loro e
+il verde è pieno.
+
+La regola, da adesso, ha due rami.
+
+Se il ticket è **sbagliato**, si viene da me prima. Si fa brainstorming, si
+sbroglia la matassa insieme, e poi decido io. In ogni caso.
+
+Se il ticket è **giusto** e l'agente crede di avere una strada migliore, fa bene
+a provare la sua. Il cancello arriva dopo, ed è doppio: i test automatici e il
+mio QA manuale.
+
+Quello che divide i due rami non sono i gusti. È se il mio cancello finale può
+vedere l'errore oppure no. Sulla query non lo vede, e sta scritto qui sopra:
+ticket alla lettera più test scritto leggendo lo stesso ticket fa verde pieno
+con il bug dentro. Un cancello che non può vedere l'errore non è un cancello,
+quindi quella decisione deve arrivarmi prima.
+
+L'altro ramo sta nello stesso ticket. La griglia costruita fuori dal tick,
+contro quello che il ticket dice, perché il consumatore arriva solo con #12. Lì
+il cancello tiene: due criteri di accettazione di #11 restano aperti, si vedono,
+e li chiude #12.
+
+---
+
+_Domanda mia, verifica dell'agente._
+
+«Ma il TDD non dovrebbe già farlo? Prima scrivi il test rosso, poi lo fai
+diventare verde con l'implementazione.»
+
+Sì. E infatti è andata così, il rosso c'è stato. Solo che il rosso è stato
+questo:
+
+    Error: Cannot find module './grid'
+    src/world/grid.test.ts (0 test)
+
+Zero test eseguiti. Il file non si caricava proprio, perché il modulo che
+importava non esisteva ancora. Tutti e venti i test erano rossi insieme, per la
+stessa ragione, e quella ragione non c'entrava niente con quello che ognuno di
+loro andava a controllare.
+
+Il rosso del TDD dimostra che il test fallisce quando il codice **non c'è**. Non
+dimostra che fallisce quando il codice **c'è ed è sbagliato**. Sono due cose
+diverse, e in mezzo ci sta tutto lo spazio dove vive un test inutile.
+
+Quello che poi si è rivelato buono a niente confrontava due griglie e chiedeva
+che avessero la stessa dimensione di cella. Sarebbe passato anche contro una
+funzione che restituisce due costanti e basta. Non ha mai avuto un rosso vero:
+ha avuto solo quello dell'import.
+
+---
+
+_Decisione mia._
+
+Quando la review boccia un test dicendo che non può fallire, quel verdetto non
+basta da solo. Si prova rompendo il codice. In questo modo siamo sicuri.
+
+`/implement` però non lo tocco. È una skill rodata, l'ha scritta Matt Pocock,
+resta com'è.
+
+---
+
+_Filo aperto, sollevato dall'agente, rimandato da me._
+
+La regola nuova, un test bocciato si prova rompendo il codice, non ha nessun
+motore che la esegua. Sta a valle della review, la review vive dentro
+`/implement`, e `/implement` ho appena deciso di non toccarlo.
+
+È la stessa forma delle tartarughe di quaranta righe fa. Solo che lì l'oggetto
+del controllo erano i nomi, e avevo chiuso dicendo che in fondo alla catena ci
+sono comunque i test deterministici. Qui l'oggetto del controllo sono i test.
+
+Non so ancora. Per ora lascio così.
