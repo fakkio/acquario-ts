@@ -1,6 +1,13 @@
 # Release process
 
-[Semantic Versioning](https://semver.org/). Until `1.0.0`, every release is a **minor** bump — `0.1.0`, `0.2.0`, ... — one per milestone from `docs/vision.md`. Patch releases and a hotfix flow are not yet defined; add them when a hotfix is first actually needed, not before.
+[Semantic Versioning](https://semver.org/). Until `1.0.0`, two counters run at once:
+
+- **Patch counts milestones.** Each milestone from `docs/vision.md` ships as a patch release: M0 was `0.0.2`, M1 is `0.0.3`, and so on.
+- **Minor counts versions of the vision.** `0.1.0` is cut when the last milestone of v0.1 closes, which is M5; `0.2.0` when v0.2's does.
+
+So a minor bump is also the release that ships a milestone, and there is no separate release for it.
+
+A hotfix flow is not defined; add one when a hotfix is first actually needed, not before.
 
 ## Cutting a release
 
