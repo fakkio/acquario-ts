@@ -58,7 +58,7 @@ Every organism has innate capabilities, even with no organelles. This is the onl
 
 ### Shape
 
-In v0.1 every organism is a circle. A body has position, velocity, rotation and angular velocity. Rotation matters because organelles have orientation and a position relative to the body's centre.
+In v0.1 every organism is a circle, and a body has a position and nothing else kinematic: motion is overdamped, so there is no velocity to carry between ticks, and a circle with no organelles has no visible orientation to rotate. Rotation and angular velocity arrive in v0.2 with the organelles that make them matter, because organelles have an orientation and a position relative to the body's centre.
 
 ### Organelles
 
@@ -297,7 +297,9 @@ velocity   = totalForce / drag
 position  += velocity × dt
 ```
 
-In v0.1 the only force is brownian. Rotation follows the same law with rotational drag.
+In v0.1 the only force is brownian, and bodies have no rotation: a circle with no organelles has no visible orientation, so rotation arrives in v0.2 together with the organelles whose placement makes it matter. It will follow the same law, with rotational drag.
+
+The tick is the simulation's own unit of time, so every world quantity is expressed per tick and `dt` is 1 by construction. The formulas in this document carry `× dt` to show which quantities are rates; the code leaves it out, because multiplying by one is not a computation. How many milliseconds a tick stands for is the render loop's business, and never enters a world quantity.
 
 A consequence worth stating: an organism that stops pushing stops immediately. There is no coasting, and inertial gliding can never become an evolvable strategy.
 
@@ -306,6 +308,8 @@ Because the diffusion coefficient goes as `1/r`, large organisms wander slowly a
 ### Collisions
 
 Overlaps are resolved by **positional separation**: bodies are displaced apart along their normal, split in proportion to `1/area`, with no impulses and no restitution. Corrections accumulate in a buffer and are applied once, so the result does not depend on iteration order.
+
+One pass runs per tick, which makes overlap decay across ticks rather than vanish within one. Two things follow, both measured rather than assumed (ADR-0008). A crowd left alone settles until its bodies are merely touching, asymptotically, so there is no tick on which the overlap reaches zero. And where bodies are piled deep enough to overlap five or six neighbours at once, the summed correction can push one further into a seventh, so the worst overlap in the world climbs for a tick here and there on the way down.
 
 Collisions are not decoration. Light is the only spatially localised resource in v0.1, so volume exclusion is what makes the photic zone finite — and the only way one organism's existence costs another anything.
 
@@ -329,7 +333,9 @@ A vertical gradient, strongest at the surface and weakest at depth.
 
 ### Boundaries
 
-The world is finite and bounded by hard walls, with dimensions calibrated during implementation. No toroidal wraparound and no infinite space: a fixed-size collision grid is simpler, and the aquarium metaphor needs a real surface and a real floor for the light gradient to mean anything.
+The world is finite and bounded by hard walls. No toroidal wraparound and no infinite space: a fixed-size collision grid is simpler, and the aquarium metaphor needs a real surface and a real floor for the light gradient to mean anything.
+
+Calibrated at M1 to 60 × 40 baseline body radii, landscape so the light gradient has somewhere to run from surface to floor, and sized so a generation-0 population reads as a sparse culture under a microscope: crowded enough that bodies meet, open enough that a lineage has somewhere to spread into. Every length in the simulation is written as a multiple of the baseline radius and never in pixels.
 
 ---
 
@@ -456,7 +462,7 @@ PHASE 2 — per organism, in index order (no writes to the world)
   3. photosynthesis         CO₂ + light → food + O₂        (internal state only)
   4. respiration            food + O₂ → energy + CO₂       (internal state only)
   5. maintenance            energy −= (c₀ + β·area) × dt
-  6. brownian motion        integrate velocity and position
+  6. brownian motion        draw a direction, position += force / drag
   7. evaluate mitosis       → enqueue a pending birth
   8. evaluate death         → enqueue a pending death
 
@@ -505,7 +511,7 @@ A fullscreen Canvas2D view with:
 
 - start, pause, and single-tick step while paused
 - zoom and pan
-- a HUD showing tick, seed, population, the three pool levels, live total carbon (the conservation invariant), and mean ± σ of each gene
+- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, live total carbon (the conservation invariant), and mean ± σ of each gene
 - CSV export of that time series
 
 Rendering encodes state directly: **hue** is `lineageHue`, **brightness** is the energy fraction, **radius** is `bodyRadius`. Dying organisms visibly fade, so starvation waves and boom–bust cycles are readable without opening the CSV.
@@ -584,14 +590,14 @@ Non-dimensionalise rather than guess. Fix `kCap = 1` (defining the concentration
 
 Each milestone is independently runnable and adds exactly one invariant. The ordering exists so that a broken invariant has one possible cause.
 
-| #   | Branch                        | Ships                                                                                                                                   | Invariant added                                    |
-| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
-| M0  | `feature/simulation-skeleton` | toolchain; fixed-step accumulator with catch-up cap; seeded PRNG and per-organism streams; canvas, pan/zoom, play/pause/step, HUD shell | same seed ⇒ same state hash                        |
-| M1  | `feature/bodies-and-motion`   | organism circles, Stokes drag and brownian motion, uniform grid, positional separation, walls, `lineageHue` rendering                   | no overlaps after resolution; correct grid queries |
-| M2  | `feature/metabolism`          | `Environment` seam, pools, light LUT, signed diffusion, photosynthesis, respiration, maintenance, caps — **fixed, immortal population** | carbon and oxygen conserved over 100k ticks        |
-| M3  | `feature/death`               | death by starvation; mass and contents returned to pools                                                                                | conservation survives death                        |
-| M4  | `feature/reproduction`        | genome, mutation, mitosis costs, allocation, tangent birth, baseline population                                                         | conservation survives birth                        |
-| M5  | `feature/calibration`         | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs                                                     | population converges to predicted `r_opt`          |
+| #   | Branch                        | Ships                                                                                                                                   | Invariant added                                                                           |
+| --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| M0  | `feature/simulation-skeleton` | toolchain; fixed-step accumulator with catch-up cap; seeded PRNG and per-organism streams; canvas, pan/zoom, play/pause/step, HUD shell | same seed ⇒ same state hash                                                               |
+| M1  | `feature/bodies-and-motion`   | organism circles, Stokes drag and brownian motion, uniform grid, positional separation, walls, `lineageHue` rendering                   | overlap decays to touching, and stays under a ceiling on a live run; correct grid queries |
+| M2  | `feature/metabolism`          | `Environment` seam, pools, light LUT, signed diffusion, photosynthesis, respiration, maintenance, caps — **fixed, immortal population** | carbon and oxygen conserved over 100k ticks                                               |
+| M3  | `feature/death`               | death by starvation; mass and contents returned to pools                                                                                | conservation survives death                                                               |
+| M4  | `feature/reproduction`        | genome, mutation, mitosis costs, allocation, tangent birth, baseline population                                                         | conservation survives birth                                                               |
+| M5  | `feature/calibration`         | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs                                                     | population converges to predicted `r_opt`                                                 |
 
 M2 runs with a fixed, immortal population on purpose: metabolism is where conservation bugs live, and isolating a leak is far easier with `N` pinned. M3 and M4 then each add exactly one new way to move mass.
 
