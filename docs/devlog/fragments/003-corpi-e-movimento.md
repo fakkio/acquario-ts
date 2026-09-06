@@ -518,3 +518,336 @@ del controllo erano i nomi, e avevo chiuso dicendo che in fondo alla catena ci
 sono comunque i test deterministici. Qui l'oggetto del controllo sono i test.
 
 Non so ancora. Per ora lascio così.
+
+---
+
+_Seconda versione della regola, un ticket dopo._
+
+In #11 avevo scritto: «Se il ticket è sbagliato, si viene da me prima. Si fa
+brainstorming, si sbroglia la matassa insieme, e poi decido io. In ogni caso.»
+
+In #12, poche ore dopo: se riesci a risolvere da solo va benissimo, non serve
+che vieni da me, e questo in entrambi i casi. Al limite vedrò alla fine, quando
+faccio la code review, se quello che hai fatto sta insieme al come di progetto
+che avevo in mente. Lì correggo, oppure mi faccio convincere, come è già
+successo altre volte.
+
+Quello che la versione nuova sorpassa non è un capriccio della vecchia. È un
+argomento. La vecchia diceva che un cancello che non può vedere l'errore non è
+un cancello, e portava l'esempio: ticket preso alla lettera, più test scritto
+leggendo lo stesso ticket, fa verde pieno con il bug dentro. Quel caso non è
+sparito. È solo passato sotto un cancello diverso.
+
+---
+
+_Il ticket ci aveva pensato, e aveva sbagliato lo stesso._
+
+#12 non era un ticket sciatto. Il criterio diceva che con il moto spento la
+penetrazione massima decresce a ogni tick, e il ticket sapeva già che una
+versione ingenua di quella frase è falsa: c'era scritto che il moto browniano
+rimette overlap dentro a ogni tick, e che proprio per questo il test va spezzato
+in due.
+
+Preoccupazione giusta, causa sbagliata. Il decremento monotono salta anche con
+il moto spento, e per una ragione che con il moto non c'entra niente. Le
+correzioni si accumulano in un buffer; un corpo dentro sei vicini riceve la
+somma delle sei spinte; e la somma lo può portare più dentro un settimo che
+stava solo sfiorando. Il buffer è la cosa che rende il risultato indipendente
+dall'ordine di visita, ed è la stessa identica cosa che gli toglie la monotonia.
+
+Il ticket aveva guardato nella direzione giusta e visto l'ostacolo sbagliato.
+
+---
+
+_Risposta di Fabio, che raddrizza la regola nuova._
+
+«Di solito no, guardo il codice non il ticket.»
+
+È la cosa che tiene in piedi la versione nuova. Se la review finale leggesse il
+ticket sarebbe il terzo documento della stessa famiglia, e tre documenti che
+discendono dalla stessa idea non si smentiscono a vicenda. Leggendo solo il
+codice, Fabio è l'unico anello della catena che non ha il ticket in testa.
+
+Il prezzo vale la pena scriverlo: così il ticket, una volta scritto, non lo
+rilegge più nessuno. Viene controllato solo dall'atto di implementarlo.
+
+---
+
+_La linea, adesso che si vede._
+
+Ci sono due modi in cui un ticket può essere sbagliato.
+
+Il primo cade da solo. «La penetrazione massima decresce a ogni tick», messa
+dentro un `expect`, diventa rossa contro codice giusto. Non serve nessuno che la
+giudichi: serve solo qualcuno che provi a scriverla. La specifica si smentisce
+da sé nel momento in cui qualcuno la esegue.
+
+Il secondo va d'accordo con sé stesso. «I candidati nelle celle che il cerchio
+tocca» è eseguibile, è coerente, e chiede la cosa sbagliata in un modo che il
+computer può soddisfare senza protestare. Il test scritto leggendo quel ticket
+non lo contraddice, perché non è un secondo testimone. È lo stesso testimone due
+volte.
+
+Il primo tipo lo becca chiunque implementi. Il secondo lo becca solo chi legge
+il mondo invece del ticket.
+
+---
+
+_La parola._
+
+**Testimoni non indipendenti.**
+
+In tribunale due testimoni che si sono parlati prima di deporre contano come
+uno. Non è che mentano. È che la loro concordanza non aggiunge niente, perché
+hanno la stessa fonte.
+
+L'agente che ha spacchettato M1 in ticket, l'agente che implementa, e i test che
+quell'agente scrive leggendo il ticket: tre voci, una fonte sola, il
+brainstorming da cui è uscito M1. Concordano sempre. La loro concordanza non
+vale niente.
+
+Le uniche cose che in tre ticket hanno davvero contraddetto qualcosa sono
+testimoni indipendenti, e si contano:
+
+- `stepOnce`, fermato dal glossario, che non discende dal ticket, aperto da un
+  agente appena nato.
+- La query di #11, fermata dal dominio, cioè da come funziona davvero il
+  bucketing.
+- Il criterio falso di #12, fermato dall'esecuzione, che non è un documento e
+  non discende da niente.
+- Il test che confrontava due griglie, fermato dalla mutazione, cioè rompendo il
+  codice apposta.
+
+Tutto il resto della catena si è limitato ad annuire.
+
+E qui la regola nuova viene fuori meglio di come l'avevo pensata quando l'ho
+scritta. Leggere il codice e non il ticket non è pigrizia procedurale. È
+comprarsi l'indipendenza. È l'unica posizione da cui quello che dico conta
+qualcosa.
+
+---
+
+_Il filo aperto di #11 si chiude, e non come me lo aspettavo._
+
+Alla fine di #11 avevo scritto che la regola nuova, un test bocciato si prova
+rompendo il codice, non aveva nessun motore che la eseguisse. «Non so ancora.
+Per ora lascio così.»
+
+In #12 è stata eseguita. Sette mutazioni prima del commit, ognuna con la suite
+che diventa rossa. Nessuno l'ha chiesto: non stava in `CLAUDE.md`, non stava nel
+ticket, e l'agente non l'ha presa dal fragment pile, che ha letto dopo.
+
+L'ha presa dal messaggio di commit di #11. La prima cosa che fa in un ticket è
+`git log`, e lì c'era scritto per esteso cosa era stato mutato e perché.
+
+Il motore era la cronologia. La regola si è propagata per imitazione, non per
+istruzione, e nessuno l'aveva progettata così.
+
+Mi è stato proposto di promuoverla a sistema, di decidere che i messaggi di
+commit raccontano il come e non solo il cosa. Ho detto di no. I commit vanno
+bene come sono, si continua così.
+
+Mi rendo conto di cosa sto dicendo. La convenzione che ha funzionato è quella
+che nessuno ha scritto come convenzione. Quella su tick e step invece stava nel
+file giusto, con tanto di lista di parole vietate, ed è passata sotto il naso di
+due agenti su tre.
+
+---
+
+_Verdetto mio, chiesto dall'agente._
+
+`vision.md` resta com'è. È il punto di partenza e la direzione verso cui
+andiamo. Non è la specifica di quello che il codice fa adesso, e non va
+inseguito ticket per ticket. Lo correggono gli ADR.
+
+Quindi la riga 590, «no overlaps after resolution», resta lì falsa e va bene
+così: dice cosa volevo, e ADR-0008 dice cosa è successo quando ho provato a
+ottenerlo.
+
+---
+
+_Cambio idea, mezz'ora dopo._
+
+Mi era stato proposto un rinvio: `vision.md` resta testuale e accanto alla frase
+superata compare un puntatore all'ADR che l'ha affrontata. L'ho guardato e mi
+sembra che complichi. Per trovare un'informazione tocca navigare due file.
+
+Allora `vision.md` si modifica e basta. La versione originale non la perdo: sta
+in git, che è esattamente il posto dove tenere le versioni vecchie di un file.
+
+È la seconda volta in questa conversazione che la risposta era già in git e non
+ci avevo pensato. La prima era la regola sulle mutazioni, che si è propagata da
+sola perché stava scritta in un messaggio di commit. Nessuna delle due l'ho
+progettata così.
+
+---
+
+_Il puntatore funzionava esattamente come è scritto._
+
+Mezz'ora passata a chiedersi perché in tre ticket nessuno abbia aperto
+`vision.md`. La risposta stava nella dicitura del puntatore, e me l'ha fatta
+vedere `writing-for-agents`: un puntatore deve fare due lavori, dire cosa c'è
+ed elencare i rami che devono farlo scattare.
+
+`CLAUDE.md` non nomina `vision.md`. L'unico puntatore in catena è una riga di
+`CONTEXT.md`: «The full design lives in `docs/vision.md`». Dice cosa c'è. Rami:
+zero. Non esiste nessuna condizione sotto la quale un agente debba aprirlo.
+
+Quindi non è stata distrazione, e non è stata una convenzione senza motore. È
+stato un puntatore che ha fatto precisamente quello che c'era scritto di fare.
+Gli agenti l'hanno aperto solo quando un ticket ne citava una riga, che è
+l'unico ramo che qualcuno avesse mai indicato.
+
+---
+
+_Il documento aveva un mestiere, e l'ha già finito._
+
+`vision.md` era un generatore. Da lì sono usciti i milestone della 0.1.0, e quel
+lavoro è fatto.
+
+Quello che resta non è un riferimento: sono due residui diversi che convivono
+perché sono nati insieme. Cosa deve fare la v0.1, che è reference viva e che il
+codice ogni tanto smentisce. E dove andiamo dopo, che non è falso, è non ancora.
+
+E su quel secondo pezzo, messo con le spalle al muro, ho ammesso una cosa che
+cambia la sua natura: la 0.2.0 non la pianificherò rileggendo quelle sezioni
+come specifica. Rifarò un brainstorming, partendo da quegli appunti.
+
+Duecento righe che stanno dentro un documento di design con l'autorità di un
+documento di design, e che sono appunti di un brainstorming vecchio.
+
+---
+
+_La carotatura, e quanto era profonda._
+
+Avevo chiesto quante altre righe di `vision.md` fossero false senza che lo
+sapesse nessuno, e temevo che la risposta fosse "non si può sapere". Non lo è.
+Gli ADR sono già l'indice di dove il documento è invecchiato, perché è
+esattamente il mestiere che gli ho dato. Quattordici posti da controllare, non
+seicento righe da rileggere.
+
+Il passaggio ne ha trovate sei. Una la sapevo, la riga 590. Le altre cinque no.
+
+La peggiore stava nella sezione sulla forma del corpo, dalla prima stesura: «un
+corpo ha posizione, velocità, rotazione e velocità angolare». Sotto la fisica
+sovrasmorzata non c'è nessuna velocità da portarsi da un tick all'altro, ed è
+il punto centrale di ADR-0008, l'ADR che avevo scritto proprio per dire che il
+modello a inerzia non era una semplificazione di quel mondo ma un mondo
+diverso. Il documento continuava a descrivere il mondo che avevo scartato.
+
+E la stessa frase compariva una seconda volta, dentro la pipeline del tick:
+«brownian motion: integrate velocity and position».
+
+Non è che la vision fosse scritta male. È che descriveva la versione precedente
+di sé stessa in due punti che nessuno aveva più motivo di aprire.
+
+---
+
+_Una nota che mi toglie un po' di soddisfazione, e va tenuta._
+
+Non è vero che l'ADR non era mai rientrato nella vision. La riga 232 dice che la
+sublinearità resta in piedi e che l'incentivo alla specializzazione è una
+domanda aperta, e rimanda a ADR-0014 per nome.
+
+Quindi il flusso che oggi ho deciso di adottare era già successo una volta, da
+solo, senza che io lo chiamassi flusso. Come le mutazioni propagate dal
+messaggio di commit, e come git che teneva già le versioni vecchie della vision.
+
+Tre volte in una sera che la cosa giusta era già lì e stavo per costruirci
+sopra un meccanismo.
+
+---
+
+_Episodio dell'agente, con la figuraccia dentro._
+
+Il tick ha iniziato a lavorare davvero, e un test scritto a M0 ha iniziato a
+morire. `never lets a body cross the aquarium boundary, tick after tick`:
+duemila tick per quaranta corpi per quattro `expect`, trecentoventimila
+asserzioni, e quasi tutto il tempo passato dentro la libreria di asserzioni
+invece che dentro la simulazione. Nessuno l'aveva toccato. Era stato scritto
+quando un tick era gratis, e il suo costo se l'era portato dietro fino al
+momento in cui il mondo sotto è cambiato.
+
+Un test di solito te lo dice, quando invecchia: diventa rosso. Questo non è
+diventato rosso. È diventato lento, che è l'unico modo di rompersi che non
+sembra niente finché non sembra un test che ogni tanto fa i capricci.
+
+L'agente che lo stava scrivendo l'ha visto fallire due volte e l'ha archiviato
+come contesa di CPU, perché in quel momento aveva due review agent che giravano
+in parallelo e quella spiegazione era disponibile, comoda e in parte anche vera.
+
+L'ha ripreso il review agent, che quella spiegazione non ce l'aveva: isolato
+gira in 3,9 secondi, il margine se l'è mangiato la separazione, quel timeout va
+guardato adesso.
+
+Terza volta in un milestone che a fermare un errore è chi arriva senza contesto,
+e la prima in cui il distratto è l'agente che stava facendo il lavoro. Non è che
+il testimone indipendente sia più sveglio. È che non ha a portata di mano la
+spiegazione comoda.
+
+---
+
+_Il conto onesto, e due verdetti miei._
+
+Quattro volte stasera ho sentito dire «qui manca un meccanismo», e quattro volte
+il meccanismo c'era già. I messaggi di commit propagavano la regola sulle
+mutazioni. Git teneva le versioni vecchie della vision. La riga 232 rimandava
+già a un ADR. E per il test lento: vitest stampa la durata accanto al nome del
+test, a ogni esecuzione. Nell'output c'era scritto `8851ms`. È stato letto e
+scavalcato.
+
+Il problema non è mai stato che mancasse lo strumento. È che nessuno leggeva la
+deposizione.
+
+Il timeout di quel test resta stretto. Non è un test di performance, ma è
+l'unica cosa nel progetto che abbia un'opinione su quanto costa un tick, e da
+M2 in avanti il tick costerà molto di più.
+
+E sull'altra, che è la domanda vera: continuerò con le review. Non è una
+disciplina da ricordarsi, è qualcuno che arriva senza contesto, e quello lo
+posso comprare.
+
+---
+
+_Misura chiesta dall'agente su una sua stessa affermazione. Sbagliamo in due._
+
+L'agente aveva notato che il soffitto della penetrazione, 0,24 raggi misurati su
+tremila tick, vale più o meno due passi browniani, e ne aveva tirato fuori una
+frase bella: la costante tarata a occhio nel ticket del moto produce due ticket
+dopo un numero che si deriva sulla carta.
+
+Ho detto che secondo me era solo una coincidenza. E che comunque quel numero non
+l'avevo scelto io: l'ha tarato l'agente durante il ticket del moto, io l'ho
+accettato.
+
+Invece di darmi ragione ha scalato `BROWNIAN_FORCE` e ha rimisurato. Otto volte
+la forza, undici volte il soffitto. Non è una coincidenza: il soffitto è
+proporzionale al passo, e se qualcuno ritocca la forza si sposta con lei.
+
+Però il coefficiente pulito non c'è. Non è due: vaga fra 1,5 e 2,5 a seconda di
+quanto è affollata la vasca. E il passo che fa da limite non è quello baseline,
+sono i corpi piccoli, che vanno come `1/r` e fanno 0,177 per tick invece di
+0,106. Il conto «due per zero virgola dieci fa zero virgola ventuno» prendeva il
+raggio sbagliato e arrivava vicino alla risposta giusta per la strada sbagliata.
+
+Tre minuti di misura per stabilire che avevamo torto tutti e due, ognuno per
+metà. È lo stesso regime del rejection sampling, applicato stavolta anche
+all'agente che lo aveva invocato.
+
+---
+
+_Quello che la misura ha lasciato sul tavolo._
+
+Il soffitto è proporzionale alla forza browniana, e la forza browniana è la
+costante che si giudica guardando lo schermo. Quindi il test sulle collisioni ha
+un piede dentro `motion.ts`: se qualcuno alza la forza, fallisce
+`separation.test.ts`, per una ragione che sta in un altro file. A forza doppia e
+duecento corpi il soffitto è già sfondato.
+
+È la stessa forma del test che blocca a mano la lunghezza del passo. Nessuno dei
+due verifica che la costante sia giusta. Verificano che nessuno la muova in
+silenzio.
+
+La differenza è che quello sul passo si rompe dove guardi, e questo si rompe una
+stanza più in là. L'ho scritto nel commento, che è l'unico posto dove chi si
+troverà il rosso davanti andrà davvero a leggere.
