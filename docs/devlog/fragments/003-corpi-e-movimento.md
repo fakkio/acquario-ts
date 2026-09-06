@@ -851,3 +851,31 @@ silenzio.
 La differenza è che quello sul passo si rompe dove guardi, e questo si rompe una
 stanza più in là. L'ho scritto nel commento, che è l'unico posto dove chi si
 troverà il rosso davanti andrà davvero a leggere.
+
+---
+
+_Ultimo fragment, e casca a fagiolo perché è a spese dell'agente._
+
+A milestone finito l'agente mi elenca cosa manca, e ci mette la release: la
+0.2.0, dice, perché `docs/agents/release.md` dichiara che prima di 1.0 ogni
+release è un minor bump, uno per milestone.
+
+Gli ho detto che no, per M1 la release è la 0.0.3, e che la 0.2.0 è lontana.
+
+Aveva citato il documento. Il documento sbaglia, e sbaglia da agosto: il tag è
+`v0.0.2`, `package.json` dice `0.0.2`, e il CHANGELOG di quella riga scrive per
+esteso «This closes M0 — Simulation skeleton». Un milestone è un patch. Il
+documento arrivava perfino a dire che i patch release non erano ancora definiti,
+mentre ne era già uscito uno.
+
+Lo schema vero nessuno l'aveva scritto da nessuna parte, e sta in piedi da solo:
+il patch conta i milestone, il minor conta le versioni della vision. La 0.1.0
+esce quando chiude M5.
+
+Quello che mi diverte è il tempismo. Abbiamo passato la sera a stabilire che il
+segnale c'è quasi sempre e che il problema è che nessuno lo legge, l'agente
+aveva appena scritto quella frase nel pile, e dieci minuti dopo ha citato un
+documento invece di guardare `git tag`, che era a un comando di distanza e aveva
+ragione.
+
+Quinta volta in una sera. Stavolta è toccato a chi stava tenendo il conto.
