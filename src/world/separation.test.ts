@@ -424,14 +424,29 @@ describe("no overlaps after resolution, with motion on", () => {
    * body radii. Brownian motion re-injects overlap every tick, so the honest
    * claim is not that overlap vanishes but that it never accumulates.
    *
-   * The number is not arbitrary and it is not a tolerance. Two bodies
-   * converging cover about a tenth of a radius each in a tick, so the deepest
-   * a pair can be found inside one another is roughly two steps' worth —
-   * which is what a crowd at a fifth of the aquarium's area actually reaches
-   * over three thousand ticks, about `0.24`. The ceiling sits at twice that
-   * and well under half a body: deep enough to allow the grazing a live run
-   * does, shallow enough that a pass which stopped separating, or one that
-   * let overlap creep up across ticks, crosses it within a few ticks.
+   * The number is not a tolerance picked wide enough to feel safe. It is
+   * **proportional to the brownian step**, which was checked by scaling
+   * `BROWNIAN_FORCE` and measuring: eight times the force moves the worst
+   * overlap by about eleven times, so the depth a pair reaches is set by how
+   * far one tick of motion can drive two bodies into each other before the
+   * pass pulls them back out.
+   *
+   * The coefficient is not clean. It wanders between roughly 1.5 and 2.5
+   * steps depending on how crowded the world is, and the step that bounds it
+   * belongs to the *smallest* bodies, which move `1/r` faster than the
+   * baseline. At the force this world runs, a crowd at a fifth of the
+   * aquarium's area reaches about `0.24` over three thousand ticks.
+   *
+   * So `0.5` is roughly double what the run actually does: deep enough to
+   * allow the grazing a live run does, shallow enough that a pass which
+   * stopped separating crosses it within a few ticks, since nothing would
+   * then be pulling bodies out at all.
+   *
+   * The consequence is worth knowing before it bites. Retuning
+   * `BROWNIAN_FORCE` upward moves this ceiling, and this test fails in
+   * `separation.test.ts` for a reason that lives in `motion.ts`. That is the
+   * same bargain the pinned step length makes next door: the constant cannot
+   * move quietly.
    */
   const PENETRATION_CEILING = 0.5 * BASELINE_BODY_RADIUS;
 
