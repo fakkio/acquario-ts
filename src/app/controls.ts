@@ -1,6 +1,9 @@
 export interface Controls {
   readonly playPauseButton: HTMLButtonElement;
   readonly stepButton: HTMLButtonElement;
+  /** Toggles the uniform grid's debug overlay. One button relabelled with
+   * the next action, the way play/pause already is. */
+  readonly gridButton: HTMLButtonElement;
 }
 
 /**
@@ -25,8 +28,12 @@ export function mountControls(): Controls {
   stepButton.type = "button";
   stepButton.textContent = "Step";
 
-  container.append(playPauseButton, stepButton);
+  const gridButton = document.createElement("button");
+  gridButton.type = "button";
+  gridButton.textContent = "Show grid";
+
+  container.append(playPauseButton, stepButton, gridButton);
   document.body.appendChild(container);
 
-  return {playPauseButton, stepButton};
+  return {playPauseButton, stepButton, gridButton};
 }

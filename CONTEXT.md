@@ -28,6 +28,14 @@ _Avoid_: base organism, default organism
 An organism and all its descendants. Tracked visually through `lineageHue`.
 _Avoid_: species, clade, family
 
+**Generation**:
+An organism's distance, in mitosis events, from generation 0 — the founding population that is placed rather than bred. A property of an individual, not a cohort: reproduction is continuous, so organisms many generations apart are alive at the same time.
+_Avoid_: age (that is time lived), cohort, epoch, round
+
+**Population**:
+Every organism alive in a world at a given moment, taken as one collection. Never a count — that is the population's size — and never a kind: one population holds many lineages.
+_Avoid_: colony, swarm, agents, creatures
+
 ### Genetics
 
 **Genome**:
@@ -55,8 +63,12 @@ A heritable gene with no physiological effect, drifting slightly each generation
 _Avoid_: colour gene, tag, marker (alone)
 
 **Baseline Genome**:
-The single minimal genome that the generation-0 population is independently mutated from.
+The single minimal genome that the generation-0 population is independently mutated from; a _baseline organism_ is one carrying it. Its body radius is the baseline radius, and it sits deliberately below the optimal radius, so a run's first visible story is the population climbing toward one.
 _Avoid_: seed genome, ancestor, template
+
+**Baseline Radius**:
+The simulation's length unit, and the body radius the baseline genome carries. It is 1 by definition rather than by tuning: every other length — the aquarium's dimensions, the generation-0 radius spread, the optimal radius — is written as a multiple of it (ADR-0009).
+_Avoid_: unit radius, reference radius, default size, r₀, pixel
 
 ### Metabolism
 
@@ -85,7 +97,7 @@ Signed diffusion of a resource across the membrane, proportional to perimeter an
 _Avoid_: absorption, uptake, intake, osmosis
 
 **Concentration**:
-An amount divided by the area holding it — `pool ÷ worldArea` outside, `internal ÷ bodyArea` inside. The only quantity the two sides of a membrane can be compared in.
+An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside. The only quantity the two sides of a membrane can be compared in.
 _Avoid_: density, level
 
 **Cap**:
@@ -106,9 +118,17 @@ _Avoid_: ideal size, target radius
 
 ### World
 
+**World**:
+One complete simulation run: an aquarium, its pools, its population, and the clock and random streams that advance them. What a seed determines and a state hash identifies.
+_Avoid_: universe, scene, game state, simulation (as a noun for the state), aquarium (that is the space inside it)
+
+**Aquarium**:
+The finite, hard-walled region a world's organisms live in: a width, a height, a surface along the top edge and a floor along the bottom, with no wraparound. The area every external concentration is measured over, and the extent the light gradient runs down.
+_Avoid_: tank, arena, canvas, box, world (that is the whole run)
+
 **Environment**:
 The interface through which organisms read concentrations and light and exchange resources. Position-aware by signature; positionally uniform in v0.1.
-_Avoid_: world (that is the container), medium, ambient
+_Avoid_: world (that is the whole run), aquarium (that is the space), medium, ambient
 
 **Pool**:
 A global, well-mixed reservoir of one resource. v0.1 has three: oxygen, carbon dioxide, food.

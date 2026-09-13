@@ -12,7 +12,7 @@ Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 ### Domain docs
 
-Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root, plus `docs/vision.md` for what the world is supposed to do. See `docs/agents/domain.md`.
 
 ### Branching
 
