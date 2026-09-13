@@ -26,14 +26,20 @@ const MAX_SCALE = 8;
  * `World`. `onChange` fires after every pan/zoom update so the caller can
  * repaint immediately even while the sim is paused — camera motion is
  * independent of `World` ticks.
+ *
+ * `initial` is where the camera rests before the first gesture. It is the
+ * caller's business rather than a hardcoded `{0, 0, 1}` because framing the
+ * aquarium needs both the canvas size and the render layer's pixels-per-unit,
+ * and neither of those belongs here.
  */
 export function mountCamera(
   canvas: HTMLCanvasElement,
+  initial: Camera,
   onChange: () => void,
 ): CameraController {
-  let offsetX = 0;
-  let offsetY = 0;
-  let scale = 1;
+  let offsetX = initial.offsetX;
+  let offsetY = initial.offsetY;
+  let scale = initial.scale;
   let dragging = false;
   let lastClientX = 0;
   let lastClientY = 0;

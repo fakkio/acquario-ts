@@ -7,6 +7,7 @@ How the engineering skills should consume this repo's domain documentation when 
 - **`CONTEXT.md`** at the repo root, or
 - **`CONTEXT-MAP.md`** at the repo root if it exists — it points at one `CONTEXT.md` per context. Read each one relevant to the topic.
 - **`docs/adr/`** — read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
+- **`docs/vision.md`** — what the world is supposed to do: the tick pipeline, the metabolic laws, the physics, the calibration method, the milestone table. Read it when implementing any domain behaviour, when choosing a constant, when deciding what a milestone owes, or when an ADR sends you to it. It is corrected in place as the code teaches us things, so it is current rather than historical; `git log` holds what it used to say.
 
 If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
 
