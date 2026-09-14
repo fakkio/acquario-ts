@@ -3,6 +3,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
+import {K_CAP, K_CAP_ENERGY, RHO} from "./constants";
 import {foldString} from "./hash";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
 
@@ -58,6 +59,10 @@ export interface OrganismView {
   readonly y: number;
   readonly bodyRadius: number;
   readonly lineageHue: number;
+  readonly energy: number;
+  readonly oxygen: number;
+  readonly carbonDioxide: number;
+  readonly food: number;
 }
 
 export interface OrganismInit {
@@ -66,7 +71,41 @@ export interface OrganismInit {
   readonly bodyRadius: number;
   readonly lineageHue: number;
   readonly rng: RngStream;
+  /**
+   * The four internal resource stores, all defaulting to 0. Left optional
+   * here rather than required: placement (`createPopulation`) does not know
+   * the carbon budget, so it is `initializeMetabolism` in `ledger.ts`,
+   * called once from `createWorld`, that fills generation 0 to diffusive
+   * equilibrium. Everywhere else that builds an `Organism` by hand — motion
+   * and separation's fixtures among them — has no reason to care about
+   * metabolism at all, and 0 lets them go on not caring.
+   */
+  readonly energy?: number;
+  readonly oxygen?: number;
+  readonly carbonDioxide?: number;
+  readonly food?: number;
 }
+
+/**
+ * One of the four quantities an organism holds internally (glossary:
+ * Resource). Named as a union rather than folded into `Organism`'s field
+ * list so `capFor` can be written once against the resource instead of once
+ * per field.
+ */
+export type Resource = "energy" | "oxygen" | "carbonDioxide" | "food";
+
+/**
+ * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
+ * size: `coefficient × bodyArea`. Energy carries `K_CAP_ENERGY` rather than
+ * the three diffusibles' `K_CAP`, because its unit is fixed independently
+ * by `β = 1` rather than by coincidence of notation.
+ */
+const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
+  energy: K_CAP_ENERGY,
+  oxygen: K_CAP,
+  carbonDioxide: K_CAP,
+  food: K_CAP,
+};
 
 /**
  * A mutable class instance, per ADR-0013's choice of OOP over SoA: the tick
@@ -81,7 +120,12 @@ export interface OrganismInit {
  *
  * No rotation and no angular velocity: a circle with no organelles has no
  * visible orientation, and rotation arrives in v0.2 with the organelles whose
- * placement makes it matter. No internal resources either — those are M2's.
+ * placement makes it matter.
+ *
+ * The four internal resource stores arrive in M2. They are plain mutable
+ * fields for the same reason `x`/`y` are: metabolism will write to them
+ * every tick. `bodyMass` is deliberately *not* one of them — see
+ * `bodyMass` below.
  */
 export class Organism {
   x: number;
@@ -91,6 +135,10 @@ export class Organism {
   /** Per ADR-0007, consumed only by this organism, so its sequence depends
    * on its own lineage and not on how many draws the rest of the world made. */
   rng: RngStream;
+  energy: number;
+  oxygen: number;
+  carbonDioxide: number;
+  food: number;
 
   constructor(init: OrganismInit) {
     this.x = init.x;
@@ -98,7 +146,39 @@ export class Organism {
     this.bodyRadius = init.bodyRadius;
     this.lineageHue = init.lineageHue;
     this.rng = init.rng;
+    this.energy = init.energy ?? 0;
+    this.oxygen = init.oxygen ?? 0;
+    this.carbonDioxide = init.carbonDioxide ?? 0;
+    this.food = init.food ?? 0;
   }
+}
+
+/**
+ * The area a body occupies, in the same length unit as `bodyRadius`. The
+ * one place that area is computed, so every cap and every ledger term reads
+ * it the same way.
+ */
+export function bodyArea(organism: Organism): number {
+  return Math.PI * organism.bodyRadius * organism.bodyRadius;
+}
+
+/**
+ * A body's mass, derived from `bodyRadius` rather than stored. With `ρ = 1`
+ * and a radius fixed for life the two can never disagree, and a stored
+ * field would be a second home for the same truth — one that fails
+ * silently, since a ledger stays self-consistent while describing a body
+ * that is not there. Growth during life is out of scope until well past
+ * v0.1; that is the milestone where a stored field becomes a decision
+ * rather than an inheritance.
+ */
+export function bodyMass(organism: Organism): number {
+  return RHO * bodyArea(organism);
+}
+
+/** The maximum amount of `resource` this organism can hold right now — a
+ * maximum internal concentration, scaled by its own body area. */
+export function capFor(organism: Organism, resource: Resource): number {
+  return CAP_COEFFICIENT[resource] * bodyArea(organism);
 }
 
 export interface PopulationDraw {
@@ -144,6 +224,10 @@ export function createPopulation(globalRng: RngStream): PopulationDraw {
  * determinism invariant covers bodies and not only the clock. `lineageHue`
  * rides along even though it never changes in M1: it starts drifting in M4,
  * and a field left out here is a field the invariant silently stops testing.
+ *
+ * The four internal stores fold in too, per the rule M2 adds beside
+ * `hashState`: what enters the hash is what the next tick *reads*, and
+ * metabolism reads an organism's stores every tick from here on.
  */
 export function foldPopulation(
   hash: number,
@@ -153,7 +237,7 @@ export function foldPopulation(
   for (const organism of population) {
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(organism.bodyRadius)}|${String(organism.lineageHue)}|${String(organism.rng.state)}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(organism.bodyRadius)}|${String(organism.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}`,
     );
   }
 

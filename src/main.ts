@@ -6,12 +6,22 @@ import {frameAquarium, renderWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
 import {
   createWorld,
+  getCarbonDrift,
+  getOxygenDrift,
+  getPoolLevels,
   getPopulation,
   getSeed,
   getTick,
   getWorstPenetration,
   type World,
 } from "./world";
+
+/**
+ * A drift near 0 is the whole point of the row: exponential notation keeps
+ * a leak visible in whatever digit it first shows up in, from the twelfth
+ * significant one on up, rather than being hidden by fixed-point rounding.
+ */
+const formatDrift = (drift: number): string => drift.toExponential(3);
 
 const canvas = mountCanvas();
 const ctx = canvas.getContext("2d");
@@ -42,6 +52,21 @@ const updateHud = (currentWorld: World): void => {
     "penetration",
     "Worst penetration",
     getWorstPenetration(currentWorld).toFixed(3),
+  );
+
+  const pools = getPoolLevels(currentWorld);
+  hud.setField("poolFood", "Pool food", pools.food.toFixed(2));
+  hud.setField("poolCO2", "Pool CO₂", pools.carbonDioxide.toFixed(2));
+  hud.setField("poolO2", "Pool O₂", pools.oxygen.toFixed(2));
+  hud.setField(
+    "carbonDrift",
+    "Carbon drift",
+    formatDrift(getCarbonDrift(currentWorld)),
+  );
+  hud.setField(
+    "oxygenDrift",
+    "Oxygen drift",
+    formatDrift(getOxygenDrift(currentWorld)),
   );
 };
 

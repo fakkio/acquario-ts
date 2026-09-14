@@ -1,5 +1,12 @@
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
+import {
+  foldPools,
+  initializeMetabolism,
+  totalCarbon,
+  totalOxygen,
+  type Pools,
+} from "./ledger";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -61,6 +68,18 @@ interface WorldState {
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
+  readonly pools: Pools;
+  /**
+   * Total carbon and oxygen at tick 0, kept for the lifetime of the world
+   * so the HUD and the tests can read conservation as *relative drift*
+   * rather than as an absolute value — a leak in the twelfth significant
+   * digit is visible against a value near 0 and invisible against a large
+   * constant. Derived readouts, not simulation state: nothing in a tick
+   * reads them back, so they stay out of `hashState`, the same way
+   * `getWorstPenetration` does.
+   */
+  readonly initialTotalCarbon: number;
+  readonly initialTotalOxygen: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -78,6 +97,10 @@ export interface AdvanceResult {
 
 export function createWorld(seed: number): World {
   const {population, stream} = createPopulation(createRngStream(seed));
+  // The carbon ledger's one-time construction: generation 0 starts at
+  // diffusive equilibrium, and every later tick's conservation check reads
+  // its drift from the totals struck right here.
+  const pools = initializeMetabolism(population);
 
   return toWorld({
     seed,
@@ -85,6 +108,9 @@ export function createWorld(seed: number): World {
     accumulatorMs: 0,
     globalRng: stream,
     population,
+    pools,
+    initialTotalCarbon: totalCarbon(population, pools),
+    initialTotalOxygen: totalOxygen(population, pools),
   });
 }
 
@@ -222,6 +248,45 @@ export function getWorstPenetration(world: World): number {
 }
 
 /**
+ * How rich the three pools currently sit — the HUD's window onto
+ * ADR-0001's ledger. Hands back amounts, not concentrations: dividing by
+ * `AQUARIUM_AREA` is a display decision the App layer can make for itself.
+ */
+export function getPoolLevels(world: World): Pools {
+  return toState(world).pools;
+}
+
+/** `(current − initial) / initial`. Reads as 0 while a ledger holds and as
+ * a fraction the moment it does not — the shared shape behind
+ * `getCarbonDrift` and `getOxygenDrift`, stating conservation as drift
+ * rather than as an absolute value (ADR-0001). */
+function relativeDrift(current: number, initial: number): number {
+  return (current - initial) / initial;
+}
+
+/** Total carbon now, relative to total carbon at tick 0. See
+ * `relativeDrift`. */
+export function getCarbonDrift(world: World): number {
+  const state = toState(world);
+
+  return relativeDrift(
+    totalCarbon(state.population, state.pools),
+    state.initialTotalCarbon,
+  );
+}
+
+/** Total oxygen now, relative to total oxygen at tick 0. See
+ * `relativeDrift`. */
+export function getOxygenDrift(world: World): number {
+  const state = toState(world);
+
+  return relativeDrift(
+    totalOxygen(state.population, state.pools),
+    state.initialTotalOxygen,
+  );
+}
+
+/**
  * The determinism probe: it does not make the world deterministic, it
  * compares two worlds and says whether they are still the same one. The
  * invariant it serves is precisely **same seed and same tick number ⇒ same
@@ -243,14 +308,21 @@ export function getWorstPenetration(world: World): number {
  * never in what either computed.
  *
  * Every organism's position, radius and stream state folds in too, via
- * `foldPopulation`. Anything later milestones add to an organism must be
- * added there as well, or the invariant quietly stops covering it.
+ * `foldPopulation` — including, from M2, its four internal resource
+ * stores. The three pools fold in via `foldPools`. Anything later
+ * milestones add to an organism or to the world's own state must be
+ * folded in as well, or the invariant quietly stops covering it. Derived
+ * readouts — `initialTotalCarbon`/`initialTotalOxygen` among them — stay
+ * out: the rule is what the next tick *reads*, not what the HUD shows.
  */
 export function hashState(world: World): string {
   const state = toState(world);
   const worldOwnState = `${String(state.seed)}|${String(state.tick)}|${String(state.globalRng.state)}`;
 
   return toHashString(
-    foldPopulation(foldString(EMPTY_HASH, worldOwnState), state.population),
+    foldPools(
+      foldPopulation(foldString(EMPTY_HASH, worldOwnState), state.population),
+      state.pools,
+    ),
   );
 }

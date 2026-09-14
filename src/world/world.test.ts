@@ -1,6 +1,7 @@
 import {describe, expect, it} from "vitest";
 
 import {buildUniformGrid} from "./grid";
+import {initializeMetabolism} from "./ledger";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {STARTING_POPULATION, createPopulation} from "./organism";
 import {createRngStream} from "./rng";
@@ -10,12 +11,24 @@ import {
   FIXED_DT_MS,
   advance,
   createWorld,
+  getCarbonDrift,
+  getOxygenDrift,
+  getPoolLevels,
   getPopulation,
   getTick,
   getWorstPenetration,
   hashState,
   type World,
 } from "./world";
+
+// The population `createPopulation` places, brought to the same diffusive
+// equilibrium `createWorld` puts generation 0 through, so a hand-built
+// reference population matches what the world actually holds.
+const referencePopulationFor = (seed: number) => {
+  const {population} = createPopulation(createRngStream(seed));
+  initializeMetabolism(population);
+  return population;
+};
 
 describe("createWorld + advance + hashState determinism", () => {
   it("produces the same sequence of state hashes for the same seed and the same advance calls", () => {
@@ -65,13 +78,11 @@ describe("population", () => {
 
   // Stated as an equality rather than by re-asserting placement's properties
   // here: it says the one thing `createWorld` is responsible for — that the
-  // population is placed from *this seed's* global stream — and inherits
-  // containment, radius spread and stream derivation from the tests that
-  // already cover `createPopulation`.
+  // population is placed from *this seed's* global stream and then brought
+  // to diffusive equilibrium — and inherits containment, radius spread and
+  // stream derivation from the tests that already cover `createPopulation`.
   it("places its population from the seed's own global stream", () => {
-    expect(getPopulation(createWorld(3))).toEqual(
-      createPopulation(createRngStream(3)).population,
-    );
+    expect(getPopulation(createWorld(3))).toEqual(referencePopulationFor(3));
   });
 
   it("is identical between two worlds created from the same seed", () => {
@@ -296,6 +307,10 @@ describe("collisions", () => {
     // really does run this many ticks.
     const PIPELINE_TICKS = 60;
     const byHand = createPopulation(createRngStream(SEED)).population;
+    // `createWorld` brings generation 0 to diffusive equilibrium before the
+    // first tick runs; nothing in this pipeline touches those stores, but
+    // the equality below needs the same starting values `createWorld` used.
+    initializeMetabolism(byHand);
 
     for (let tick = 0; tick < PIPELINE_TICKS; tick++) {
       for (const organism of byHand) {
@@ -314,5 +329,36 @@ describe("collisions", () => {
 
     expect(ticksRun).toBe(PIPELINE_TICKS);
     expect(getPopulation(world)).toEqual(byHand);
+  });
+});
+
+describe("carbon ledger (M2)", () => {
+  it("exposes the same pool levels initializeMetabolism computed for generation 0", () => {
+    const population = referencePopulationFor(3);
+    const pools = initializeMetabolism(population);
+
+    expect(getPoolLevels(createWorld(3))).toEqual(pools);
+  });
+
+  // Nothing in this slice moves a unit of carbon — no exchange, no
+  // reactions — so tick 0's totals are, by construction, the totals for
+  // as long as the world runs. This is the trivial-conservation state the
+  // ticket asks for: the instrument reads true before anything exists
+  // that could break what it measures.
+  it("reads zero drift for both carbon and oxygen at tick 0", () => {
+    const world = createWorld(3);
+
+    expect(getCarbonDrift(world)).toBe(0);
+    expect(getOxygenDrift(world)).toBe(0);
+  });
+
+  it("never lets either drift move over a long run, since nothing yet touches a store", () => {
+    let world = createWorld(3);
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      expect(getCarbonDrift(world)).toBe(0);
+      expect(getOxygenDrift(world)).toBe(0);
+    }
   });
 });
