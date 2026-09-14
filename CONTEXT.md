@@ -110,7 +110,11 @@ _Avoid_: base cost, overhead, upkeep
 
 **Body Cost**:
 The energy an organism pays per unit time in proportion to its body area.
-_Avoid_: maintenance (ambiguous), area cost
+_Avoid_: area cost, maintenance (that is both costs together, not this half)
+
+**Maintenance**:
+The whole energy an organism pays per unit time simply to keep being one: existence cost plus body cost, `c₀ + β·area`. The name of the tick's fifth step, and of the total — never of either half alone.
+_Avoid_: upkeep, basal cost, body cost (that is one of its two terms)
 
 **Optimal Radius**:
 The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable in closed form from the world's constants. The prediction v0.1 is validated against.
@@ -151,8 +155,8 @@ The read-only view of environment concentrations and light taken at the start of
 _Avoid_: state copy, buffer (alone)
 
 **Delta Buffer**:
-The accumulated, not-yet-applied exchange requests of every organism in the current tick, committed once at the end.
-_Avoid_: pending changes, queue, accumulator (that is the loop's time accumulator)
+The accumulated, not-yet-applied exchange _grants_ of every organism in the current tick, committed once at the end. It holds what the world has already agreed to hand over, scaled down if a pool could not meet the demand — never the raw requests, which are settled and discarded halfway through the tick.
+_Avoid_: pending changes, queue, accumulator (that is the loop's time accumulator), requests (they do not survive to the commit)
 
 ### Reproduction and motion
 
