@@ -8,7 +8,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {applyPassiveExchange} from "./metabolism";
+import {applyPassiveExchange, applyPhotosynthesis} from "./metabolism";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -159,7 +159,14 @@ function runTick(state: WorldState): WorldState {
   for (const organism of state.population) {
     applyPassiveExchange(organism, grantEnvironment);
   }
-  // 3. Photosynthesis — M2.
+  // 3. Photosynthesis: CO₂ + light → food + O₂, no energy produced. Runs
+  //    after both exchange sub-passes above, against the same
+  //    `grantEnvironment`, so it reads this tick's settled CO₂ rather than
+  //    last tick's, and reads light off the same seam even though the
+  //    reaction never calls `exchange` itself.
+  for (const organism of state.population) {
+    applyPhotosynthesis(organism, grantEnvironment);
+  }
   // 4. Respiration — M2.
   // 5. Maintenance — M2.
   // 6. Brownian motion.

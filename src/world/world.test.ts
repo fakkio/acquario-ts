@@ -8,7 +8,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {applyPassiveExchange} from "./metabolism";
+import {applyPassiveExchange, applyPhotosynthesis} from "./metabolism";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   STARTING_POPULATION,
@@ -42,6 +42,31 @@ const referencePopulationFor = (seed: number) => {
   initializeMetabolism(population);
   return population;
 };
+
+// `runTick`'s steps 2a/2b/3 — the exchange settlement's two sub-passes,
+// then photosynthesis — replicated by hand wherever a test needs to seed a
+// population and read pools without running the whole tick. Shared across
+// describe blocks below rather than redefined in each, since every caller
+// wants the exact same sequence.
+function runExchangeAndPhotosynthesis(
+  population: readonly Organism[],
+  pools: Pools,
+): Pools {
+  const settlement = new ExchangeSettlement(pools);
+  const request = settlement.requestPass();
+  for (const organism of population) {
+    applyPassiveExchange(organism, request);
+  }
+  settlement.settle();
+  const grant = settlement.grantPass();
+  for (const organism of population) {
+    applyPassiveExchange(organism, grant);
+  }
+  for (const organism of population) {
+    applyPhotosynthesis(organism, grant);
+  }
+  return settlement.commit();
+}
 
 describe("createWorld + advance + hashState determinism", () => {
   it("produces the same sequence of state hashes for the same seed and the same advance calls", () => {
@@ -321,11 +346,14 @@ describe("collisions", () => {
     const PIPELINE_TICKS = 60;
     const byHand = createPopulation(createRngStream(SEED)).population;
     // `createWorld` brings generation 0 to diffusive equilibrium before the
-    // first tick runs; nothing in this pipeline touches those stores, but
-    // the equality below needs the same starting values `createWorld` used.
-    initializeMetabolism(byHand);
+    // first tick runs, and steps 2 and 3 (exchange, photosynthesis) run
+    // every tick from here on — the equality below needs the full pipeline
+    // replicated, not just the motion/separation/wall steps it names.
+    let pools = initializeMetabolism(byHand);
 
     for (let tick = 0; tick < PIPELINE_TICKS; tick++) {
+      pools = runExchangeAndPhotosynthesis(byHand, pools);
+
       for (const organism of byHand) {
         applyBrownianMotion(organism);
       }
@@ -364,21 +392,23 @@ describe("carbon ledger (M2)", () => {
     expect(getOxygenDrift(world)).toBe(0);
   });
 
-  // Exchange runs every tick from here on, but generation 0 starts at
-  // exact diffusive equilibrium (`initializeMetabolism`) and nothing else
-  // in this milestone yet perturbs a store away from it — photosynthesis
-  // and respiration are later M2 tickets. So every organism's requested
-  // flux is exactly zero, tick after tick, and the seam proves the
-  // property the ticket asks for: it moves nothing when nothing should
-  // move. `passive exchange (M2)` below exercises the non-trivial case,
-  // with a store actually displaced from ambient.
-  it("never lets either drift move over a long run, since generation 0 starts at equilibrium", () => {
+  // Exchange runs every tick from here on, and photosynthesis (ticket #18)
+  // runs alongside it against the population `createWorld` actually places.
+  // Both move carbon and oxygen only between an organism's own stores and
+  // the pools, never out of the closed system, so the totals hold — but no
+  // longer to the last bit, the way they did back when nothing in the tick
+  // touched a store away from equilibrium: floating-point addition is not
+  // associative, so `a − x` and `b + x` computed separately can disagree
+  // with `a + b` in the last few bits even though nothing leaked. Asserted
+  // as relative drift within a tight tolerance rather than exact equality,
+  // for that reason (ADR-0001, and this ticket's testing decisions).
+  it("holds carbon and oxygen drift within a tight tolerance over a long run", () => {
     let world = createWorld(3);
 
     for (let tick = 0; tick < 2000; tick++) {
       ({world} = advance(world, FIXED_DT_MS));
-      expect(getCarbonDrift(world)).toBe(0);
-      expect(getOxygenDrift(world)).toBe(0);
+      expect(Math.abs(getCarbonDrift(world))).toBeLessThan(1e-9);
+      expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
     }
   });
 });
@@ -486,5 +516,70 @@ describe("passive exchange (M2)", () => {
       expect(reference[i].carbonDioxide).toBe(inOrder[i].carbonDioxide);
     }
     expect(resultB).toEqual(resultA);
+  });
+});
+
+describe("photosynthesis (M2)", () => {
+  it("leaves every organism's stores and the pools bit-identical, whatever order the population is held in", () => {
+    const seedPopulation = () => {
+      const population = randomPopulation(11, 30);
+      const pools = initializeMetabolism(population);
+      return {population, pools};
+    };
+
+    const {population: inOrder, pools: poolsA} = seedPopulation();
+    const {population: reference, pools: poolsB} = seedPopulation();
+    const shuffled = shuffle([...reference], createRngStream(4242));
+
+    const resultA = runExchangeAndPhotosynthesis(inOrder, poolsA);
+    const resultB = runExchangeAndPhotosynthesis(shuffled, poolsB);
+
+    expect(shuffled).not.toEqual(reference);
+    for (let i = 0; i < inOrder.length; i++) {
+      expect(reference[i].food).toBe(inOrder[i].food);
+      expect(reference[i].oxygen).toBe(inOrder[i].oxygen);
+      expect(reference[i].carbonDioxide).toBe(inOrder[i].carbonDioxide);
+    }
+    expect(resultB).toEqual(resultA);
+  });
+
+  // The whole world, exercised through the door the App layer actually uses:
+  // `createWorld` starts carbon-rich and food-poor by construction
+  // (`AMBIENT_CO2_SHARE`), so photosynthesis has real substrate to fix from
+  // tick 0 with no hand-built displacement needed.
+  it("fixes carbon into the food pool as ticks run", () => {
+    let world = createWorld(3);
+    const initialFood = getPoolLevels(world).food;
+
+    ({world} = advance(world, 200 * FIXED_DT_MS));
+
+    expect(getPoolLevels(world).food).toBeGreaterThan(initialFood);
+  });
+
+  it("produces no energy for any organism, over a run", () => {
+    let world = createWorld(3);
+    const initialEnergy = getPopulation(world).map(
+      (organism) => organism.energy,
+    );
+
+    ({world} = advance(world, 200 * FIXED_DT_MS));
+
+    getPopulation(world).forEach((organism, i) => {
+      expect(organism.energy).toBe(initialEnergy[i]);
+    });
+  });
+
+  // The long-run conservation check with both exchange and photosynthesis
+  // running lives in `carbon ledger (M2)` above, alongside tick 0's trivial
+  // case — one place for the invariant rather than two near-duplicate runs.
+
+  // M0's determinism invariant, now that the hash covers photosynthesis too.
+  it("reaches the same hash at tick N in two runs from the same seed", () => {
+    const TICKS = 500;
+    const runTo = (seed: number) =>
+      hashState(advance(createWorld(seed), TICKS * FIXED_DT_MS).world);
+
+    expect(runTo(3)).toBe(runTo(3));
+    expect(runTo(3)).not.toBe(runTo(4));
   });
 });

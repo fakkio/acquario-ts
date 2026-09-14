@@ -1,9 +1,9 @@
 import {describe, expect, it} from "vitest";
 
-import {K_DIFFUSION} from "./constants";
+import {K_DIFFUSION, K_PHOTO} from "./constants";
 import type {Environment, Vec2} from "./environment";
-import {applyPassiveExchange} from "./metabolism";
-import {bodyArea, type Diffusible} from "./organism";
+import {applyPassiveExchange, applyPhotosynthesis} from "./metabolism";
+import {bodyArea, capFor, type Diffusible} from "./organism";
 import {organismAt} from "./testing";
 
 /**
@@ -11,7 +11,7 @@ import {organismAt} from "./testing";
  * organism, a stub `Environment` — no world, no pools, no other organism
  * involved. ADR-0006 promises the metabolic core is unit-testable at this
  * boundary, and this file is where that promise is collected for passive
- * exchange.
+ * exchange and photosynthesis.
  */
 
 /**
@@ -156,5 +156,152 @@ describe("applyPassiveExchange", () => {
     applyPassiveExchange(organism, environment);
 
     expect(seen.sort()).toEqual(["carbonDioxide", "food", "oxygen"]);
+  });
+});
+
+/**
+ * A stub `Environment` fixing `light` at whatever value the test wants and
+ * echoing exchange requests straight back — photosynthesis never calls
+ * `exchange`, so its answer never matters, only its shape does.
+ */
+function stubLightEnvironment(light: number): Environment {
+  return {
+    concentration: () => 0,
+    light: () => light,
+    exchange: (_resource, _pos, amount) => amount,
+  };
+}
+
+describe("applyPhotosynthesis", () => {
+  it("converts internal CO2 into food and oxygen at 1:1:1 stoichiometry", () => {
+    const organism = organismAt(0, 0, 1);
+    const area = bodyArea(organism);
+    const diameter = 2 * organism.bodyRadius;
+    organism.carbonDioxide = 0.5 * area;
+    const co2Before = organism.carbonDioxide;
+
+    applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    const expectedFixed = K_PHOTO * (co2Before / area) * 1 * diameter;
+    const co2Lost = co2Before - organism.carbonDioxide;
+    expect(co2Lost).toBeCloseTo(expectedFixed, 12);
+    expect(organism.food).toBeCloseTo(expectedFixed, 12);
+    expect(organism.oxygen).toBeCloseTo(expectedFixed, 12);
+  });
+
+  it("produces no energy", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = 0.5 * bodyArea(organism);
+    organism.energy = 10;
+
+    applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(organism.energy).toBe(10);
+  });
+
+  it("fixes nothing in complete darkness", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = 0.5 * bodyArea(organism);
+    const before = organism.carbonDioxide;
+
+    applyPhotosynthesis(organism, stubLightEnvironment(0));
+
+    expect(organism.carbonDioxide).toBe(before);
+    expect(organism.food).toBe(0);
+    expect(organism.oxygen).toBe(0);
+  });
+
+  it("fixes carbon measurably faster in the photic zone than near the floor, all else equal", () => {
+    const bright = organismAt(0, 0, 1);
+    const dim = organismAt(0, 0, 1);
+    bright.carbonDioxide = 0.5 * bodyArea(bright);
+    dim.carbonDioxide = 0.5 * bodyArea(dim);
+
+    applyPhotosynthesis(bright, stubLightEnvironment(1));
+    applyPhotosynthesis(dim, stubLightEnvironment(0.05));
+
+    expect(bright.food).toBeGreaterThan(dim.food);
+  });
+
+  it("scales with the width the body projects toward the light", () => {
+    const small = organismAt(0, 0, 1);
+    const large = organismAt(0, 0, 2);
+    // Same internal CO2 *concentration* on both, so only diameter differs.
+    small.carbonDioxide = 0.2 * bodyArea(small);
+    large.carbonDioxide = 0.2 * bodyArea(large);
+
+    applyPhotosynthesis(small, stubLightEnvironment(1));
+    applyPhotosynthesis(large, stubLightEnvironment(1));
+
+    expect(large.food).toBeGreaterThan(small.food);
+  });
+
+  it("samples light at the body's centre", () => {
+    const organism = organismAt(3, 7, 1);
+    organism.carbonDioxide = 0.2 * bodyArea(organism);
+    let seenPos: Vec2 | undefined;
+    const environment: Environment = {
+      concentration: () => 0,
+      light: (pos) => {
+        seenPos = pos;
+        return 1;
+      },
+      exchange: (_resource, _pos, amount) => amount,
+    };
+
+    applyPhotosynthesis(organism, environment);
+
+    expect(seenPos?.x).toBe(3);
+    expect(seenPos?.y).toBe(7);
+  });
+
+  it("never drives CO2 below zero when substrate is exhausted", () => {
+    const organism = organismAt(0, 0, 1);
+    // A trickle of CO2 far too small for the rate the full store would
+    // otherwise support at full light.
+    organism.carbonDioxide = 1e-9;
+
+    applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(organism.carbonDioxide).toBeGreaterThanOrEqual(0);
+    expect(organism.food).toBeLessThanOrEqual(1e-9);
+    expect(organism.oxygen).toBeLessThanOrEqual(1e-9);
+  });
+
+  it("never pushes food past its cap when food headroom is the binding limit", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = bodyArea(organism); // plenty of substrate
+    organism.food = capFor(organism, "food") - 1e-9; // almost full
+
+    applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(organism.food).toBeLessThanOrEqual(capFor(organism, "food"));
+  });
+
+  it("never pushes oxygen past its cap when oxygen headroom is the binding limit", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = bodyArea(organism);
+    organism.oxygen = capFor(organism, "oxygen") - 1e-9;
+
+    applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(organism.oxygen).toBeLessThanOrEqual(capFor(organism, "oxygen"));
+  });
+
+  it("discards no product: CO2 lost exactly matches food and oxygen gained", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = 0.3 * bodyArea(organism);
+    const before = {
+      carbonDioxide: organism.carbonDioxide,
+      food: organism.food,
+      oxygen: organism.oxygen,
+    };
+
+    applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    const co2Lost = before.carbonDioxide - organism.carbonDioxide;
+    expect(co2Lost).toBeGreaterThan(0);
+    expect(organism.food - before.food).toBeCloseTo(co2Lost, 12);
+    expect(organism.oxygen - before.oxygen).toBeCloseTo(co2Lost, 12);
   });
 });

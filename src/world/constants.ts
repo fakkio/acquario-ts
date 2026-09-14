@@ -81,3 +81,16 @@ export const LIGHT_SURFACE_INTENSITY = 1;
  * in total darkness.
  */
 export const LIGHT_ATTENUATION_K = Math.log(10) / 10;
+
+/**
+ * Photosynthesis's rate coefficient (ADR-0003's mass-action shape, applied
+ * to carbon fixation): `rate = kPhoto × C_internal(CO₂) × light ×
+ * diameter`. Chosen so a baseline body (diameter 2) near the surface fixes
+ * on the order of a few hundredths of a unit of carbon per tick — the same
+ * order as `K_DIFFUSION`'s passive flux, so fixation and passive exchange
+ * move mass at comparable rates rather than one swamping the other. Hand-
+ * computed rather than measured, like every constant in this table; the
+ * next M2 slice re-derives it once respiration closes the cycle and a run
+ * exists to read.
+ */
+export const K_PHOTO = 0.03;
