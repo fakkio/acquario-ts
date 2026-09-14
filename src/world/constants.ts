@@ -55,3 +55,19 @@ export const AMBIENT_CO2_SHARE = 0.75;
  * no closed-form tie to the carbon budget. Open for M5 to move.
  */
 export const AMBIENT_OXYGEN_CONCENTRATION = 0.5;
+
+/**
+ * The light unit: fixed by construction, the same move `K_CAP` makes for
+ * concentration. Surface light is exactly 1.
+ */
+export const LIGHT_SURFACE_INTENSITY = 1;
+
+/**
+ * Light's exponential attenuation coefficient with depth (ADR-0004):
+ * `ln(10)/10`, chosen so light falls to a tenth of its surface value ten
+ * baseline radii down. With `AQUARIUM_HEIGHT` at 40 baseline radii, that
+ * puts the photic zone at the aquarium's top quarter — enough of a split
+ * that depth is worth something, without every organism below it sitting
+ * in total darkness.
+ */
+export const LIGHT_ATTENUATION_K = Math.log(10) / 10;
