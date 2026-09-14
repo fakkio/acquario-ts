@@ -1,16 +1,17 @@
 import {AQUARIUM_AREA} from "./aquarium";
 import type {Pools} from "./ledger";
 import {lightAt} from "./light";
-import type {Diffusible} from "./organism";
+import {DIFFUSIBLES, type Diffusible} from "./organism";
 
 /**
  * The `Environment` seam (ADR-0005): everything metabolic code touches, and
- * the only thing it touches. A point in the aquarium's plane, in baseline
- * body radii — every `Environment` method takes one, even though the v0.1
- * implementation reads it only in `light`. Every other pool is global and
- * well-mixed, so the day a spatial fluid field replaces them in v0.2, no
- * metabolic call site changes: only what sits behind this seam does.
+ * the only thing it touches. Every method takes a position, even though the
+ * v0.1 implementation reads it only in `light` — every other pool is global
+ * and well-mixed, so the day a spatial fluid field replaces them in v0.2,
+ * no metabolic call site changes: only what sits behind this seam does.
  */
+
+/** A point in the aquarium's plane, in baseline body radii. */
 export interface Vec2 {
   readonly x: number;
   readonly y: number;
@@ -36,10 +37,25 @@ export interface Environment {
   exchange(resource: Diffusible, pos: Vec2, amount: number): number;
 }
 
-const DIFFUSIBLES: readonly Diffusible[] = ["oxygen", "carbonDioxide", "food"];
+function emptyPerDiffusible(): Record<Diffusible, number[]> {
+  return {oxygen: [], carbonDioxide: [], food: []};
+}
 
-function zeroPerDiffusible(): Record<Diffusible, number> {
-  return {oxygen: 0, carbonDioxide: 0, food: 0};
+/**
+ * Sums `values` in ascending order rather than in whatever order they were
+ * collected. Floating-point addition is not associative, so summing the
+ * same *values* in a different order can move the last bit — sorting first
+ * makes the sum a function of the multiset of values alone, never of which
+ * order they arrived in. That is what lets reordering the population leave
+ * `ExchangeSettlement`'s totals, and so every organism's grant and every
+ * pool level, bit-identical: the set of amounts requested by a population
+ * does not change when the population is only reordered, and this is the
+ * one place that set turns into a single number.
+ */
+function sumAscending(values: readonly number[]): number {
+  return [...values]
+    .sort((a, b) => a - b)
+    .reduce((sum, value) => sum + value, 0);
 }
 
 /**
@@ -57,33 +73,47 @@ function zeroPerDiffusible(): Record<Diffusible, number> {
  * `applyPassiveExchange` runs unchanged in both.
  */
 export class ExchangeSettlement {
-  private readonly demand = zeroPerDiffusible();
+  // Every draw requested this tick, per resource, in whatever order
+  // `requestPass` was called in — order that `settle` deliberately
+  // discards. See `sumAscending`.
+  private readonly requested = emptyPerDiffusible();
   private readonly scale: Record<Diffusible, number> = {
     oxygen: 1,
     carbonDioxide: 1,
     food: 1,
   };
-  // The delta buffer (CONTEXT.md): accumulated grants, signed the same way
-  // `exchange`'s `amount` is — positive drawn from the pool, negative
-  // vented into it — applied to the pools exactly once, in `commit`.
-  private readonly granted = zeroPerDiffusible();
+  // The delta buffer (CONTEXT.md): every grant made this tick, signed the
+  // same way `exchange`'s `amount` is — positive drawn from the pool,
+  // negative vented into it — applied to the pools exactly once, in
+  // `commit`.
+  private readonly granted = emptyPerDiffusible();
 
   constructor(private readonly pools: Pools) {}
 
+  /** What `requestPass` and `grantPass` share: reading a pool's
+   * concentration and the light at a depth are the same lookup regardless
+   * of which sub-pass is asking. Only `exchange` differs between them. */
+  private readEnvironment() {
+    return {
+      concentration: (resource: Diffusible) =>
+        this.pools[resource] / AQUARIUM_AREA,
+      light: (pos: Vec2) => lightAt(pos.y),
+    };
+  }
+
   /**
-   * Sub-pass 2a. `exchange` writes only to this settlement's demand tally
-   * — never to an organism, never to a pool — and always answers 0.
+   * Sub-pass 2a. `exchange` writes only to this settlement's request
+   * ledger — never to an organism, never to a pool — and always answers 0.
    * `applyPassiveExchange` unconditionally adds that answer to the
    * organism's own store, so this sub-pass ends up writing nothing,
    * exactly as ADR-0016 requires, without needing a special case for it.
    */
   requestPass(): Environment {
     return {
-      concentration: (resource) => this.pools[resource] / AQUARIUM_AREA,
-      light: (pos) => lightAt(pos.y),
+      ...this.readEnvironment(),
       exchange: (resource, _pos, amount) => {
         if (amount > 0) {
-          this.demand[resource] += amount;
+          this.requested[resource].push(amount);
         }
         return 0;
       },
@@ -99,7 +129,7 @@ export class ExchangeSettlement {
   settle(): void {
     for (const resource of DIFFUSIBLES) {
       const pool = this.pools[resource];
-      const demand = this.demand[resource];
+      const demand = sumAscending(this.requested[resource]);
       this.scale[resource] = demand > pool ? pool / demand : 1;
     }
   }
@@ -114,11 +144,10 @@ export class ExchangeSettlement {
    */
   grantPass(): Environment {
     return {
-      concentration: (resource) => this.pools[resource] / AQUARIUM_AREA,
-      light: (pos) => lightAt(pos.y),
+      ...this.readEnvironment(),
       exchange: (resource, _pos, amount) => {
         const grant = amount > 0 ? amount * this.scale[resource] : amount;
-        this.granted[resource] += grant;
+        this.granted[resource].push(grant);
         return grant;
       },
     };
@@ -132,9 +161,10 @@ export class ExchangeSettlement {
    */
   commit(): Pools {
     return {
-      oxygen: this.pools.oxygen - this.granted.oxygen,
-      carbonDioxide: this.pools.carbonDioxide - this.granted.carbonDioxide,
-      food: this.pools.food - this.granted.food,
+      oxygen: this.pools.oxygen - sumAscending(this.granted.oxygen),
+      carbonDioxide:
+        this.pools.carbonDioxide - sumAscending(this.granted.carbonDioxide),
+      food: this.pools.food - sumAscending(this.granted.food),
     };
   }
 }

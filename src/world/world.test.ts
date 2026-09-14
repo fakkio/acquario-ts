@@ -390,10 +390,7 @@ describe("passive exchange (M2)", () => {
   // rather than go through `createWorld`. The pipeline below is `runTick`'s
   // step 2 plus steps 6 and 10, the same shape the `collisions` describe
   // block above already replicates by hand for the same reason.
-  function runExchangeAndMotion(
-    population: readonly Organism[],
-    pools: Pools,
-  ): Pools {
+  function runExchange(population: readonly Organism[], pools: Pools): Pools {
     const settlement = new ExchangeSettlement(pools);
     const request = settlement.requestPass();
     for (const organism of population) {
@@ -404,6 +401,14 @@ describe("passive exchange (M2)", () => {
     for (const organism of population) {
       applyPassiveExchange(organism, grant);
     }
+    return settlement.commit();
+  }
+
+  function runExchangeAndMotion(
+    population: readonly Organism[],
+    pools: Pools,
+  ): Pools {
+    const settled = runExchange(population, pools);
     for (const organism of population) {
       applyBrownianMotion(organism);
     }
@@ -411,7 +416,7 @@ describe("passive exchange (M2)", () => {
     for (const organism of population) {
       constrainToAquarium(organism);
     }
-    return settlement.commit();
+    return settled;
   }
 
   it("converges a displaced organism back toward ambient while conservation holds, over a long run", () => {
@@ -449,7 +454,14 @@ describe("passive exchange (M2)", () => {
     );
   });
 
-  it("keeps every organism's stores and the pools independent of population order", () => {
+  // `ExchangeSettlement` sums every draw in ascending order rather than in
+  // call order (`sumAscending` in `environment.ts`), specifically so this
+  // holds exactly rather than merely approximately: the set of amounts a
+  // population requests does not change when the population is only
+  // reordered, and summing that set the same way every time makes the
+  // scaling factor — and so every organism's grant and the committed pool
+  // — a function of the set, not of the order it arrived in.
+  it("leaves every organism's stores and the pools bit-identical, whatever order the population is held in", () => {
     const seedPopulation = () => {
       const population = randomPopulation(11, 30);
       const pools = initializeMetabolism(population);
@@ -464,20 +476,15 @@ describe("passive exchange (M2)", () => {
     const {population: reference, pools: poolsB} = seedPopulation();
     const shuffled = shuffle([...reference], createRngStream(4242));
 
-    const resultA = runExchangeAndMotion(inOrder, poolsA);
-    const resultB = runExchangeAndMotion(shuffled, poolsB);
+    const resultA = runExchange(inOrder, poolsA);
+    const resultB = runExchange(shuffled, poolsB);
 
     expect(shuffled).not.toEqual(reference);
     for (let i = 0; i < inOrder.length; i++) {
-      expect(reference[i].food).toBeCloseTo(inOrder[i].food, 10);
-      expect(reference[i].oxygen).toBeCloseTo(inOrder[i].oxygen, 10);
-      expect(reference[i].carbonDioxide).toBeCloseTo(
-        inOrder[i].carbonDioxide,
-        10,
-      );
+      expect(reference[i].food).toBe(inOrder[i].food);
+      expect(reference[i].oxygen).toBe(inOrder[i].oxygen);
+      expect(reference[i].carbonDioxide).toBe(inOrder[i].carbonDioxide);
     }
-    expect(resultB.food).toBeCloseTo(resultA.food, 9);
-    expect(resultB.oxygen).toBeCloseTo(resultA.oxygen, 9);
-    expect(resultB.carbonDioxide).toBeCloseTo(resultA.carbonDioxide, 9);
+    expect(resultB).toEqual(resultA);
   });
 });

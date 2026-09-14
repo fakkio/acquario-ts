@@ -1,6 +1,6 @@
 import {K_DIFFUSION} from "./constants";
 import type {Environment} from "./environment";
-import {bodyArea, type Diffusible, type Organism} from "./organism";
+import {DIFFUSIBLES, bodyArea, type Organism} from "./organism";
 
 /**
  * The reactions and costs that spend and fill an organism's internal
@@ -10,13 +10,16 @@ import {bodyArea, type Diffusible, type Organism} from "./organism";
  * chose, writing only to the organism they run for.
  */
 
-const DIFFUSIBLES: readonly Diffusible[] = ["oxygen", "carbonDioxide", "food"];
-
 /**
  * Resolve-phase step 2 (ADR-0006): passive exchange, ADR-0003's one signed
  * law over all three diffusibles —
  *
  * `flux = kDiffusion × perimeter × (C_external − C_internal)`
+ *
+ * ADR-0003 writes this with a trailing `× dt`; it is dropped here for the
+ * same reason `motion.ts` drops it from its own integration — the
+ * simulation's time unit is one tick, so `dt` is 1 by construction and
+ * never appears in the arithmetic.
  *
  * A positive flux absorbs, a negative flux vents, and equilibrium falls out
  * for free as the internal concentration approaches the external one. No
@@ -30,6 +33,15 @@ const DIFFUSIBLES: readonly Diffusible[] = ["oxygen", "carbonDioxide", "food"];
  * grant pass it answers the settled amount, and that is exactly what the
  * organism ends the tick holding. The function itself does not know which
  * pass it is in — only the `Environment` it is handed does.
+ *
+ * `flux` is recomputed rather than carried from the request call to the
+ * grant call, which is only safe because nothing touches this organism's
+ * stores in between: `runTick` runs every organism's request, then
+ * `settle`s, then runs every organism's grant, with no other step
+ * interleaved. A future ticket that inserts a step between 2a and 2b would
+ * need this function to carry the requested flux forward instead of
+ * recomputing it, or the grant could settle against a demand tally that no
+ * longer matches what `exchange` is asked for here.
  */
 export function applyPassiveExchange(
   organism: Organism,

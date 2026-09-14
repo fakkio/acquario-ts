@@ -104,6 +104,14 @@ export type Resource = "energy" | "oxygen" | "carbonDioxide" | "food";
  */
 export type Diffusible = "oxygen" | "carbonDioxide" | "food";
 
+/** Every `Diffusible`, for the modules that need to loop over all three
+ * without redeclaring the list — `environment.ts` and `metabolism.ts`. */
+export const DIFFUSIBLES: readonly Diffusible[] = [
+  "oxygen",
+  "carbonDioxide",
+  "food",
+];
+
 /**
  * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
  * size: `coefficient × bodyArea`. Energy carries `K_CAP_ENERGY` rather than
