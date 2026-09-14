@@ -177,12 +177,14 @@ Organisms never touch a pool directly. They talk to an `Environment` whose signa
 
 ```ts
 interface Environment {
-  concentration(resource: Resource, pos: Vec2): number;
+  concentration(resource: Diffusible, pos: Vec2): number;
   light(pos: Vec2): number;
   // returns the amount ACTUALLY exchanged, which may be less than requested
-  exchange(resource: Resource, pos: Vec2, amount: number): number;
+  exchange(resource: Diffusible, pos: Vec2, amount: number): number;
 }
 ```
+
+`Diffusible` is `Resource` minus `energy` — the three that cross a membrane and have a pool. `Environment` is typed against it rather than against `Resource`, so "energy is never exchanged with the world" is a fact the compiler enforces.
 
 In v0.1 the implementation ignores `pos` everywhere except `light`. In v0.2 a fluid-field implementation replaces it without any metabolic code changing.
 

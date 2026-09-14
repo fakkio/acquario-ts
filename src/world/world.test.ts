@@ -1,12 +1,25 @@
 import {describe, expect, it} from "vitest";
 
+import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid} from "./grid";
-import {initializeMetabolism} from "./ledger";
+import {
+  initializeMetabolism,
+  totalCarbon,
+  totalOxygen,
+  type Pools,
+} from "./ledger";
+import {applyPassiveExchange} from "./metabolism";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
-import {STARTING_POPULATION, createPopulation} from "./organism";
+import {
+  STARTING_POPULATION,
+  bodyArea,
+  capFor,
+  createPopulation,
+  type Organism,
+} from "./organism";
 import {createRngStream} from "./rng";
 import {separateOverlaps} from "./separation";
-import {worstExcursion} from "./testing";
+import {randomPopulation, shuffle, worstExcursion} from "./testing";
 import {
   FIXED_DT_MS,
   advance,
@@ -340,11 +353,10 @@ describe("carbon ledger (M2)", () => {
     expect(getPoolLevels(createWorld(3))).toEqual(pools);
   });
 
-  // Nothing in this slice moves a unit of carbon — no exchange, no
-  // reactions — so tick 0's totals are, by construction, the totals for
-  // as long as the world runs. This is the trivial-conservation state the
-  // ticket asks for: the instrument reads true before anything exists
-  // that could break what it measures.
+  // Tick 0's totals are, by construction, the totals for as long as the
+  // world runs. This is the trivial-conservation state the ticket asks
+  // for: the instrument reads true before anything exists that could
+  // break what it measures.
   it("reads zero drift for both carbon and oxygen at tick 0", () => {
     const world = createWorld(3);
 
@@ -352,7 +364,15 @@ describe("carbon ledger (M2)", () => {
     expect(getOxygenDrift(world)).toBe(0);
   });
 
-  it("never lets either drift move over a long run, since nothing yet touches a store", () => {
+  // Exchange runs every tick from here on, but generation 0 starts at
+  // exact diffusive equilibrium (`initializeMetabolism`) and nothing else
+  // in this milestone yet perturbs a store away from it — photosynthesis
+  // and respiration are later M2 tickets. So every organism's requested
+  // flux is exactly zero, tick after tick, and the seam proves the
+  // property the ticket asks for: it moves nothing when nothing should
+  // move. `passive exchange (M2)` below exercises the non-trivial case,
+  // with a store actually displaced from ambient.
+  it("never lets either drift move over a long run, since generation 0 starts at equilibrium", () => {
     let world = createWorld(3);
 
     for (let tick = 0; tick < 2000; tick++) {
@@ -360,5 +380,104 @@ describe("carbon ledger (M2)", () => {
       expect(getCarbonDrift(world)).toBe(0);
       expect(getOxygenDrift(world)).toBe(0);
     }
+  });
+});
+
+describe("passive exchange (M2)", () => {
+  // `World` always starts generation 0 at equilibrium, so a meaningful
+  // exercise of exchange — a store actually away from ambient, a draw and
+  // a vent both genuinely happening — has to build a population by hand
+  // rather than go through `createWorld`. The pipeline below is `runTick`'s
+  // step 2 plus steps 6 and 10, the same shape the `collisions` describe
+  // block above already replicates by hand for the same reason.
+  function runExchangeAndMotion(
+    population: readonly Organism[],
+    pools: Pools,
+  ): Pools {
+    const settlement = new ExchangeSettlement(pools);
+    const request = settlement.requestPass();
+    for (const organism of population) {
+      applyPassiveExchange(organism, request);
+    }
+    settlement.settle();
+    const grant = settlement.grantPass();
+    for (const organism of population) {
+      applyPassiveExchange(organism, grant);
+    }
+    for (const organism of population) {
+      applyBrownianMotion(organism);
+    }
+    separateOverlaps(population, buildUniformGrid(population));
+    for (const organism of population) {
+      constrainToAquarium(organism);
+    }
+    return settlement.commit();
+  }
+
+  it("converges a displaced organism back toward ambient while conservation holds, over a long run", () => {
+    const population = createPopulation(createRngStream(21)).population;
+    let pools = initializeMetabolism(population);
+
+    // Drain one organism's food to zero (a draw will run) and fill its
+    // oxygen to twice its cap (a vent will run), so both directions of
+    // the one signed law are genuinely exercised rather than everyone
+    // sitting at an equilibrium nothing ever perturbs.
+    const displaced = population[0];
+    const area = bodyArea(displaced);
+    const ambientFoodConcentration = displaced.food / area;
+    displaced.food = 0;
+    displaced.oxygen = 2 * capFor(displaced, "oxygen");
+
+    const initialCarbon = totalCarbon(population, pools);
+    const initialOxygen = totalOxygen(population, pools);
+
+    const TICKS = 3000;
+    for (let tick = 0; tick < TICKS; tick++) {
+      pools = runExchangeAndMotion(population, pools);
+    }
+
+    const carbonDrift =
+      Math.abs(totalCarbon(population, pools) - initialCarbon) / initialCarbon;
+    const oxygenDrift =
+      Math.abs(totalOxygen(population, pools) - initialOxygen) / initialOxygen;
+
+    expect(carbonDrift).toBeLessThan(1e-9);
+    expect(oxygenDrift).toBeLessThan(1e-9);
+    expect(displaced.food / bodyArea(displaced)).toBeCloseTo(
+      ambientFoodConcentration,
+      2,
+    );
+  });
+
+  it("keeps every organism's stores and the pools independent of population order", () => {
+    const seedPopulation = () => {
+      const population = randomPopulation(11, 30);
+      const pools = initializeMetabolism(population);
+      // Push total demand for food past the pool, so the proportional-
+      // scaling path this test is really about actually runs.
+      population[0].food = 0;
+      population[1].food = 0;
+      return {population, pools};
+    };
+
+    const {population: inOrder, pools: poolsA} = seedPopulation();
+    const {population: reference, pools: poolsB} = seedPopulation();
+    const shuffled = shuffle([...reference], createRngStream(4242));
+
+    const resultA = runExchangeAndMotion(inOrder, poolsA);
+    const resultB = runExchangeAndMotion(shuffled, poolsB);
+
+    expect(shuffled).not.toEqual(reference);
+    for (let i = 0; i < inOrder.length; i++) {
+      expect(reference[i].food).toBeCloseTo(inOrder[i].food, 10);
+      expect(reference[i].oxygen).toBeCloseTo(inOrder[i].oxygen, 10);
+      expect(reference[i].carbonDioxide).toBeCloseTo(
+        inOrder[i].carbonDioxide,
+        10,
+      );
+    }
+    expect(resultB.food).toBeCloseTo(resultA.food, 9);
+    expect(resultB.oxygen).toBeCloseTo(resultA.oxygen, 9);
+    expect(resultB.carbonDioxide).toBeCloseTo(resultA.carbonDioxide, 9);
   });
 });

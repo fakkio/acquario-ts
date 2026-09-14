@@ -57,6 +57,16 @@ export const AMBIENT_CO2_SHARE = 0.75;
 export const AMBIENT_OXYGEN_CONCENTRATION = 0.5;
 
 /**
+ * Passive exchange's rate coefficient (ADR-0003): `flux = kDiffusion ×
+ * perimeter × (C_external − C_internal)`. Chosen against the time constant
+ * `r / (2·kDiffusion)` — 100 ticks for a baseline body to reach diffusive
+ * equilibrium from a standing start, which is fast enough that a run's
+ * opening transient is over quickly and slow enough to read as diffusion
+ * rather than as a snap to equilibrium. Open for M5 to move.
+ */
+export const K_DIFFUSION = 0.005;
+
+/**
  * The light unit: fixed by construction, the same move `K_CAP` makes for
  * concentration. Surface light is exactly 1.
  */

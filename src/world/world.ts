@@ -1,3 +1,4 @@
+import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
 import {
@@ -7,6 +8,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
+import {applyPassiveExchange} from "./metabolism";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -130,17 +132,33 @@ export function createWorld(seed: number): World {
  */
 function runTick(state: WorldState): WorldState {
   // ---- Read: sample the environment into a snapshot ----------------
-  // 1. Snapshot concentrations and light — M2.
-  //    Nothing to sample yet: the Environment seam (ADR-0005) arrives
-  //    with M2, and until it does there is no snapshot to hand to the
-  //    phases below.
+  // 1. Snapshot concentrations and light. `state.pools` is already an
+  //    immutable record, so building the tick's `ExchangeSettlement` from
+  //    it *is* taking the snapshot — nothing here copies it. Light needs
+  //    no snapshot at all: `lightAt` is a pure function of depth.
+  const settlement = new ExchangeSettlement(state.pools);
 
   // ---- Resolve: per organism, no writes to the world ---------------
   // Every step here reads the snapshot and writes only to the organism
   // it is running for. That restriction is what makes the phase
   // order-independent by construction, and it is the whole reason the
   // metabolic core is unit-testable against one organism and a snapshot.
-  // 2. Passive exchange — M2.
+  // 2. Passive exchange, in the two sub-passes ADR-0016 requires: 2a
+  //    every organism registers the flux it wants against the same
+  //    `Environment` interface, writing nothing; between the passes the
+  //    per-pool scaling factor is struck from total demand; 2b every
+  //    organism is handed its granted amount and ends the tick holding
+  //    it. `applyPassiveExchange` does not know which sub-pass it runs
+  //    in — only the `Environment` it is given each time does.
+  const requestEnvironment = settlement.requestPass();
+  for (const organism of state.population) {
+    applyPassiveExchange(organism, requestEnvironment);
+  }
+  settlement.settle();
+  const grantEnvironment = settlement.grantPass();
+  for (const organism of state.population) {
+    applyPassiveExchange(organism, grantEnvironment);
+  }
   // 3. Photosynthesis — M2.
   // 4. Respiration — M2.
   // 5. Maintenance — M2.
@@ -152,7 +170,9 @@ function runTick(state: WorldState): WorldState {
   // 8. Evaluate death, enqueue — M3.
 
   // ---- Commit: every world mutation, in a fixed order --------------
-  // 9. Apply delta buffer — M2.
+  // 9. Apply delta buffer: the exchange settlement's grants, decided in
+  //    2b above, applied to the pools at this one well-defined point.
+  const pools = settlement.commit();
   // 10. Collisions and walls. The grid is built here, consumed by the
   //     separation pass, and dropped when the tick ends: it is an index of
   //     where the bodies are *now*, and the only place that is true is
@@ -167,7 +187,7 @@ function runTick(state: WorldState): WorldState {
   // 12. Births — M4. Newborns are appended here and stay inert for
   //     their first tick, so no birth cascades within a tick.
   // 13. Tick++.
-  return {...state, tick: state.tick + 1};
+  return {...state, pools, tick: state.tick + 1};
 }
 
 export function advance(world: World, elapsedMs: number): AdvanceResult {

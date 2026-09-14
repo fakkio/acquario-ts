@@ -76,6 +76,10 @@ _Avoid_: unit radius, reference radius, default size, r₀, pixel
 One of the four quantities an organism holds internally: `energy`, `oxygen`, `carbonDioxide`, `food`.
 _Avoid_: substance, material, nutrient
 
+**Diffusible**:
+A `Resource` other than `energy`: one of the three that crosses the membrane and has a pool. What `Environment` is typed against, so a metabolic routine cannot ask the world to exchange energy.
+_Avoid_: exchangeable resource, pool resource
+
 **Food**:
 Fixed carbon. The currency of _matter_ — bodies are built from it, and it is modelled as pure carbon.
 _Avoid_: biomass, nutrient, organic matter, sugar

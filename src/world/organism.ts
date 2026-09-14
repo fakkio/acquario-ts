@@ -95,6 +95,16 @@ export interface OrganismInit {
 export type Resource = "energy" | "oxygen" | "carbonDioxide" | "food";
 
 /**
+ * The three resources that cross the membrane and have a pool — `Resource`
+ * minus `energy`, which is produced and spent but never exchanged with the
+ * world (CONTEXT.md). The `Environment` seam (ADR-0005) is typed against
+ * this subtype rather than `Resource`, so "energy is never exchanged" is a
+ * fact the compiler enforces rather than a comment somebody has to
+ * remember.
+ */
+export type Diffusible = "oxygen" | "carbonDioxide" | "food";
+
+/**
  * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
  * size: `coefficient × bodyArea`. Energy carries `K_CAP_ENERGY` rather than
  * the three diffusibles' `K_CAP`, because its unit is fixed independently
