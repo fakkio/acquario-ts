@@ -1,8 +1,19 @@
 import {describe, expect, it} from "vitest";
 
-import {K_DIFFUSION, K_PHOTO} from "./constants";
+import {
+  BODY_COST_COEFFICIENT,
+  EXISTENCE_COST,
+  K_DIFFUSION,
+  K_PHOTO,
+  RESPIRATION_ENERGY_YIELD,
+} from "./constants";
 import type {Environment, Vec2} from "./environment";
-import {applyPassiveExchange, applyPhotosynthesis} from "./metabolism";
+import {
+  applyMaintenance,
+  applyPassiveExchange,
+  applyPhotosynthesis,
+  applyRespiration,
+} from "./metabolism";
 import {bodyArea, capFor, type Diffusible} from "./organism";
 import {organismAt} from "./testing";
 
@@ -303,5 +314,221 @@ describe("applyPhotosynthesis", () => {
     expect(co2Lost).toBeGreaterThan(0);
     expect(organism.food - before.food).toBeCloseTo(co2Lost, 12);
     expect(organism.oxygen - before.oxygen).toBeCloseTo(co2Lost, 12);
+  });
+});
+
+/**
+ * `applyRespiration` and `applyMaintenance` take no `Environment`: both are
+ * purely internal, reading and writing only the organism they run for, so
+ * there is nothing here for a stub to stand in for — the same reason
+ * ADR-0006 calls the metabolic core testable "against a single organism
+ * and a snapshot, with no world required".
+ */
+describe("applyRespiration", () => {
+  it("converts internal food and oxygen into energy and CO2 at 1:1 stoichiometry on both ledgers", () => {
+    const organism = organismAt(0, 0, 1);
+    const area = bodyArea(organism);
+    organism.food = 0.3 * area;
+    organism.oxygen = 0.3 * area;
+    organism.energy = 0;
+    const before = {
+      food: organism.food,
+      oxygen: organism.oxygen,
+      carbonDioxide: organism.carbonDioxide,
+    };
+
+    const outcome = applyRespiration(organism);
+
+    const foodLost = before.food - organism.food;
+    const oxygenLost = before.oxygen - organism.oxygen;
+    const co2Gained = organism.carbonDioxide - before.carbonDioxide;
+    expect(foodLost).toBeGreaterThan(0);
+    expect(oxygenLost).toBeCloseTo(foodLost, 12);
+    expect(co2Gained).toBeCloseTo(foodLost, 12);
+    expect(outcome.energyProduced).toBeCloseTo(
+      foodLost * RESPIRATION_ENERGY_YIELD,
+      12,
+    );
+    expect(organism.energy).toBeCloseTo(outcome.energyProduced, 12);
+  });
+
+  it("follows mass action on internal food and oxygen, scaling with body area", () => {
+    const small = organismAt(0, 0, 1);
+    const large = organismAt(0, 0, 2);
+    // Same internal *concentrations* on both, and caps generous enough that
+    // neither is throttled by substrate or headroom — only area differs.
+    small.food = 0.2 * bodyArea(small);
+    small.oxygen = 0.2 * bodyArea(small);
+    large.food = 0.2 * bodyArea(large);
+    large.oxygen = 0.2 * bodyArea(large);
+
+    const smallOutcome = applyRespiration(small);
+    const largeOutcome = applyRespiration(large);
+
+    expect(largeOutcome.energyProduced).toBeGreaterThan(
+      smallOutcome.energyProduced,
+    );
+  });
+
+  it("throttles continuously as internal oxygen falls, with no suffocation cliff", () => {
+    const organism = organismAt(0, 0, 1);
+    const area = bodyArea(organism);
+    const outcomes: number[] = [];
+
+    for (const oxygenConcentration of [0.5, 0.3, 0.1, 0.01, 0.001]) {
+      organism.food = 0.5 * area;
+      organism.oxygen = oxygenConcentration * area;
+      organism.carbonDioxide = 0;
+      organism.energy = 0;
+      outcomes.push(applyRespiration(organism).energyProduced);
+    }
+
+    for (let i = 1; i < outcomes.length; i++) {
+      expect(outcomes[i]).toBeLessThan(outcomes[i - 1]);
+    }
+    // No suffocation rule anywhere: even a trickle of oxygen still lets the
+    // reaction run, rather than cutting off at some threshold.
+    expect(outcomes[outcomes.length - 1]).toBeGreaterThan(0);
+  });
+
+  it("reacts to zero when food is exhausted", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.food = 0;
+    organism.oxygen = 0.5 * bodyArea(organism);
+    const before = {
+      carbonDioxide: organism.carbonDioxide,
+      energy: organism.energy,
+    };
+
+    const outcome = applyRespiration(organism);
+
+    expect(outcome.energyProduced).toBe(0);
+    expect(organism.carbonDioxide).toBe(before.carbonDioxide);
+    expect(organism.energy).toBe(before.energy);
+  });
+
+  it("never drives food or oxygen below zero when substrate is the limit", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.food = 1e-9;
+    organism.oxygen = bodyArea(organism);
+
+    applyRespiration(organism);
+
+    expect(organism.food).toBeGreaterThanOrEqual(0);
+  });
+
+  it("never pushes CO2 past its cap when CO2 headroom is the binding limit", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.food = bodyArea(organism);
+    organism.oxygen = bodyArea(organism);
+    organism.carbonDioxide = capFor(organism, "carbonDioxide") - 1e-9;
+    organism.energy = 0;
+
+    applyRespiration(organism);
+
+    expect(organism.carbonDioxide).toBeLessThanOrEqual(
+      capFor(organism, "carbonDioxide"),
+    );
+  });
+
+  it("throttles by a full energy store, never spilling energy past its cap, and reports the throttle", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.food = bodyArea(organism);
+    organism.oxygen = bodyArea(organism);
+    organism.energy = capFor(organism, "energy") - 1e-9;
+
+    const outcome = applyRespiration(organism);
+
+    expect(organism.energy).toBeLessThanOrEqual(capFor(organism, "energy"));
+    expect(outcome.throttledByFullEnergyStore).toBe(true);
+  });
+
+  it("does not report a full-energy throttle when substrate, not the energy cap, is what binds", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.food = 1e-9;
+    organism.oxygen = bodyArea(organism);
+    organism.energy = 0;
+
+    const outcome = applyRespiration(organism);
+
+    expect(outcome.throttledByFullEnergyStore).toBe(false);
+  });
+
+  it("discards no product: food and oxygen lost match CO2 gained and the energy produced", () => {
+    const organism = organismAt(0, 0, 1);
+    const area = bodyArea(organism);
+    organism.food = 0.4 * area;
+    organism.oxygen = 0.4 * area;
+    organism.energy = 0;
+    const before = {
+      food: organism.food,
+      oxygen: organism.oxygen,
+      carbonDioxide: organism.carbonDioxide,
+    };
+
+    const outcome = applyRespiration(organism);
+
+    const foodLost = before.food - organism.food;
+    expect(foodLost).toBeGreaterThan(0);
+    expect(before.oxygen - organism.oxygen).toBeCloseTo(foodLost, 12);
+    expect(organism.carbonDioxide - before.carbonDioxide).toBeCloseTo(
+      foodLost,
+      12,
+    );
+    expect(outcome.energyProduced).toBeCloseTo(
+      foodLost * RESPIRATION_ENERGY_YIELD,
+      12,
+    );
+  });
+
+  // The chaining ADR-0006 requires — respiration reading the food
+  // photosynthesis just produced, within the same tick — collected here at
+  // the unit boundary: nothing but a plain function call orders these two.
+  it("closes the cycle: an illuminated organism nets light into energy when photosynthesis runs first", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = 0.5 * bodyArea(organism);
+    organism.energy = 0;
+    const lightEnvironment: Environment = {
+      concentration: () => 0,
+      light: () => 1,
+      exchange: (_resource, _pos, amount) => amount,
+    };
+
+    applyPhotosynthesis(organism, lightEnvironment);
+    const outcome = applyRespiration(organism);
+
+    expect(outcome.energyProduced).toBeGreaterThan(0);
+  });
+});
+
+describe("applyMaintenance", () => {
+  it("charges the flat existence cost plus the area-scaled body cost", () => {
+    const organism = organismAt(0, 0, 1.3);
+    organism.energy = 10_000; // comfortably above the cost
+
+    const before = organism.energy;
+    applyMaintenance(organism);
+
+    const expectedCost =
+      EXISTENCE_COST + BODY_COST_COEFFICIENT * bodyArea(organism);
+    expect(before - organism.energy).toBeCloseTo(expectedCost, 12);
+  });
+
+  it("clamps energy at zero rather than driving it negative", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.energy = 0.1; // far less than the cost
+
+    applyMaintenance(organism);
+
+    expect(organism.energy).toBe(0);
+  });
+
+  it("leaves an already-zero-energy organism at zero", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.energy = 0;
+
+    applyMaintenance(organism);
+
+    expect(organism.energy).toBe(0);
   });
 });

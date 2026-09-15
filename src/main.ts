@@ -7,12 +7,14 @@ import {createRenderLoop} from "./app/renderLoop";
 import {
   createWorld,
   getCarbonDrift,
+  getMeasuredAlpha,
   getOxygenDrift,
   getPoolLevels,
   getPopulation,
   getSeed,
   getTick,
   getWorstPenetration,
+  getZeroEnergyCount,
   type World,
 } from "./world";
 
@@ -22,6 +24,16 @@ import {
  * significant one on up, rather than being hidden by fixed-point rounding.
  */
 const formatDrift = (drift: number): string => drift.toExponential(3);
+
+/**
+ * How much weight each tick's fresh `α` reading carries in the HUD's
+ * running average (ADR-0015): low, because the raw reading is a per-tick
+ * mean over a whole population and jitters tick to tick even at a real
+ * steady state — the row is worth having only once it has settled into
+ * something legible to read at a glance.
+ */
+const ALPHA_SMOOTHING = 0.02;
+let smoothedAlpha = 0;
 
 const canvas = mountCanvas();
 const ctx = canvas.getContext("2d");
@@ -69,6 +81,17 @@ const updateHud = (currentWorld: World, fps: number): void => {
     "Oxygen drift",
     formatDrift(getOxygenDrift(currentWorld)),
   );
+  hud.setField(
+    "zeroEnergy",
+    "Zero-energy",
+    String(getZeroEnergyCount(currentWorld)),
+  );
+  // Smoothed here, in the App layer, per ADR-0015: a moving average kept in
+  // the world would be state crossing tick boundaries with no reader inside
+  // a tick, so it would only enter `hashState` for the sake of this row.
+  smoothedAlpha +=
+    (getMeasuredAlpha(currentWorld) - smoothedAlpha) * ALPHA_SMOOTHING;
+  hud.setField("alpha", "α (energy/r)", smoothedAlpha.toFixed(2));
 };
 
 // Everything that can change what the canvas should show — a tick, a camera

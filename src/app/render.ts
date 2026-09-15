@@ -2,9 +2,11 @@ import type {Camera} from "./camera";
 import {
   AQUARIUM_HEIGHT,
   AQUARIUM_WIDTH,
+  capFor,
   getGridOccupancy,
   getPopulation,
   lightAt,
+  type OrganismView,
   type World,
 } from "../world";
 
@@ -37,6 +39,13 @@ const WATER_LIGHTNESS_SURFACE = 32;
  * buys nothing. */
 const GRADIENT_STOPS = 20;
 
+/** Lightness at zero energy and at a full store, in percent — the range a
+ * body's brightness maps its energy fraction into (M2, ADR-0010). A
+ * starving body never goes fully black: it stays a dim, legible ghost of
+ * its lineage hue rather than vanishing into the background. */
+const BODY_LIGHTNESS_FLOOR = 12;
+const BODY_LIGHTNESS_FULL = 55;
+
 const GRID_STROKE = "hsla(50, 90%, 70%, 0.22)";
 const GRID_OCCUPIED_FILL = "hsla(50, 90%, 70%, 0.10)";
 const GRID_WIDTH_PX = 1;
@@ -64,11 +73,11 @@ export function frameAquarium(canvas: HTMLCanvasElement): Camera {
  * Untested per ADR-0013's TDD boundary: canvas drawing is verified by running
  * the app.
  *
- * Rendering encodes state directly, per ADR-0010: hue is `lineageHue` and
- * radius is `bodyRadius`. Brightness is the third channel and encodes the
- * energy fraction, so every body is drawn at the one fixed lightness below
- * until M2 gives them energy to be a fraction of — a fraction of 1, read as
- * the top of the range M2 will dim bodies down from.
+ * Rendering encodes state directly, per ADR-0010: hue is `lineageHue`,
+ * radius is `bodyRadius`, and brightness is the energy fraction — a
+ * starving body reads as a dim ghost of its lineage hue, a sated one as
+ * its full colour, so a starvation wave is legible on screen without
+ * opening a test.
  */
 export function renderWorld(
   ctx: CanvasRenderingContext2D,
@@ -103,7 +112,7 @@ export function renderWorld(
   }
 
   for (const organism of getPopulation(world)) {
-    ctx.fillStyle = `hsl(${String(organism.lineageHue)}, 70%, 55%)`;
+    ctx.fillStyle = bodyFillFor(organism);
     ctx.beginPath();
     ctx.arc(organism.x, organism.y, organism.bodyRadius, 0, 2 * Math.PI);
     ctx.fill();
@@ -114,6 +123,24 @@ export function renderWorld(
   ctx.strokeStyle = WALL_STROKE;
   ctx.lineWidth = WALL_WIDTH_PX / worldScale;
   ctx.strokeRect(0, 0, AQUARIUM_WIDTH, AQUARIUM_HEIGHT);
+}
+
+/**
+ * Untested per ADR-0013's TDD boundary, like everything else that draws.
+ *
+ * A body's fill colour: `lineageHue` unchanged, brightness carrying the
+ * energy fraction linearly between `BODY_LIGHTNESS_FLOOR` and
+ * `BODY_LIGHTNESS_FULL`. No perceptual compression the way
+ * `waterFillAt` applies to light — the energy fraction is already linear
+ * in `[0, 1]`, with no orders-of-magnitude spread to compress.
+ */
+function bodyFillFor(organism: OrganismView): string {
+  const energyFraction = organism.energy / capFor(organism, "energy");
+  const lightness =
+    BODY_LIGHTNESS_FLOOR +
+    (BODY_LIGHTNESS_FULL - BODY_LIGHTNESS_FLOOR) * energyFraction;
+
+  return `hsl(${String(organism.lineageHue)}, 70%, ${String(lightness)}%)`;
 }
 
 /**

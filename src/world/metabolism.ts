@@ -1,13 +1,21 @@
-import {K_DIFFUSION, K_PHOTO} from "./constants";
+import {
+  BODY_COST_COEFFICIENT,
+  EXISTENCE_COST,
+  K_DIFFUSION,
+  K_PHOTO,
+  K_RESP,
+  RESPIRATION_ENERGY_YIELD,
+} from "./constants";
 import type {Environment} from "./environment";
 import {DIFFUSIBLES, bodyArea, capFor, type Organism} from "./organism";
 
 /**
  * The reactions and costs that spend and fill an organism's internal
- * stores. Passive exchange and photosynthesis land here; respiration and
- * maintenance land in later M2 tickets. Free functions taking an organism
- * and an `Environment`, in the style M1's `motion.ts` already chose,
- * writing only to the organism they run for.
+ * stores. Free functions in the style M1's `motion.ts` already chose,
+ * writing only to the organism they run for. Passive exchange and
+ * photosynthesis take an `Environment`, since both cross the membrane or
+ * read light; respiration and maintenance are purely internal and take
+ * none.
  */
 
 /**
@@ -110,4 +118,108 @@ export function applyPhotosynthesis(
   organism.carbonDioxide -= fixed;
   organism.food += fixed;
   organism.oxygen += fixed;
+}
+
+/** What `applyRespiration` reports back, beyond the mutation it makes to
+ * the organism, for the tick to fold into the population's measured `α`
+ * (ADR-0015) — nothing here is stored on the organism itself, since it
+ * describes this tick's reaction and not next tick's starting state. */
+export interface RespirationOutcome {
+  /** Energy this reaction actually produced this tick, before
+   * maintenance spends any of it. The numerator of one organism's `α`. */
+  readonly energyProduced: number;
+  /**
+   * Whether the energy store's headroom, not the substrate or the CO₂
+   * cap, was the binding limit. An organism throttled this way is
+   * measuring the size of its own tank rather than the income available
+   * to it, so ADR-0015 excludes it from the population mean.
+   */
+  readonly throttledByFullEnergyStore: boolean;
+}
+
+/**
+ * Resolve-phase step 4 (ADR-0006): respiration, the only source of energy
+ * in the simulation — `food + O₂ → energy + CO₂` at 1:1:1 stoichiometry on
+ * the carbon and oxygen ledgers, the exact reverse of photosynthesis's
+ * transfer plus an energy yield. A purely internal transformation, like
+ * photosynthesis: it never calls `exchange`, so it cannot itself move mass
+ * into or out of a pool.
+ *
+ * **Runs after photosynthesis, reading the food it just produced in the
+ * same tick.** This is a law of the world, not a matter of presentation
+ * (see the ticket): steps 3 and 4 are chained rather than merely ordered,
+ * so an illuminated organism's net for the tick is `light → energy`
+ * exactly the way a real plant's is. Reordering these two steps during a
+ * refactor would look harmless — both still run once per tick — and would
+ * quietly turn every illuminated organism's food output into a one-tick
+ * lag instead of the same-tick cycle the milestone promises.
+ *
+ * The rate follows mass action on *two* internal reactant concentrations —
+ * food and O₂ — multiplied by body area rather than by the perimeter-like
+ * factor photosynthesis uses. That is what keeps energy income linear in
+ * `r`: capacity here grows with area while passive exchange's supply grows
+ * only with perimeter, so a larger body's respiration stays supply-limited
+ * rather than pegged at some internal ceiling of its own.
+ *
+ * **Throttle, never spill**, exactly as photosynthesis is: the reaction
+ * runs at the minimum of its rate, the food and O₂ actually available, and
+ * the headroom left in the CO₂ store. It is throttled by the energy
+ * store's headroom too, even though spilling energy would not break
+ * conservation — energy is not part of either ledger — on the grounds that
+ * nothing burns fuel with nowhere to put the result. Without that rule a
+ * sated organism would strip-mine the food pool for a product it has no
+ * room to hold.
+ */
+export function applyRespiration(organism: Organism): RespirationOutcome {
+  const area = bodyArea(organism);
+  const foodConcentration = organism.food / area;
+  const oxygenConcentration = organism.oxygen / area;
+  const rate = K_RESP * foodConcentration * oxygenConcentration * area;
+
+  const foodAvailable = organism.food;
+  const oxygenAvailable = organism.oxygen;
+  const co2Headroom =
+    capFor(organism, "carbonDioxide") - organism.carbonDioxide;
+  const energyHeadroom =
+    (capFor(organism, "energy") - organism.energy) / RESPIRATION_ENERGY_YIELD;
+
+  const reacted = Math.max(
+    0,
+    Math.min(rate, foodAvailable, oxygenAvailable, co2Headroom, energyHeadroom),
+  );
+
+  organism.food -= reacted;
+  organism.oxygen -= reacted;
+  organism.carbonDioxide += reacted;
+  const energyProduced = reacted * RESPIRATION_ENERGY_YIELD;
+  organism.energy += energyProduced;
+
+  return {
+    energyProduced,
+    throttledByFullEnergyStore:
+      energyHeadroom <= rate &&
+      energyHeadroom <= foodAvailable &&
+      energyHeadroom <= oxygenAvailable &&
+      energyHeadroom <= co2Headroom,
+  };
+}
+
+/**
+ * Resolve-phase step 5 (ADR-0006): maintenance, the cost of being an
+ * organism at all — `c₀ + β·area` (ADR-0009), charged in full every tick to
+ * every organism. `c₀` is the flat existence cost that creates a minimum
+ * viable body size; `β·area` is the body cost. Both halves run in M2 rather
+ * than waiting for M5, so the term that shapes `r_opt` is exercised from
+ * the milestone that first gives organisms energy to spend.
+ *
+ * **Energy clamps at zero and nothing dies.** M2's population is fixed and
+ * immortal on purpose (see the ticket): an organism that cannot afford its
+ * own maintenance simply stops there, still diffusing and able to recover
+ * if food drifts its way, rather than being removed. Immortality is a
+ * clamp on this one line, not an exemption from the cost itself — the full
+ * charge is always subtracted before the floor is applied.
+ */
+export function applyMaintenance(organism: Organism): void {
+  const cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * bodyArea(organism);
+  organism.energy = Math.max(0, organism.energy - cost);
 }

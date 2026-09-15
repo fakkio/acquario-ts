@@ -8,7 +8,13 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {applyPassiveExchange, applyPhotosynthesis} from "./metabolism";
+import {
+  applyMaintenance,
+  applyPassiveExchange,
+  applyPhotosynthesis,
+  applyRespiration,
+  type RespirationOutcome,
+} from "./metabolism";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -82,6 +88,16 @@ interface WorldState {
    */
   readonly initialTotalCarbon: number;
   readonly initialTotalOxygen: number;
+  /**
+   * ADR-0015's population-mean `α`: this tick's respiration energy over
+   * body radius, averaged over organisms whose respiration was *not*
+   * throttled by a full energy store, from the tick that has just run.
+   * Read fresh every tick and never smoothed here — smoothing is the App
+   * layer's job, so a moving average never becomes state this record has
+   * to carry, and stays out of `hashState` for the same reason
+   * `initialTotalCarbon` does: nothing in a tick reads it back.
+   */
+  readonly measuredAlpha: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -113,6 +129,9 @@ export function createWorld(seed: number): World {
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
     initialTotalOxygen: totalOxygen(population, pools),
+    // No tick has run yet, so this reads the value a tick that produced
+    // no energy at all would report.
+    measuredAlpha: 0,
   });
 }
 
@@ -167,8 +186,24 @@ function runTick(state: WorldState): WorldState {
   for (const organism of state.population) {
     applyPhotosynthesis(organism, grantEnvironment);
   }
-  // 4. Respiration — M2.
-  // 5. Maintenance — M2.
+  // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
+  //    so an illuminated organism nets light → energy within this tick
+  //    (ADR-0006, and the load-bearing comment on `applyRespiration`).
+  //    Every outcome is kept, not just applied, so this tick's population
+  //    mean `α` (ADR-0015) can be struck below without a second pass over
+  //    the population.
+  const respirationOutcomes = state.population.map((organism) =>
+    applyRespiration(organism),
+  );
+  // 5. Maintenance: c₀ + β·area, charged in full; energy floors at zero
+  //    and nothing dies (M2's population is fixed for the whole milestone).
+  for (const organism of state.population) {
+    applyMaintenance(organism);
+  }
+  const measuredAlpha = meanMeasuredAlpha(
+    state.population,
+    respirationOutcomes,
+  );
   // 6. Brownian motion.
   for (const organism of state.population) {
     applyBrownianMotion(organism);
@@ -194,7 +229,34 @@ function runTick(state: WorldState): WorldState {
   // 12. Births — M4. Newborns are appended here and stay inert for
   //     their first tick, so no birth cascades within a tick.
   // 13. Tick++.
-  return {...state, pools, tick: state.tick + 1};
+  return {...state, pools, tick: state.tick + 1, measuredAlpha};
+}
+
+/**
+ * ADR-0015's population mean: `energyProduced / bodyRadius`, averaged over
+ * every organism whose respiration this tick was *not* throttled by a full
+ * energy store — those measure the size of their own tank rather than the
+ * income available to them. Organisms at zero energy stay in: they are
+ * genuinely poor, and that is part of what the mean has to say. Reads 0
+ * for a population that is entirely throttled, the same value a tick that
+ * produced no energy at all would report.
+ */
+function meanMeasuredAlpha(
+  population: readonly Organism[],
+  outcomes: readonly RespirationOutcome[],
+): number {
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < population.length; i++) {
+    const outcome = outcomes[i];
+    if (outcome.throttledByFullEnergyStore) {
+      continue;
+    }
+    sum += outcome.energyProduced / population[i].bodyRadius;
+    count++;
+  }
+
+  return count > 0 ? sum / count : 0;
 }
 
 export function advance(world: World, elapsedMs: number): AdvanceResult {
@@ -311,6 +373,26 @@ export function getOxygenDrift(world: World): number {
     totalOxygen(state.population, state.pools),
     state.initialTotalOxygen,
   );
+}
+
+/** ADR-0015's population-mean `α`, from the tick that has just run. Raw
+ * and unsmoothed: smoothing it into something legible on the HUD is the
+ * App layer's job, so it adds no state here. */
+export function getMeasuredAlpha(world: World): number {
+  return toState(world).measuredAlpha;
+}
+
+/**
+ * How many organisms sit at exactly zero energy right now — M3's future
+ * funerals, visible a milestone early (see the ticket). Measured on demand
+ * from the population as it stands, for the same reason
+ * `getWorstPenetration` builds its own grid rather than reading a stored
+ * count: an organism's energy is live, mutable state, so a readout of it
+ * is worth having only if it cannot disagree with the state it describes.
+ */
+export function getZeroEnergyCount(world: World): number {
+  return toState(world).population.filter((organism) => organism.energy === 0)
+    .length;
 }
 
 /**

@@ -175,8 +175,13 @@ export class Organism {
  * The area a body occupies, in the same length unit as `bodyRadius`. The
  * one place that area is computed, so every cap and every ledger term reads
  * it the same way.
+ *
+ * Typed against `bodyRadius` alone, not the full `Organism`, so the App
+ * layer can compute a cap or an area off an `OrganismView` too — the render
+ * layer reads energy fraction for body brightness (M2) without needing the
+ * mutable class the world itself works with.
  */
-export function bodyArea(organism: Organism): number {
+export function bodyArea(organism: {readonly bodyRadius: number}): number {
   return Math.PI * organism.bodyRadius * organism.bodyRadius;
 }
 
@@ -194,8 +199,12 @@ export function bodyMass(organism: Organism): number {
 }
 
 /** The maximum amount of `resource` this organism can hold right now — a
- * maximum internal concentration, scaled by its own body area. */
-export function capFor(organism: Organism, resource: Resource): number {
+ * maximum internal concentration, scaled by its own body area. Accepts
+ * anything with a `bodyRadius`; see `bodyArea`. */
+export function capFor(
+  organism: {readonly bodyRadius: number},
+  resource: Resource,
+): number {
   return CAP_COEFFICIENT[resource] * bodyArea(organism);
 }
 
