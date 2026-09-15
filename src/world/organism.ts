@@ -176,12 +176,12 @@ export class Organism {
  * one place that area is computed, so every cap and every ledger term reads
  * it the same way.
  *
- * Typed against `bodyRadius` alone, not the full `Organism`, so the App
- * layer can compute a cap or an area off an `OrganismView` too — the render
- * layer reads energy fraction for body brightness (M2) without needing the
- * mutable class the world itself works with.
+ * Typed against `Organism | OrganismView` rather than `Organism` alone, so
+ * the App layer can compute a cap or an area off the read-only view too —
+ * the render layer reads energy fraction for body brightness (M2) without
+ * needing the mutable class the world itself works with.
  */
-export function bodyArea(organism: {readonly bodyRadius: number}): number {
+export function bodyArea(organism: Organism | OrganismView): number {
   return Math.PI * organism.bodyRadius * organism.bodyRadius;
 }
 
@@ -199,10 +199,10 @@ export function bodyMass(organism: Organism): number {
 }
 
 /** The maximum amount of `resource` this organism can hold right now — a
- * maximum internal concentration, scaled by its own body area. Accepts
- * anything with a `bodyRadius`; see `bodyArea`. */
+ * maximum internal concentration, scaled by its own body area. Accepts an
+ * `OrganismView` too; see `bodyArea`. */
 export function capFor(
-  organism: {readonly bodyRadius: number},
+  organism: Organism | OrganismView,
   resource: Resource,
 ): number {
   return CAP_COEFFICIENT[resource] * bodyArea(organism);

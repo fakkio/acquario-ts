@@ -495,9 +495,16 @@ describe("applyRespiration", () => {
     };
 
     applyPhotosynthesis(organism, lightEnvironment);
+    const foodAfterPhotosynthesis = organism.food;
+    const oxygenAfterPhotosynthesis = organism.oxygen;
     const outcome = applyRespiration(organism);
 
     expect(outcome.energyProduced).toBeGreaterThan(0);
+    // Respiration draws down what photosynthesis just made in this same
+    // tick, rather than leaving it to sit as a growing food store — the
+    // substance of "nets light into energy within a single tick".
+    expect(organism.food).toBeLessThan(foodAfterPhotosynthesis);
+    expect(organism.oxygen).toBeLessThan(oxygenAfterPhotosynthesis);
   });
 });
 
