@@ -15,4 +15,10 @@ ESLint config (`eslint.config.mjs`) uses `typescript-eslint`'s `strictTypeChecke
 
 ## Pre-push — tests
 
-Not yet wired. `npm test` is still the placeholder script from repo scaffolding (`exit 1`, always fails) — wiring a pre-push gate on it now would block every push. Add `.husky/pre-push` running `npm test` once the first milestone (`v0.1`) lands a real test suite; that milestone is the trigger, not a date.
+Not yet wired. `npm test` (`vitest run`) is a real suite now (M1 onward), but `.husky/pre-push` isn't set up yet — that is still v0.1's trigger, not a date.
+
+## The long suite
+
+`npm test` runs every `*.test.ts` file except `*.long.test.ts` (`vite.config.ts`'s `test.exclude`). A `*.long.test.ts` file is one whose run costs seconds rather than milliseconds — the line drawn by ticket #20, which put the first one there: a single 100k-tick conservation run costs several seconds on its own (see `conservation.long.test.ts`'s doc comment for the measured number), well past "a few seconds". These live under their own config, `vitest.long.config.ts`, with the default test/hook timeouts raised to fit; run them with `npm run test:long`.
+
+The long suite isn't wired into any git hook. Once pre-push testing above is wired up, it is the long suite's natural home — `npm test` stays the fast, always-on gate; `npm run test:long` is for CI or a deliberate local run.

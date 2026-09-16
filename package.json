@@ -42,6 +42,7 @@
     "prepare": "husky",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:long": "vitest run --config vitest.long.config.ts",
     "typecheck": "tsc --noEmit"
   },
   "type": "module"
