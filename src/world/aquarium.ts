@@ -18,3 +18,10 @@ export const BASELINE_BODY_RADIUS = 1;
  */
 export const AQUARIUM_WIDTH = 60 * BASELINE_BODY_RADIUS;
 export const AQUARIUM_HEIGHT = 40 * BASELINE_BODY_RADIUS;
+
+/**
+ * The area every external concentration (ADR-0003) is measured over: a
+ * pool's concentration is its amount divided by this, the same way an
+ * organism's is its store divided by its own body area.
+ */
+export const AQUARIUM_AREA = AQUARIUM_WIDTH * AQUARIUM_HEIGHT;

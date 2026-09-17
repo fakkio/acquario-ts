@@ -85,10 +85,12 @@ Storage capacity is `bodyArea − Σ organelleArea` — the space left over, a k
 In v0.1 these stores are independent rather than competing for one shared volume. Each resource has its own cap:
 
 ```text
-cap(resource) = kCap × bodyArea
+cap(resource) = kCap(resource) × bodyArea
 ```
 
 Because a cap scales with area, it is really a maximum internal _concentration_. Direct competition for a single internal volume is deferred to a later version.
+
+`kCap` is **1 for the three diffusibles** — that is the choice defining the concentration unit, and it means a cap binds only when the world outside is richer than the organism can be. Energy gets a coefficient of its own, `kCapEnergy`, because energy is not a carbon or oxygen quantity and its unit is fixed independently by `β = 1`. One coefficient shared across all four would be a coincidence of notation, not a shared physical constant.
 
 ---
 
@@ -124,6 +126,27 @@ Energy is deliberately **not** conserved: it enters as light, is fixed by photos
 
 Because carbon is finite, the population has a hard ceiling set by the world rather than by any tuning constant, and total extinction is a genuinely possible outcome — neither guaranteed nor artificially prevented.
 
+### Reaction rates
+
+Both reactions follow **mass action** on internal concentrations, each multiplied by the geometric factor its physics implies:
+
+```text
+photosynthesis = kPhoto × light(y) × diameter × C_internal(CO₂)
+respiration    = kResp  × C_internal(food) × C_internal(O₂) × bodyArea
+```
+
+Three things follow, and all three are load-bearing.
+
+Low oxygen throttles respiration continuously, with no suffocation rule written anywhere — the promise ADR-0003 makes, kept by the rate law rather than by a special case.
+
+Every operation is `+ − × ÷`, so ADR-0007's consequence that v0.1's inner loop evaluates no transcendental survives the arrival of metabolism.
+
+And energy income comes out **linear in `r` on its own**, which is the assumption `r_opt = 2·c₀/α` rests on. Respiration's capacity scales with area while its supply scales with perimeter and with diameter, so capacity outgrows supply and the internal concentrations self-adjust downward until consumption matches what is arriving. Respiration is therefore supply-limited in the regime the simulation runs in, and income settles at `α·r`. A flat capacity law would instead put a second knee in the income curve, and `r_opt` would stop being the closed form.
+
+Saturating (Michaelis–Menten) kinetics are the fallback if the dynamics turn out stiff; they cost one extra constant per substrate and buy nothing until they are needed.
+
+**Throttle, never spill.** A reaction runs at `min(rate, substrate available, product headroom)`. Spilling a product past its cap would create or destroy carbon and break the invariant on the first tick. Spilling _energy_ would not — energy is not conserved — but respiration is throttled by a full energy store anyway: it is the right physical reading, since nothing burns fuel with nowhere to put the result, and it stops a full organism strip-mining the food pool for nothing.
+
 ### Light
 
 Light comes from above and attenuates exponentially with depth:
@@ -133,6 +156,12 @@ I(y) = I₀ · e^(−k·y)
 ```
 
 Organisms nearer the surface receive more of it. In v0.1 attenuation is precomputed into a lookup table indexed by depth, so no transcendental function is evaluated in the simulation loop.
+
+`I₀ = 1`, defining the light unit the same way `kCap = 1` defines the concentration unit. `k = ln(10)/10`, so light falls to a tenth of its surface value at a depth of ten baseline radii: the photic zone is the aquarium's top quarter, which makes the founder effect below a real spatial split rather than a gradient washing over everything equally.
+
+The table samples every `0.1` baseline radii over the aquarium's height and is read with **linear interpolation**. Interpolating costs `+ − × ÷` only, so the arithmetic-only property is kept; reading the nearest entry instead would quantise the gradient into steps wide enough for a lineage to settle on one.
+
+Light is sampled at the **body's centre**, not at its upper edge. The projected-width factor in the photosynthesis rate already carries the body's size, and sampling the edge would hand a large body a second advantage nothing in the model intends.
 
 Because v0.1 has no thrusters and no gravity, depth is not under genetic control. What light produces instead is spatial heterogeneity of income, plus a **positional founder effect**: since children are born tangent to their parents, position is quasi-heritable, and a lineage that happens to sit in the photic zone breeds faster and passes on the good address. Genetic control of depth arrives in v0.2 together with thrusters and buoyancy.
 
@@ -148,16 +177,22 @@ Organisms never touch a pool directly. They talk to an `Environment` whose signa
 
 ```ts
 interface Environment {
-  concentration(resource: Resource, pos: Vec2): number;
+  concentration(resource: Diffusible, pos: Vec2): number;
   light(pos: Vec2): number;
   // returns the amount ACTUALLY exchanged, which may be less than requested
-  exchange(resource: Resource, pos: Vec2, amount: number): number;
+  exchange(resource: Diffusible, pos: Vec2, amount: number): number;
 }
 ```
 
+`Diffusible` is `Resource` minus `energy` — the three that cross a membrane and have a pool. `Environment` is typed against it rather than against `Resource`, so "energy is never exchanged with the world" is a fact the compiler enforces.
+
 In v0.1 the implementation ignores `pos` everywhere except `light`. In v0.2 a fluid-field implementation replaces it without any metabolic code changing.
 
-Exchange is synchronous and double-buffered: every organism reads the same start-of-tick snapshot, requests accumulate into a delta buffer, and the buffer is applied once at the end of the tick. If total demand for a resource would drive a pool negative, all draws on that resource are scaled proportionally.
+`Environment` is everything the metabolism sees, and it is deliberately unable to write to the world. The tick holds a wider handle over the same object — adding the settlement between the sub-passes below, and the commit — so that an organism cannot mutate a pool for the same reason the render layer gets `OrganismView` rather than `Organism`.
+
+Exchange is synchronous and double-buffered, and it settles in **two sub-passes** (ADR-0016). In the first, every organism registers the flux it wants and writes nothing. Between them, the scaling factor for each pool is computed: if total demand for a resource would drive its pool negative, all draws on that resource are scaled proportionally. In the second, every organism is handed its granted amount and runs its reactions against that number. The delta buffer applied at the end of the tick therefore holds grants, already scaled, not requests.
+
+Two passes rather than one because the scaling factor is a function of total demand, so it does not exist until everyone has asked — and an organism that spends an inflow larger than the one it turns out to receive ends the tick holding a negative store, which is carbon minted from nothing.
 
 ```text
 C_external(r) = pool[r] / worldArea
@@ -222,6 +257,8 @@ r_opt = 2·c₀ / α
 The `c₀/r²` term is what prevents a race to zero: without a flat cost, smaller is always fitter without bound, and body radius collapses to the numerical floor. With it, there is a genuine interior optimum.
 
 `r_opt` is a **design input**: pick the radius organisms should converge on, then derive `c₀ = α·r_opt/2`. The baseline genome deliberately starts below `r_opt`, so the first thing a run shows is the population climbing toward a value predicted on paper.
+
+`α` is **not** one of the world's constants (ADR-0015). Energy comes only from respiration, whose substrate arrives by photosynthesis — proportional to the light at _this_ depth — and by food diffusion — proportional to how rich the pool currently is. So `α` is a field over the aquarium and a function of time, and it is measured rather than declared. M2 reports the population mean; M5 solves `c₀` against that measurement. There is no circularity, because `α` is measured in a world with a fixed immortal population where nothing can select, and the prediction is fixed before the world that tests it exists.
 
 ### Organelle costs
 
@@ -370,7 +407,9 @@ Further details:
 
 At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. Not identical clones, not fully random genomes — variance from tick zero for selection to act on.
 
-Each organism's initial internal resources are set by configurable global fill ratios applied to the caps derived from its area.
+Each organism's initial internal resources are set so that tick 0 is already **diffusive equilibrium**: the three diffusibles start at exactly the ambient concentration, so nothing crosses a membrane until metabolism moves it. A run therefore opens on the thing worth watching rather than on a filling transient.
+
+Energy is the exception, because it neither diffuses nor has an ambient value to match. It starts at **half its cap**, so a run reads immediately as charging or discharging instead of beginning pinned to an extreme.
 
 ### Sexual reproduction
 
@@ -458,7 +497,9 @@ PHASE 1 — read
   1. sample concentrations and light → read-only snapshot for the whole tick
 
 PHASE 2 — per organism, in index order (no writes to the world)
-  2. passive exchange       → accumulate requests into the delta buffer
+  2a. request exchange      → register the wanted flux; write nothing
+      — settle              → per-pool scaling factor from total demand
+  2b. receive the grant     → accumulate grants into the delta buffer
   3. photosynthesis         CO₂ + light → food + O₂        (internal state only)
   4. respiration            food + O₂ → energy + CO₂       (internal state only)
   5. maintenance            energy −= (c₀ + β·area) × dt
@@ -474,7 +515,9 @@ PHASE 3 — commit
   13. tick++
 ```
 
-Steps 3–5 are purely internal, so the metabolic core is order-independent by construction and unit-testable against a single organism and a snapshot, with no world required.
+Steps 3–5 write only to the organism they are running for, so the metabolic core is order-independent by construction and unit-testable against a single organism and a snapshot, with no world required. They are no longer purely _internal_, though: they read the grant the world computed collectively in the settlement, which is what makes caps and floors exact rather than argued.
+
+Steps 3 and 4 are **chained**, not merely ordered: respiration reads the food photosynthesis has just produced, so an illuminated organism closes the whole cycle within one tick and the net is `light → energy`, which is what a plant actually does. The price is that the order of those two steps is a law of the world rather than a matter of presentation, and reordering them changes behaviour.
 
 Newborns are appended at step 12 and are therefore **inert for their first tick** — the current iteration never sees them, which rules out half-initialised organisms metabolising and birth cascades within one tick.
 
@@ -511,7 +554,7 @@ A fullscreen Canvas2D view with:
 
 - start, pause, and single-tick step while paused
 - zoom and pan
-- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, live total carbon (the conservation invariant), and mean ± σ of each gene
+- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — the count of organisms sitting at zero energy, the measured `α`, and mean ± σ of each gene
 - CSV export of that time series
 
 Rendering encodes state directly: **hue** is `lineageHue`, **brightness** is the energy fraction, **radius** is `bodyRadius`. Dying organisms visibly fade, so starvation waves and boom–bust cycles are readable without opening the CSV.
@@ -578,11 +621,21 @@ Two automated invariants and one scientific criterion.
 
 2. **Determinism.** The same seed yields an identical state hash at tick N, across runs on the same build and engine.
 
-3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed on paper from the constants: drift does not converge on a number predicted in advance, only selection does. When simulation meets the closed-form prediction, v0.1 is correct.
+3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed from the constants and from the `α` measured in M2's selection-free world (ADR-0015): drift does not converge on a number predicted in advance, only selection does. When simulation meets the closed-form prediction, v0.1 is correct.
 
 ### Calibration method
 
 Non-dimensionalise rather than guess. Fix `kCap = 1` (defining the concentration unit), `β = 1` (defining the energy unit) and `ρ = 1` (carbon per unit area), and set the length unit to the baseline radius — three constants eliminated by construction. Choose the `r_opt` you want to see and derive `c₀` from it. Express the initial pools as a **carbon budget** phrased as "enough carbon for K baseline organisms, the remainder dissolved", so the number being tuned is an ecological one you have intuitions about.
+
+`K` stays the input and the ambient concentration falls out of it in closed form, with no iteration, because requiring tick 0 to be at diffusive equilibrium ties the internal stores to the ambient value. With `A = Σ bodyArea` over the generation-0 population and `s` the total ambient carbon concentration:
+
+```text
+K · π = A + (A + aquariumArea) · s      →      s = (K·π − A) / (A + aquariumArea)
+```
+
+`s` then splits between CO₂ and food. A world that starts CO₂-rich and food-poor opens on carbon fixation in the photic zone, which is the story the closed cycle is there to tell.
+
+Oxygen is an independent knob, since the CO₂ term already carries oxygen of its own: choose the ambient O₂ concentration directly and let the oxygen budget follow.
 
 ---
 
@@ -600,6 +653,8 @@ Each milestone is independently runnable and adds exactly one invariant. The ord
 | M5  | `feature/calibration`         | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs                                                     | population converges to predicted `r_opt`                                                 |
 
 M2 runs with a fixed, immortal population on purpose: metabolism is where conservation bugs live, and isolating a leak is far easier with `N` pinned. M3 and M4 then each add exactly one new way to move mass.
+
+Immortality in M2 is a **clamp, not an exemption**: maintenance is charged in full and energy simply floors at zero, where an organism sits, still diffusing, able to recover if food drifts its way. Dropping the cost instead would mean M2 never exercises the path M3 and M5 depend on. An organism parked at zero is precisely the one M3 will bury, which is why the count of them is worth a HUD row a milestone early.
 
 M0 front-loads pan, zoom, pause and step because they are debugging tooling, used in every milestone that follows.
 

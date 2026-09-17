@@ -1,5 +1,20 @@
+import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
+import {
+  foldPools,
+  initializeMetabolism,
+  totalCarbon,
+  totalOxygen,
+  type Pools,
+} from "./ledger";
+import {
+  applyMaintenance,
+  applyPassiveExchange,
+  applyPhotosynthesis,
+  applyRespiration,
+  type RespirationOutcome,
+} from "./metabolism";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -61,6 +76,28 @@ interface WorldState {
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
+  readonly pools: Pools;
+  /**
+   * Total carbon and oxygen at tick 0, kept for the lifetime of the world
+   * so the HUD and the tests can read conservation as *relative drift*
+   * rather than as an absolute value — a leak in the twelfth significant
+   * digit is visible against a value near 0 and invisible against a large
+   * constant. Derived readouts, not simulation state: nothing in a tick
+   * reads them back, so they stay out of `hashState`, the same way
+   * `getWorstPenetration` does.
+   */
+  readonly initialTotalCarbon: number;
+  readonly initialTotalOxygen: number;
+  /**
+   * ADR-0015's population-mean `α`: this tick's respiration energy over
+   * body radius, averaged over organisms whose respiration was *not*
+   * throttled by a full energy store, from the tick that has just run.
+   * Read fresh every tick and never smoothed here — smoothing is the App
+   * layer's job, so a moving average never becomes state this record has
+   * to carry, and stays out of `hashState` for the same reason
+   * `initialTotalCarbon` does: nothing in a tick reads it back.
+   */
+  readonly measuredAlpha: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -78,6 +115,10 @@ export interface AdvanceResult {
 
 export function createWorld(seed: number): World {
   const {population, stream} = createPopulation(createRngStream(seed));
+  // The carbon ledger's one-time construction: generation 0 starts at
+  // diffusive equilibrium, and every later tick's conservation check reads
+  // its drift from the totals struck right here.
+  const pools = initializeMetabolism(population);
 
   return toWorld({
     seed,
@@ -85,6 +126,12 @@ export function createWorld(seed: number): World {
     accumulatorMs: 0,
     globalRng: stream,
     population,
+    pools,
+    initialTotalCarbon: totalCarbon(population, pools),
+    initialTotalOxygen: totalOxygen(population, pools),
+    // No tick has run yet, so this reads the value a tick that produced
+    // no energy at all would report.
+    measuredAlpha: 0,
   });
 }
 
@@ -104,20 +151,59 @@ export function createWorld(seed: number): World {
  */
 function runTick(state: WorldState): WorldState {
   // ---- Read: sample the environment into a snapshot ----------------
-  // 1. Snapshot concentrations and light — M2.
-  //    Nothing to sample yet: the Environment seam (ADR-0005) arrives
-  //    with M2, and until it does there is no snapshot to hand to the
-  //    phases below.
+  // 1. Snapshot concentrations and light. `state.pools` is already an
+  //    immutable record, so building the tick's `ExchangeSettlement` from
+  //    it *is* taking the snapshot — nothing here copies it. Light needs
+  //    no snapshot at all: `lightAt` is a pure function of depth.
+  const settlement = new ExchangeSettlement(state.pools);
 
   // ---- Resolve: per organism, no writes to the world ---------------
   // Every step here reads the snapshot and writes only to the organism
   // it is running for. That restriction is what makes the phase
   // order-independent by construction, and it is the whole reason the
   // metabolic core is unit-testable against one organism and a snapshot.
-  // 2. Passive exchange — M2.
-  // 3. Photosynthesis — M2.
-  // 4. Respiration — M2.
-  // 5. Maintenance — M2.
+  // 2. Passive exchange, in the two sub-passes ADR-0016 requires: 2a
+  //    every organism registers the flux it wants against the same
+  //    `Environment` interface, writing nothing; between the passes the
+  //    per-pool scaling factor is struck from total demand; 2b every
+  //    organism is handed its granted amount and ends the tick holding
+  //    it. `applyPassiveExchange` does not know which sub-pass it runs
+  //    in — only the `Environment` it is given each time does.
+  const requestEnvironment = settlement.requestPass();
+  for (const organism of state.population) {
+    applyPassiveExchange(organism, requestEnvironment);
+  }
+  settlement.settle();
+  const grantEnvironment = settlement.grantPass();
+  for (const organism of state.population) {
+    applyPassiveExchange(organism, grantEnvironment);
+  }
+  // 3. Photosynthesis: CO₂ + light → food + O₂, no energy produced. Runs
+  //    after both exchange sub-passes above, against the same
+  //    `grantEnvironment`, so it reads this tick's settled CO₂ rather than
+  //    last tick's, and reads light off the same seam even though the
+  //    reaction never calls `exchange` itself.
+  for (const organism of state.population) {
+    applyPhotosynthesis(organism, grantEnvironment);
+  }
+  // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
+  //    so an illuminated organism nets light → energy within this tick
+  //    (ADR-0006, and the load-bearing comment on `applyRespiration`).
+  //    Every outcome is kept, not just applied, so this tick's population
+  //    mean `α` (ADR-0015) can be struck below without a second pass over
+  //    the population.
+  const respirationOutcomes = state.population.map((organism) =>
+    applyRespiration(organism),
+  );
+  // 5. Maintenance: c₀ + β·area, charged in full; energy floors at zero
+  //    and nothing dies (M2's population is fixed for the whole milestone).
+  for (const organism of state.population) {
+    applyMaintenance(organism);
+  }
+  const measuredAlpha = meanMeasuredAlpha(
+    state.population,
+    respirationOutcomes,
+  );
   // 6. Brownian motion.
   for (const organism of state.population) {
     applyBrownianMotion(organism);
@@ -126,7 +212,9 @@ function runTick(state: WorldState): WorldState {
   // 8. Evaluate death, enqueue — M3.
 
   // ---- Commit: every world mutation, in a fixed order --------------
-  // 9. Apply delta buffer — M2.
+  // 9. Apply delta buffer: the exchange settlement's grants, decided in
+  //    2b above, applied to the pools at this one well-defined point.
+  const pools = settlement.commit();
   // 10. Collisions and walls. The grid is built here, consumed by the
   //     separation pass, and dropped when the tick ends: it is an index of
   //     where the bodies are *now*, and the only place that is true is
@@ -141,7 +229,34 @@ function runTick(state: WorldState): WorldState {
   // 12. Births — M4. Newborns are appended here and stay inert for
   //     their first tick, so no birth cascades within a tick.
   // 13. Tick++.
-  return {...state, tick: state.tick + 1};
+  return {...state, pools, tick: state.tick + 1, measuredAlpha};
+}
+
+/**
+ * ADR-0015's population mean: `energyProduced / bodyRadius`, averaged over
+ * every organism whose respiration this tick was *not* throttled by a full
+ * energy store — those measure the size of their own tank rather than the
+ * income available to them. Organisms at zero energy stay in: they are
+ * genuinely poor, and that is part of what the mean has to say. Reads 0
+ * for a population that is entirely throttled, the same value a tick that
+ * produced no energy at all would report.
+ */
+function meanMeasuredAlpha(
+  population: readonly Organism[],
+  outcomes: readonly RespirationOutcome[],
+): number {
+  let sum = 0;
+  let count = 0;
+  for (let i = 0; i < population.length; i++) {
+    const outcome = outcomes[i];
+    if (outcome.throttledByFullEnergyStore) {
+      continue;
+    }
+    sum += outcome.energyProduced / population[i].bodyRadius;
+    count++;
+  }
+
+  return count > 0 ? sum / count : 0;
 }
 
 export function advance(world: World, elapsedMs: number): AdvanceResult {
@@ -222,6 +337,65 @@ export function getWorstPenetration(world: World): number {
 }
 
 /**
+ * How rich the three pools currently sit — the HUD's window onto
+ * ADR-0001's ledger. Hands back amounts, not concentrations: dividing by
+ * `AQUARIUM_AREA` is a display decision the App layer can make for itself.
+ */
+export function getPoolLevels(world: World): Pools {
+  return toState(world).pools;
+}
+
+/** `(current − initial) / initial`. Reads as 0 while a ledger holds and as
+ * a fraction the moment it does not — the shared shape behind
+ * `getCarbonDrift` and `getOxygenDrift`, stating conservation as drift
+ * rather than as an absolute value (ADR-0001). */
+function relativeDrift(current: number, initial: number): number {
+  return (current - initial) / initial;
+}
+
+/** Total carbon now, relative to total carbon at tick 0. See
+ * `relativeDrift`. */
+export function getCarbonDrift(world: World): number {
+  const state = toState(world);
+
+  return relativeDrift(
+    totalCarbon(state.population, state.pools),
+    state.initialTotalCarbon,
+  );
+}
+
+/** Total oxygen now, relative to total oxygen at tick 0. See
+ * `relativeDrift`. */
+export function getOxygenDrift(world: World): number {
+  const state = toState(world);
+
+  return relativeDrift(
+    totalOxygen(state.population, state.pools),
+    state.initialTotalOxygen,
+  );
+}
+
+/** ADR-0015's population-mean `α`, from the tick that has just run. Raw
+ * and unsmoothed: smoothing it into something legible on the HUD is the
+ * App layer's job, so it adds no state here. */
+export function getMeasuredAlpha(world: World): number {
+  return toState(world).measuredAlpha;
+}
+
+/**
+ * How many organisms sit at exactly zero energy right now — M3's future
+ * funerals, visible a milestone early (see the ticket). Measured on demand
+ * from the population as it stands, for the same reason
+ * `getWorstPenetration` builds its own grid rather than reading a stored
+ * count: an organism's energy is live, mutable state, so a readout of it
+ * is worth having only if it cannot disagree with the state it describes.
+ */
+export function getZeroEnergyCount(world: World): number {
+  return toState(world).population.filter((organism) => organism.energy === 0)
+    .length;
+}
+
+/**
  * The determinism probe: it does not make the world deterministic, it
  * compares two worlds and says whether they are still the same one. The
  * invariant it serves is precisely **same seed and same tick number ⇒ same
@@ -243,14 +417,21 @@ export function getWorstPenetration(world: World): number {
  * never in what either computed.
  *
  * Every organism's position, radius and stream state folds in too, via
- * `foldPopulation`. Anything later milestones add to an organism must be
- * added there as well, or the invariant quietly stops covering it.
+ * `foldPopulation` — including, from M2, its four internal resource
+ * stores. The three pools fold in via `foldPools`. Anything later
+ * milestones add to an organism or to the world's own state must be
+ * folded in as well, or the invariant quietly stops covering it. Derived
+ * readouts — `initialTotalCarbon`/`initialTotalOxygen` among them — stay
+ * out: the rule is what the next tick *reads*, not what the HUD shows.
  */
 export function hashState(world: World): string {
   const state = toState(world);
   const worldOwnState = `${String(state.seed)}|${String(state.tick)}|${String(state.globalRng.state)}`;
 
   return toHashString(
-    foldPopulation(foldString(EMPTY_HASH, worldOwnState), state.population),
+    foldPools(
+      foldPopulation(foldString(EMPTY_HASH, worldOwnState), state.population),
+      state.pools,
+    ),
   );
 }

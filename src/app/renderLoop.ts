@@ -9,10 +9,15 @@ export interface RenderLoop {
 
 export interface RenderLoopOptions {
   readonly world: World;
-  readonly onAdvance: (world: World) => void;
+  readonly onAdvance: (world: World, fps: number) => void;
   readonly requestFrame?: (callback: FrameRequestCallback) => number;
   readonly cancelFrame?: (handle: number) => void;
 }
+
+// Exponential moving average, not the raw instantaneous reading: frame time
+// jitters tick to tick even at a stable rate, and an unsmoothed HUD number is
+// unreadable. 0.1 settles within roughly a second at 60fps.
+const FPS_SMOOTHING = 0.1;
 
 /**
  * Drives `World.advance` from `requestAnimationFrame` while running, and
@@ -28,14 +33,23 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
   let running = false;
   let frameHandle: number | null = null;
   let lastTimestampMs: number | null = null;
+  let smoothedFps = 0;
 
   const onFrame = (timestampMs: number): void => {
     const elapsedMs =
       lastTimestampMs === null ? 0 : timestampMs - lastTimestampMs;
     lastTimestampMs = timestampMs;
 
+    if (elapsedMs > 0) {
+      const instantFps = 1000 / elapsedMs;
+      smoothedFps =
+        smoothedFps === 0
+          ? instantFps
+          : smoothedFps + (instantFps - smoothedFps) * FPS_SMOOTHING;
+    }
+
     ({world} = advance(world, elapsedMs));
-    options.onAdvance(world);
+    options.onAdvance(world, smoothedFps);
 
     frameHandle = requestFrame(onFrame);
   };
@@ -66,8 +80,10 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
         return;
       }
 
+      // No rAF frame backs a manual step, so the last-known fps would just
+      // sit there frozen and misread as a live rate. 0 says "not applicable".
       ({world} = advance(world, FIXED_DT_MS));
-      options.onAdvance(world);
+      options.onAdvance(world, 0);
     },
     isRunning() {
       return running;

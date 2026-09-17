@@ -5,6 +5,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
+import {K_CAP, K_CAP_ENERGY} from "./constants";
 import {EMPTY_HASH} from "./hash";
 import {
   MAX_RADIUS_FACTOR,
@@ -12,6 +13,9 @@ import {
   Organism,
   type OrganismInit,
   STARTING_POPULATION,
+  bodyArea,
+  bodyMass,
+  capFor,
   createPopulation,
   foldPopulation,
 } from "./organism";
@@ -116,7 +120,78 @@ describe("foldPopulation", () => {
     ["body radius", {bodyRadius: 1.0000001}],
     ["lineage hue", {lineageHue: 201}],
     ["stream state", {rng: createRngStream(12)}],
+    ["energy", {energy: 0.0000001}],
+    ["oxygen", {oxygen: 0.0000001}],
+    ["carbon dioxide", {carbonDioxide: 0.0000001}],
+    ["food", {food: 0.0000001}],
   ])("changes when %s changes", (_field, change) => {
     expect(foldOne(organismWith(change))).not.toBe(foldOne(organismWith({})));
+  });
+});
+
+describe("internal resource stores", () => {
+  const organismWith = (init: Partial<OrganismInit>) =>
+    new Organism({
+      x: 3,
+      y: 4,
+      bodyRadius: 2,
+      lineageHue: 200,
+      rng: createRngStream(11),
+      ...init,
+    });
+
+  it("default to zero, since only initializeMetabolism fills generation 0", () => {
+    const organism = organismWith({});
+
+    expect(organism.energy).toBe(0);
+    expect(organism.oxygen).toBe(0);
+    expect(organism.carbonDioxide).toBe(0);
+    expect(organism.food).toBe(0);
+  });
+
+  it("derives body area from body radius", () => {
+    expect(bodyArea(organismWith({bodyRadius: 2}))).toBeCloseTo(
+      Math.PI * 4,
+      12,
+    );
+  });
+
+  // ρ = 1 by construction, so mass and area coincide, but bodyMass is its
+  // own function rather than a stored field: nothing on Organism holds a
+  // mass a caller could let drift out of step with bodyRadius.
+  it("derives body mass from body area, with no stored field of its own", () => {
+    const organism = organismWith({bodyRadius: 2});
+
+    expect(bodyMass(organism)).toBeCloseTo(bodyArea(organism), 12);
+    expect(
+      (organism as unknown as Record<string, unknown>).bodyMass,
+    ).toBeUndefined();
+  });
+
+  it("caps the three diffusibles at K_CAP times body area", () => {
+    const organism = organismWith({bodyRadius: 2});
+    const expectedCap = K_CAP * bodyArea(organism);
+
+    expect(capFor(organism, "oxygen")).toBeCloseTo(expectedCap, 12);
+    expect(capFor(organism, "carbonDioxide")).toBeCloseTo(expectedCap, 12);
+    expect(capFor(organism, "food")).toBeCloseTo(expectedCap, 12);
+  });
+
+  it("caps energy at its own coefficient rather than sharing K_CAP", () => {
+    const organism = organismWith({bodyRadius: 2});
+
+    expect(capFor(organism, "energy")).toBeCloseTo(
+      K_CAP_ENERGY * bodyArea(organism),
+      12,
+    );
+    expect(K_CAP_ENERGY).not.toBe(K_CAP);
+  });
+
+  it("scales every cap with the organism's own body area", () => {
+    const small = organismWith({bodyRadius: 1});
+    const large = organismWith({bodyRadius: 2});
+
+    expect(capFor(large, "food")).toBeGreaterThan(capFor(small, "food"));
+    expect(capFor(large, "energy")).toBeGreaterThan(capFor(small, "energy"));
   });
 });

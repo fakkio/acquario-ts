@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.0.4] - 2026-09-17
+
+### Added
+
+- `Environment` seam: shared pools of CO₂, food and O₂ across the aquarium, plus per-organism internal reserves and caps, each generation-0 organism seeded at tick 0 in diffusive equilibrium with the ambient concentration (the carbon ledger).
+- A light attenuation lookup table producing the on-screen depth gradient, feeding photosynthesis.
+- Photosynthesis: light and CO₂ convert to food and O₂ inside each organism.
+- Passive exchange between an organism's internal reserves and the shared pools, settled in two sub-passes per tick (ADR-0016) so caps and floors are exact rather than argued.
+- Respiration and maintenance: food and O₂ convert to energy, spent on a fixed existence cost each tick — the metabolic cycle closes.
+- An FPS indicator in the HUD.
+- A hundred-thousand-tick conservation run: total carbon and total oxygen hold constant to floating-point tolerance across the whole run.
+
+### Changed
+
+- Exchange settlement sums each pool's grants in a fixed order before totalling, so the result no longer depends on population iteration order.
+- `bodyArea`/`capFor` tightened from a loose numeric signature to `Organism | OrganismView`.
+
+This closes **M2 — Metabolism**: carbon and oxygen conserved over 100k ticks, with a fixed, immortal population.
+
 ## [0.0.3] - 2026-09-13
 
 ### Added
