@@ -130,6 +130,10 @@ _Avoid_: ideal size, target radius
 One complete simulation run: an aquarium, its pools, its population, and the clock and random streams that advance them. What a seed determines and a state hash identifies.
 _Avoid_: universe, scene, game state, simulation (as a noun for the state), aquarium (that is the space inside it)
 
+**Immortal World**:
+A world constructed with `mortality: "off"`: maintenance still charges in full, but energy floors at zero instead of passing through it, and nothing dies. An instrument, not leftover M2 scaffolding — it is where ADR-0015's `α` is measured free of any selection, and calibration has to be able to measure it again after moving the constants. Mortality is `"on"` by default from M3 on; a world is not "immortal" or "mortal" as a permanent identity, only as the mode it was constructed in.
+_Avoid_: safe mode, dead world (backwards), M2 world (it outlives that milestone)
+
 **Aquarium**:
 The finite, hard-walled region a world's organisms live in: a width, a height, a surface along the top edge and a floor along the bottom, with no wraparound. The area every external concentration is measured over, and the extent the light gradient runs down.
 _Avoid_: tank, arena, canvas, box, world (that is the whole run)

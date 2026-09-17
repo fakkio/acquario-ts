@@ -18,5 +18,7 @@ export {
   getWorstPenetration,
   getZeroEnergyCount,
   hashState,
+  type MortalityMode,
   type World,
+  type WorldOptions,
 } from "./world";

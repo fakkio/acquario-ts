@@ -611,28 +611,6 @@ describe("respiration and maintenance (M2)", () => {
     expect(finalEnergy.some((e, i) => e < initialEnergy[i])).toBe(true);
   });
 
-  it("never lets an organism's energy go negative, over a long run", () => {
-    let world = createWorld(3);
-
-    for (let tick = 0; tick < 2000; tick++) {
-      ({world} = advance(world, FIXED_DT_MS));
-      for (const organism of getPopulation(world)) {
-        expect(organism.energy).toBeGreaterThanOrEqual(0);
-      }
-    }
-  });
-
-  // M2's population is fixed and immortal on purpose (see the ticket):
-  // energy floors at zero rather than the organism being removed.
-  it("keeps the population count identical at tick 0 and after a long run", () => {
-    let world = createWorld(3);
-    const initialCount = getPopulation(world).length;
-
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
-
-    expect(getPopulation(world).length).toBe(initialCount);
-  });
-
   // Passive exchange (step 2) runs before respiration and maintenance ever
   // look at an organism's energy, so an organism sitting at zero still
   // trades with the environment exactly as a richer one does — and, given
@@ -741,18 +719,6 @@ describe("respiration and maintenance (M2)", () => {
     expect(getMeasuredAlpha(world)).toBeGreaterThan(0);
   });
 
-  it("counts organisms sitting at exactly zero energy", () => {
-    let world = createWorld(3);
-
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
-
-    const liveCount = getPopulation(world).filter((o) => o.energy > 0).length;
-    expect(getZeroEnergyCount(world)).toBe(
-      getPopulation(world).length - liveCount,
-    );
-    expect(getZeroEnergyCount(world)).toBeGreaterThan(0);
-  });
-
   // M0's determinism invariant, now that the hash covers respiration and
   // maintenance too.
   it("reaches the same hash at tick N in two runs from the same seed", () => {
@@ -762,5 +728,66 @@ describe("respiration and maintenance (M2)", () => {
 
     expect(runTo(3)).toBe(runTo(3));
     expect(runTo(3)).not.toBe(runTo(4));
+  });
+});
+
+describe("mortality mode (M3)", () => {
+  // ADR-0017: the floor is a property of the immortal world, not of
+  // maintenance itself, so this M2 invariant now has to ask for that world
+  // explicitly rather than get it as `createWorld`'s default.
+  it("never lets an organism's energy go negative, over a long run, in the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      for (const organism of getPopulation(world)) {
+        expect(organism.energy).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  // The mortal world is the default from M3 on, and this is the behaviour
+  // that default exists to enable: nothing yet removes a starved organism
+  // (M3's death step is still to come), but its energy is no longer
+  // floored, and a long run should show at least one going below zero.
+  it("lets an organism's energy go negative, over a long run, in the mortal (default) world", () => {
+    let world = createWorld(3);
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    expect(getPopulation(world).some((organism) => organism.energy < 0)).toBe(
+      true,
+    );
+  });
+
+  // M2's population is fixed and immortal on purpose (see the ticket):
+  // energy floors at zero rather than the organism being removed. Moved to
+  // the immortal world explicitly per ADR-0017 — nothing removes an
+  // organism yet either way, but the invariant this test is naming is
+  // specifically the immortal world's.
+  it("keeps the population count identical at tick 0 and after a long run, in the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+    const initialCount = getPopulation(world).length;
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getPopulation(world).length).toBe(initialCount);
+  });
+
+  // `getZeroEnergyCount` only means something in the immortal world (see
+  // the ticket and ADR-0017): in the mortal default, energy passes straight
+  // through zero to negative, so nothing rests there to be counted.
+  it("counts organisms sitting at exactly zero energy, in the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    const liveCount = getPopulation(world).filter((o) => o.energy > 0).length;
+    expect(getZeroEnergyCount(world)).toBe(
+      getPopulation(world).length - liveCount,
+    );
+    expect(getZeroEnergyCount(world)).toBeGreaterThan(0);
   });
 });

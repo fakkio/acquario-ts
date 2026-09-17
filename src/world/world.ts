@@ -49,6 +49,23 @@ const MAX_TICKS_PER_ADVANCE = 240;
  */
 const EPSILON_MS = 1e-9;
 
+/**
+ * Whether a world lets energy fall below zero. `"off"` is the **immortal
+ * world** (ADR-0017): an instrument, not M2 scaffolding — ADR-0015 measures
+ * `α` in it, and M5 has to be able to measure it again once calibration
+ * moves the constants. `"on"`, the default from M3, is the mortal world
+ * death eventually acts in.
+ *
+ * A string union rather than a boolean so no call site ever reads
+ * `immortal: false` — the mode names the state a world is *in*, not a
+ * feature it lacks.
+ */
+export type MortalityMode = "on" | "off";
+
+export interface WorldOptions {
+  readonly mortality?: MortalityMode;
+}
+
 declare const worldBrand: unique symbol;
 
 /**
@@ -73,6 +90,14 @@ interface WorldState {
   readonly tick: number;
   readonly accumulatorMs: number;
   readonly globalRng: RngStream;
+  /**
+   * The world's mortality mode (ADR-0017). Deliberately **not** folded into
+   * `hashState`: a hash identifies a state, not the law that produced it,
+   * and two worlds of different mode at tick 0 are the same state — they
+   * only diverge once a tick charges maintenance. Folding it in would
+   * invalidate every hash M2 recorded, for nothing.
+   */
+  readonly mortality: MortalityMode;
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
@@ -113,7 +138,7 @@ export interface AdvanceResult {
   readonly ticksRun: number;
 }
 
-export function createWorld(seed: number): World {
+export function createWorld(seed: number, options: WorldOptions = {}): World {
   const {population, stream} = createPopulation(createRngStream(seed));
   // The carbon ledger's one-time construction: generation 0 starts at
   // diffusive equilibrium, and every later tick's conservation check reads
@@ -125,6 +150,7 @@ export function createWorld(seed: number): World {
     tick: 0,
     accumulatorMs: 0,
     globalRng: stream,
+    mortality: options.mortality ?? "on",
     population,
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
@@ -195,10 +221,23 @@ function runTick(state: WorldState): WorldState {
   const respirationOutcomes = state.population.map((organism) =>
     applyRespiration(organism),
   );
-  // 5. Maintenance: c₀ + β·area, charged in full; energy floors at zero
-  //    and nothing dies (M2's population is fixed for the whole milestone).
+  // 5. Maintenance: c₀ + β·area, charged in full and unconditionally
+  //    (ADR-0017) — whether the result is allowed to go below zero is this
+  //    world's mortality mode, not this reaction's business.
   for (const organism of state.population) {
     applyMaintenance(organism);
+  }
+  // Immortal floor (ADR-0017), not one of ADR-0006's numbered steps: only
+  // in a world constructed with `mortality: "off"` does energy stop here
+  // rather than falling below zero — the instrument ADR-0015 measures `α`
+  // in, and M5 must be able to reconstruct after calibration moves the
+  // constants. In a mortal world this line does not run, and energy passes
+  // through zero to negative, which step 8 (M3) reads to condemn the
+  // organism.
+  if (state.mortality === "off") {
+    for (const organism of state.population) {
+      organism.energy = Math.max(0, organism.energy);
+    }
   }
   const measuredAlpha = meanMeasuredAlpha(
     state.population,
@@ -383,12 +422,19 @@ export function getMeasuredAlpha(world: World): number {
 }
 
 /**
- * How many organisms sit at exactly zero energy right now — M3's future
- * funerals, visible a milestone early (see the ticket). Measured on demand
- * from the population as it stands, for the same reason
+ * How many organisms sit at exactly zero energy right now. Measured on
+ * demand from the population as it stands, for the same reason
  * `getWorstPenetration` builds its own grid rather than reading a stored
  * count: an organism's energy is live, mutable state, so a readout of it
  * is worth having only if it cannot disagree with the state it describes.
+ *
+ * **Only means something in an immortal world** (ADR-0017). There, the
+ * maintenance floor holds a starved organism exactly at zero, so this is
+ * M3's future funerals, visible a milestone early. In a mortal world energy
+ * passes straight through zero to negative and the organism is condemned
+ * the same tick, so nothing rests here to be counted — this readout stays
+ * unscoped by mode for now and simply reads 0 there once M3's death step
+ * lands.
  */
 export function getZeroEnergyCount(world: World): number {
   return toState(world).population.filter((organism) => organism.energy === 0)

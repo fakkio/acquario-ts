@@ -54,8 +54,11 @@ interface LongRun {
   readonly alphaSamples: readonly AlphaSample[];
 }
 
+// Run in the immortal world explicitly (ADR-0017): this gate is M2's, and
+// it keeps running in a world with no death code in it at all, regardless
+// of what M3 makes the default elsewhere.
 function runLong(seed: number): LongRun {
-  let world: World = createWorld(seed);
+  let world: World = createWorld(seed, {mortality: "off"});
   const alphaSamples: AlphaSample[] = [];
 
   for (let tick = 1; tick <= TICKS; tick++) {

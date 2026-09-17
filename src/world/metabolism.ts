@@ -208,18 +208,19 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
  * Resolve-phase step 5 (ADR-0006): maintenance, the cost of being an
  * organism at all — `c₀ + β·area` (ADR-0009), charged in full every tick to
  * every organism. `c₀` is the flat existence cost that creates a minimum
- * viable body size; `β·area` is the body cost. Both halves run in M2 rather
- * than waiting for M5, so the term that shapes `r_opt` is exercised from
- * the milestone that first gives organisms energy to spend.
+ * viable body size; `β·area` is the body cost.
  *
- * **Energy clamps at zero and nothing dies.** M2's population is fixed and
- * immortal on purpose (see the ticket): an organism that cannot afford its
- * own maintenance simply stops there, still diffusing and able to recover
- * if food drifts its way, rather than being removed. Immortality is a
- * clamp on this one line, not an exemption from the cost itself — the full
- * charge is always subtracted before the floor is applied.
+ * **Unconditional.** This function no longer floors the result at zero
+ * (ADR-0017): whether an organism is allowed to fall below zero energy is a
+ * property of the *world* it lives in, not of this reaction, so the clamp
+ * lives as its own named line in `runTick`'s pipeline, applied only in an
+ * immortal world. Charging the cost unconditionally here means a mortal
+ * world's energy passes straight through zero to negative — the state step
+ * 8 reads to condemn the organism — and an arithmetic bug drives energy to
+ * some implausible negative number in plain sight instead of being
+ * silently clamped to something that looks fine.
  */
 export function applyMaintenance(organism: Organism): void {
   const cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * bodyArea(organism);
-  organism.energy = Math.max(0, organism.energy - cost);
+  organism.energy -= cost;
 }
