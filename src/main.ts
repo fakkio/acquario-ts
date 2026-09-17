@@ -6,12 +6,34 @@ import {frameAquarium, renderWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
 import {
   createWorld,
+  getCarbonDrift,
+  getMeasuredAlpha,
+  getOxygenDrift,
+  getPoolLevels,
   getPopulation,
   getSeed,
   getTick,
   getWorstPenetration,
+  getZeroEnergyCount,
   type World,
 } from "./world";
+
+/**
+ * A drift near 0 is the whole point of the row: exponential notation keeps
+ * a leak visible in whatever digit it first shows up in, from the twelfth
+ * significant one on up, rather than being hidden by fixed-point rounding.
+ */
+const formatDrift = (drift: number): string => drift.toExponential(3);
+
+/**
+ * How much weight each tick's fresh `α` reading carries in the HUD's
+ * running average (ADR-0015): low, because the raw reading is a per-tick
+ * mean over a whole population and jitters tick to tick even at a real
+ * steady state — the row is worth having only once it has settled into
+ * something legible to read at a glance.
+ */
+const ALPHA_SMOOTHING = 0.02;
+let smoothedAlpha = 0;
 
 const canvas = mountCanvas();
 const ctx = canvas.getContext("2d");
@@ -25,7 +47,8 @@ let latestWorld = world;
 let showGrid = false;
 
 const hud = mountHud();
-const updateHud = (currentWorld: World): void => {
+const updateHud = (currentWorld: World, fps: number): void => {
+  hud.setField("fps", "FPS", fps.toFixed(0));
   hud.setField("tick", "Tick", String(getTick(currentWorld)));
   hud.setField("seed", "Seed", String(getSeed(currentWorld)));
   hud.setField(
@@ -43,6 +66,32 @@ const updateHud = (currentWorld: World): void => {
     "Worst penetration",
     getWorstPenetration(currentWorld).toFixed(3),
   );
+
+  const pools = getPoolLevels(currentWorld);
+  hud.setField("poolFood", "Pool food", pools.food.toFixed(2));
+  hud.setField("poolCO2", "Pool CO₂", pools.carbonDioxide.toFixed(2));
+  hud.setField("poolO2", "Pool O₂", pools.oxygen.toFixed(2));
+  hud.setField(
+    "carbonDrift",
+    "Carbon drift",
+    formatDrift(getCarbonDrift(currentWorld)),
+  );
+  hud.setField(
+    "oxygenDrift",
+    "Oxygen drift",
+    formatDrift(getOxygenDrift(currentWorld)),
+  );
+  hud.setField(
+    "zeroEnergy",
+    "Zero-energy",
+    String(getZeroEnergyCount(currentWorld)),
+  );
+  // Smoothed here, in the App layer, per ADR-0015: a moving average kept in
+  // the world would be state crossing tick boundaries with no reader inside
+  // a tick, so it would only enter `hashState` for the sake of this row.
+  smoothedAlpha +=
+    (getMeasuredAlpha(currentWorld) - smoothedAlpha) * ALPHA_SMOOTHING;
+  hud.setField("alpha", "α (energy/r)", smoothedAlpha.toFixed(2));
 };
 
 // Everything that can change what the canvas should show — a tick, a camera
@@ -56,15 +105,15 @@ const camera = mountCamera(canvas, frameAquarium(canvas), repaint);
 
 const loop = createRenderLoop({
   world,
-  onAdvance: (nextWorld) => {
+  onAdvance: (nextWorld, fps) => {
     latestWorld = nextWorld;
     repaint();
-    updateHud(nextWorld);
+    updateHud(nextWorld, fps);
   },
 });
 
 repaint();
-updateHud(world);
+updateHud(world, 0);
 
 // Resizing the canvas resets its backing store, so whatever was on it is
 // gone. Nothing repaints it while the sim is paused, which used to leave a
