@@ -125,3 +125,19 @@ Il ticket #23 suggeriva di costruire la popolazione dell'acceptance run "come fa
 ---
 
 Uno spostamento di codice non richiesto dal ticket: `runMetabolism`, la replica a mano dei passi 2-5 della pipeline, viveva solo dentro `world.test.ts`. Il nuovo `death.test.ts` doveva rieseguire la stessa sequenza per il suo acceptance run, e duplicarla a mano una seconda volta avrebbe voluto dire due copie della pipeline da tenere sincronizzate a mano. Spostata in `testing.ts`, condivisa tra i due file. La code review l'ha segnalata come scope creep — a basso rischio, un puro spostamento, nessun comportamento cambiato — ma segnalata comunque: anche una sessione senza Fabio produce un diff che qualcun altro deve poter giudicare.
+
+---
+
+Il ticket #24 descrive l'effetto morte così: "The render loop holds the previous frame's population in a Set". Singolare, come se il loop del rendering fosse uno solo. Ma quello che esisteva già, `renderLoop.ts`, è agganciato ai tick: gira dentro `requestAnimationFrame` solo mentre la simulazione è in play, e si ferma quando si preme pausa. L'effetto morte doveva invece continuare ad animarsi da fermo — è uno dei criteri d'accettazione, "continues while the simulation is paused" — quindi la lettera dello spec e il vincolo che lo spec stesso pone sono in tensione.
+
+La soluzione trovata è stata aggiungerne un secondo: un `requestAnimationFrame` indipendente in `main.ts`, che ridisegna a ogni frame a prescindere da play/pausa, e a cui è stata tolta la `repaint()` che prima viveva dentro `onAdvance`. Non un'estensione del loop esistente, un secondo loop accanto al primo. Nessuno, in questa sessione, ha controllato che la scelta piacesse a Fabio prima di farla: l'agente ha letto il vincolo, ha visto che il loop tick-driven non poteva soddisfarlo, e ha deciso da solo.
+
+---
+
+Fabio, a proposito di questa scelta: il ticket parlava di un loop solo, e quello che è finito nel codice sono due loop `requestAnimationFrame` separati in `main.ts` — uno per i tick (gated da play/pausa), uno per il ripaint e l'effetto morte (sempre acceso). Ti sta bene così, o l'idea di due loop paralleli nello stesso file ti puzza di architettura duplicata? E se dovessi scommettere: quando arriverà M4 e ci sarà altro da disegnare senza dipendere dai tick — la UI di selezione di un organismo, per dire — pensi che il secondo loop diventerà il posto giusto dove appendere quella roba, o è già una toppa che varrà la pena rifare?
+
+---
+
+"mi sta bene, mi sembra una buona soluzione." — Fabio, sui due loop.
+
+Nessuna esitazione, nessuna richiesta di dettagli, nessun "fammi vedere il diff prima". La stessa cifra già vista altrove nella pila di M3: un giudizio secco su una decisione presa da solo dall'agente, senza che ci fosse stato bisogno di grillare per arrivarci. Qui però la domanda sul futuro — se il secondo loop diventerà la casa naturale per la UI di M4 o una toppa da rifare — è rimasta senza risposta. Non ignorata per disattenzione: è una domanda che non si può rispondere adesso, perché dipende da cosa M4 chiederà davvero di disegnare, e M4 non è ancora scritto. Il "mi sta bene" copre il presente, non fa una promessa sul futuro.
