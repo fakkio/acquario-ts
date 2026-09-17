@@ -105,3 +105,23 @@ Il conto vero è quindi: zero veti, due risposte fuori elenco, una respinta e un
 Il nome però resta giusto, perché lo scarto è la cosa interessante. Fabio si descrive in linguaggio da veto, "fino a che la conclusione dell'agente è in linea con le mie idee", cioè come qualcuno che presidia un'uscita. Quello che ha fatto davvero è stato aggiungere due cose che nell'elenco non c'erano. Il potere che sente di avere è fermare. Quello che ha usato è aggiungere.
 
 E c'è un limite che vale la pena scrivere adesso che si vede bene: tutte e due le aggiunte vengono da qualcosa contro cui misurare, cioè il vecchio acquario in C#. Dove un'idea preesistente non c'è, non c'è appiglio, e la conclusione dell'agente passa perché nessuno ha motivo di fermarla. La pila di M2 ha già il caso in cui non è scattato niente: "In ogni caso è stato il codereview a trovarlo, non io."
+
+---
+
+La sessione di implementazione è partita da sola, senza Fabio in mezzo: `/implement`, un ticket da scegliere dentro #21, via. Le decisioni di questo blocco di frammenti sono tutte dell'agente, non sue: lo si scrive qui una volta per tutte invece che ripeterlo a ogni frammento.
+
+---
+
+Il test che #22 aveva scritto per una morte che ancora non esisteva, "lets an organism's energy go negative... in the mortal world", si aspettava di trovare, dopo duemila tick, almeno un organismo con energia negativa. Con #23 quell'energia non è più osservabile: un organismo a `energy <= 0` viene condannato e tolto dalla popolazione nello stesso tick in cui ci arriva. Il test è andato rosso, ma nel modo giusto — non un bug, la conferma che la morte funzionava. Riscritto per verificare che la popolazione si riduca, non che qualcuno resti a galleggiare sotto zero.
+
+---
+
+Il ticket #23 suggeriva di costruire la popolazione dell'acceptance run "come fa già `referencePopulationFor`", cioè `createPopulation` più `initializeMetabolism`. Ma `createPopulation` sparge gli organismi su tutte le profondità dell'acquario, e vicino alla superficie c'è luce a sufficienza perché la fotosintesi tenga in vita un organismo indefinitamente. Con quella popolazione l'estinzione totale, il criterio d'accettazione del ticket, non sarebbe mai arrivata. Serviva forzare la profondità di ogni organismo dopo il piazzamento, per portarli tutti dove `vision.md` promette che "maintenance wins every time".
+
+---
+
+269 tick per estinguere una popolazione di quaranta organismi piazzati al buio, pochi millisecondi di costo. Il numero che `vision.md` aveva solo promesso in astratto — "a y ≈ 40, I(y) è circa 1e-4, quindi la manutenzione vince sempre" — si è confermato al primo tentativo, senza dover alzare `MAX_TICKS` o cambiare seed.
+
+---
+
+Uno spostamento di codice non richiesto dal ticket: `runMetabolism`, la replica a mano dei passi 2-5 della pipeline, viveva solo dentro `world.test.ts`. Il nuovo `death.test.ts` doveva rieseguire la stessa sequenza per il suo acceptance run, e duplicarla a mano una seconda volta avrebbe voluto dire due copie della pipeline da tenere sincronizzate a mano. Spostata in `testing.ts`, condivisa tra i due file. La code review l'ha segnalata come scope creep — a basso rischio, un puro spostamento, nessun comportamento cambiato — ma segnalata comunque: anche una sessione senza Fabio produce un diff che qualcun altro deve poter giudicare.
