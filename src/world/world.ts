@@ -1,3 +1,4 @@
+import {depositRemains, evaluateDeaths, type Remains} from "./death";
 import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
@@ -48,6 +49,9 @@ const MAX_TICKS_PER_ADVANCE = 240;
  * the accumulator a hair under a full tick's worth of time.
  */
 const EPSILON_MS = 1e-9;
+
+/** What the immortal world hands step 8: nothing is ever condemned there. */
+const NO_REMAINS: readonly Remains[] = [];
 
 /**
  * Whether a world lets energy fall below zero. `"off"` is the **immortal
@@ -248,27 +252,48 @@ function runTick(state: WorldState): WorldState {
     applyBrownianMotion(organism);
   }
   // 7. Evaluate mitosis, enqueue — M4.
-  // 8. Evaluate death, enqueue — M3.
+  // 8. Evaluate death: `energy <= 0` condemns an organism (ADR-0017), and
+  //    its remains are frozen here, pre-separation — step 10 has not run
+  //    yet, so a condemned organism still gets to move on its final tick,
+  //    and it deposits the position it died at rather than the one its
+  //    neighbours push it to. Only the mortal world evaluates this: the
+  //    immortal world's floor two steps up never lets energy reach the
+  //    predicate, which is what keeps ADR-0015's fixed population fixed.
+  const {survivors, remains} =
+    state.mortality === "on"
+      ? evaluateDeaths(state.population)
+      : {survivors: state.population, remains: NO_REMAINS};
 
   // ---- Commit: every world mutation, in a fixed order --------------
   // 9. Apply delta buffer: the exchange settlement's grants, decided in
   //    2b above, applied to the pools at this one well-defined point.
-  const pools = settlement.commit();
-  // 10. Collisions and walls. The grid is built here, consumed by the
-  //     separation pass, and dropped when the tick ends: it is an index of
-  //     where the bodies are *now*, and the only place that is true is
-  //     between the last write to a position and the next one. Separation
-  //     runs ahead of the wall constraint, so a body pushed out of another
-  //     body still ends the tick inside the aquarium.
+  const poolsAfterExchange = settlement.commit();
+  // 10. Collisions and walls, run over the *whole* population, condemned
+  //     organisms included — ADR-0017's point exactly. The grid is built
+  //     here, consumed by the separation pass, and dropped when the tick
+  //     ends: it is an index of where the bodies are *now*, and the only
+  //     place that is true is between the last write to a position and the
+  //     next one. Separation runs ahead of the wall constraint, so a body
+  //     pushed out of another body still ends the tick inside the
+  //     aquarium.
   separateOverlaps(state.population, buildUniformGrid(state.population));
   for (const organism of state.population) {
     constrainToAquarium(organism);
   }
-  // 11. Deaths — M3.
+  // 11. Deaths: step 8's remains are deposited into the pools settled at
+  //     step 9, and the population becomes step 8's survivors — never a
+  //     second evaluation of the predicate (ADR-0017).
+  const pools = depositRemains(poolsAfterExchange, remains);
   // 12. Births — M4. Newborns are appended here and stay inert for
   //     their first tick, so no birth cascades within a tick.
   // 13. Tick++.
-  return {...state, pools, tick: state.tick + 1, measuredAlpha};
+  return {
+    ...state,
+    pools,
+    population: survivors,
+    tick: state.tick + 1,
+    measuredAlpha,
+  };
 }
 
 /**

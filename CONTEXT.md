@@ -166,6 +166,10 @@ _Avoid_: state copy, buffer (alone)
 The accumulated, not-yet-applied exchange _grants_ of every organism in the current tick, committed once at the end. It holds what the world has already agreed to hand over, scaled down if a pool could not meet the demand — never the raw requests, which are settled and discarded halfway through the tick.
 _Avoid_: pending changes, queue, accumulator (that is the loop's time accumulator), requests (they do not survive to the commit)
 
+**Remains**:
+The frozen record of what a dying organism returns to the pools: its position, its three diffusible stores and its body mass. Exists within one tick, between step 8 and step 11. Not a corpse — a corpse is v0.2's persistent entity, which M3 deliberately does not have.
+_Avoid_: corpse (reserved), body, carcass, dead organism
+
 ### Reproduction and motion
 
 **Mitosis**:

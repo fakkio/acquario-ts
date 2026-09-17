@@ -24,7 +24,13 @@ import {
 } from "./organism";
 import {createRngStream} from "./rng";
 import {separateOverlaps} from "./separation";
-import {organismAt, randomPopulation, shuffle, worstExcursion} from "./testing";
+import {
+  organismAt,
+  randomPopulation,
+  runMetabolism,
+  shuffle,
+  worstExcursion,
+} from "./testing";
 import {
   FIXED_DT_MS,
   advance,
@@ -49,35 +55,6 @@ const referencePopulationFor = (seed: number) => {
   initializeMetabolism(population);
   return population;
 };
-
-// `runTick`'s steps 2a through 5 — the exchange settlement's two
-// sub-passes, then photosynthesis, respiration and maintenance —
-// replicated by hand wherever a test needs to seed a population and read
-// pools without running the whole tick. Shared across describe blocks
-// below rather than redefined in each, since every caller wants the exact
-// same sequence.
-function runMetabolism(population: readonly Organism[], pools: Pools): Pools {
-  const settlement = new ExchangeSettlement(pools);
-  const request = settlement.requestPass();
-  for (const organism of population) {
-    applyPassiveExchange(organism, request);
-  }
-  settlement.settle();
-  const grant = settlement.grantPass();
-  for (const organism of population) {
-    applyPassiveExchange(organism, grant);
-  }
-  for (const organism of population) {
-    applyPhotosynthesis(organism, grant);
-  }
-  for (const organism of population) {
-    applyRespiration(organism);
-  }
-  for (const organism of population) {
-    applyMaintenance(organism);
-  }
-  return settlement.commit();
-}
 
 describe("createWorld + advance + hashState determinism", () => {
   it("produces the same sequence of state hashes for the same seed and the same advance calls", () => {
@@ -747,19 +724,22 @@ describe("mortality mode (M3)", () => {
   });
 
   // The mortal world is the default from M3 on, and this is the behaviour
-  // that default exists to enable: nothing yet removes a starved organism
-  // (M3's death step is still to come), but its energy is no longer
-  // floored, and a long run should show at least one going below zero.
-  it("lets an organism's energy go negative, over a long run, in the mortal (default) world", () => {
+  // that default exists to enable: an organism whose energy is driven to
+  // zero or below is condemned the same tick (`death.ts`), so none is ever
+  // observable holding negative energy — a long run instead shows the
+  // population having shrunk.
+  it("never lets a surviving organism's energy go negative, and shrinks the population, over a long run, in the mortal (default) world", () => {
     let world = createWorld(3);
+    const initialCount = getPopulation(world).length;
 
     for (let tick = 0; tick < 2000; tick++) {
       ({world} = advance(world, FIXED_DT_MS));
+      for (const organism of getPopulation(world)) {
+        expect(organism.energy).toBeGreaterThan(0);
+      }
     }
 
-    expect(getPopulation(world).some((organism) => organism.energy < 0)).toBe(
-      true,
-    );
+    expect(getPopulation(world).length).toBeLessThan(initialCount);
   });
 
   // M2's population is fixed and immortal on purpose (see the ticket):
