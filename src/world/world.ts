@@ -127,6 +127,17 @@ interface WorldState {
    * `initialTotalCarbon` does: nothing in a tick reads it back.
    */
   readonly measuredAlpha: number;
+  /**
+   * How many organisms have died since this world's creation, summed across
+   * every tick rather than read per-tick: `advance` can run up to
+   * `MAX_TICKS_PER_ADVANCE` ticks inside one catch-up frame, and a per-tick
+   * readout would show only the last batch's toll and silently drop the
+   * rest. Only ever advances in the mortal world — the immortal world's
+   * floor never lets step 8 condemn anyone. Derived, and nothing in a tick
+   * reads it back, so it stays out of `hashState` for the same reason
+   * `measuredAlpha` does.
+   */
+  readonly cumulativeDeaths: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -162,6 +173,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     // No tick has run yet, so this reads the value a tick that produced
     // no energy at all would report.
     measuredAlpha: 0,
+    cumulativeDeaths: 0,
   });
 }
 
@@ -293,6 +305,7 @@ function runTick(state: WorldState): WorldState {
     population: survivors,
     tick: state.tick + 1,
     measuredAlpha,
+    cumulativeDeaths: state.cumulativeDeaths + remains.length,
   };
 }
 
@@ -453,17 +466,33 @@ export function getMeasuredAlpha(world: World): number {
  * count: an organism's energy is live, mutable state, so a readout of it
  * is worth having only if it cannot disagree with the state it describes.
  *
- * **Only means something in an immortal world** (ADR-0017). There, the
- * maintenance floor holds a starved organism exactly at zero, so this is
- * M3's future funerals, visible a milestone early. In a mortal world energy
- * passes straight through zero to negative and the organism is condemned
- * the same tick, so nothing rests here to be counted — this readout stays
- * unscoped by mode for now and simply reads 0 there once M3's death step
- * lands.
+ * **Scoped to the immortal world** (ADR-0017): there, the maintenance floor
+ * holds a starved organism exactly at zero, which is exactly the signal
+ * that the constants are wrong — and M5 measures `α` in this world. In the
+ * mortal world energy passes straight through zero to negative and the
+ * organism is condemned the same tick (`getCumulativeDeaths` is that
+ * world's counterpart), so nothing ever rests here to be counted and this
+ * reads 0 unconditionally rather than run a filter that would always come
+ * back empty.
  */
 export function getZeroEnergyCount(world: World): number {
-  return toState(world).population.filter((organism) => organism.energy === 0)
-    .length;
+  const state = toState(world);
+  if (state.mortality === "on") {
+    return 0;
+  }
+
+  return state.population.filter((organism) => organism.energy === 0).length;
+}
+
+/**
+ * How many organisms have died since this world was created — cumulative,
+ * not per-tick, so a catch-up `advance` call that runs a whole batch of
+ * ticks loses no death to the readout (see the field's own comment on
+ * `WorldState`). Reads 0 for the lifetime of an immortal world, whose
+ * counterpart readout is `getZeroEnergyCount`.
+ */
+export function getCumulativeDeaths(world: World): number {
+  return toState(world).cumulativeDeaths;
 }
 
 /**

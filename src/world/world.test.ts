@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest";
 
+import {AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid} from "./grid";
 import {
@@ -36,6 +37,7 @@ import {
   advance,
   createWorld,
   getCarbonDrift,
+  getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
   getPoolLevels,
@@ -769,5 +771,60 @@ describe("mortality mode (M3)", () => {
       getPopulation(world).length - liveCount,
     );
     expect(getZeroEnergyCount(world)).toBeGreaterThan(0);
+  });
+
+  // `getZeroEnergyCount` is scoped to the immortal world (see the ticket):
+  // in the mortal default nothing ever rests at exactly zero, so the
+  // readout stays 0 even once the population has visibly shrunk.
+  it("reads 0 for getZeroEnergyCount in the mortal (default) world, even once organisms have died", () => {
+    let world = createWorld(3);
+    const initialCount = getPopulation(world).length;
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getPopulation(world).length).toBeLessThan(initialCount);
+    expect(getZeroEnergyCount(world)).toBe(0);
+  });
+
+  it("reads 0 for getCumulativeDeaths for the lifetime of the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getCumulativeDeaths(world)).toBe(0);
+  });
+
+  // The count a catch-up `advance` call has to get right: `advance` runs up
+  // to `MAX_TICKS_PER_ADVANCE` ticks inside a single call, and a readout
+  // written per-tick rather than accumulated would show only the last
+  // tick's toll. The population is forced deep and dark first, the same way
+  // `death.test.ts`'s acceptance run does, so several organisms starve well
+  // inside one such batch rather than depending on the default population's
+  // placement to produce a death in time.
+  it("counts every death inside a single catch-up batch, matching exactly how far the population shrank", () => {
+    const world = createWorld(3);
+    const initialCount = getPopulation(world).length;
+    for (const organism of getPopulation(world) as unknown as Organism[]) {
+      organism.y = AQUARIUM_HEIGHT - 2;
+    }
+
+    const {world: after} = advance(world, 5000 * FIXED_DT_MS);
+
+    const lost = initialCount - getPopulation(after).length;
+    expect(lost).toBeGreaterThan(0);
+    expect(getCumulativeDeaths(after)).toBe(lost);
+  });
+
+  it("keeps accumulating cumulative deaths across many advance calls, in the mortal (default) world", () => {
+    let world = createWorld(3);
+    const initialCount = getPopulation(world).length;
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    const lost = initialCount - getPopulation(world).length;
+    expect(lost).toBeGreaterThan(0);
+    expect(getCumulativeDeaths(world)).toBe(lost);
   });
 });

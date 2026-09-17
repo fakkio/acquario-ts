@@ -1,12 +1,14 @@
 import {mountCamera} from "./app/camera";
 import {mountCanvas} from "./app/canvas";
 import {mountControls} from "./app/controls";
+import {createDeathEffects} from "./app/deathEffects";
 import {mountHud} from "./app/hud";
 import {frameAquarium, renderWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
 import {
   createWorld,
   getCarbonDrift,
+  getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
   getPoolLevels,
@@ -86,6 +88,7 @@ const updateHud = (currentWorld: World, fps: number): void => {
     "Zero-energy",
     String(getZeroEnergyCount(currentWorld)),
   );
+  hud.setField("deaths", "Deaths", String(getCumulativeDeaths(currentWorld)));
   // Smoothed here, in the App layer, per ADR-0015: a moving average kept in
   // the world would be state crossing tick boundaries with no reader inside
   // a tick, so it would only enter `hashState` for the sake of this row.
@@ -94,11 +97,20 @@ const updateHud = (currentWorld: World, fps: number): void => {
   hud.setField("alpha", "α (energy/r)", smoothedAlpha.toFixed(2));
 };
 
+const deathEffects = createDeathEffects();
+
 // Everything that can change what the canvas should show — a tick, a camera
 // gesture, a resize, the grid overlay going on or off — repaints through
 // here, so a new render option has one call site to reach rather than four.
-const repaint = (): void => {
-  renderWorld(ctx, canvas, latestWorld, camera.getCamera(), {showGrid});
+// `nowMs` drives the death-effect layer only; it defaults to the actual
+// clock so a caller with no timestamp handy (a button click, a resize)
+// still animates it correctly.
+const repaint = (nowMs: number = performance.now()): void => {
+  renderWorld(ctx, canvas, latestWorld, camera.getCamera(), {
+    showGrid,
+    deathEffects,
+    nowMs,
+  });
 };
 
 const camera = mountCamera(canvas, frameAquarium(canvas), repaint);
@@ -107,7 +119,6 @@ const loop = createRenderLoop({
   world,
   onAdvance: (nextWorld, fps) => {
     latestWorld = nextWorld;
-    repaint();
     updateHud(nextWorld, fps);
   },
 });
@@ -119,7 +130,22 @@ updateHud(world, 0);
 // gone. Nothing repaints it while the sim is paused, which used to leave a
 // blank window until the next play. The camera is deliberately left where it
 // is: re-framing here would throw away a pan the user had made.
-window.addEventListener("resize", repaint);
+window.addEventListener("resize", () => {
+  repaint();
+});
+
+// A dedicated animation loop, independent of `loop`'s play/pause state: the
+// death effect is driven by wall-clock (ticket #24), so it has to keep
+// animating while the sim is paused, which means the canvas needs a repaint
+// every frame regardless of whether a tick ran. `loop`'s own `onAdvance`
+// (above) deliberately does not repaint any more — this loop is the sole
+// caller of `repaint` now, so a tick landing and an animation frame firing
+// can never double-draw the same frame.
+const animate = (nowMs: number): void => {
+  repaint(nowMs);
+  requestAnimationFrame(animate);
+};
+requestAnimationFrame(animate);
 
 const controls = mountControls();
 controls.playPauseButton.addEventListener("click", () => {
