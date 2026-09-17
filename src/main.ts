@@ -5,6 +5,7 @@ import {createDeathEffects} from "./app/deathEffects";
 import {mountHud} from "./app/hud";
 import {frameAquarium, renderWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
+import {createSession, isRestartDue} from "./app/session";
 import {
   createWorld,
   getCarbonDrift,
@@ -43,10 +44,15 @@ if (!ctx) {
   throw new Error("Canvas 2D context unavailable");
 }
 
-const seed = Date.now() >>> 0;
-const world = createWorld(seed);
+const masterSeed = Date.now() >>> 0;
+const session = createSession(masterSeed);
+// The first world uses the master seed directly; every world after it
+// draws its seed from the session (ADR-0018), so one master seed
+// reproduces the whole sequence, extinctions included.
+const world = createWorld(masterSeed);
 let latestWorld = world;
 let showGrid = false;
+let autoRestart = false;
 
 const hud = mountHud();
 const updateHud = (currentWorld: World, fps: number): void => {
@@ -115,11 +121,28 @@ const repaint = (nowMs: number = performance.now()): void => {
 
 const camera = mountCamera(canvas, frameAquarium(canvas), repaint);
 
+// The world never restarts itself (ADR-0018): this is the whole feature,
+// noticing an empty population from outside and rebinding the loop's
+// handle to a freshly constructed world.
+const restart = (): void => {
+  const newWorld = createWorld(session.nextWorldSeed());
+  loop.setWorld(newWorld);
+  latestWorld = newWorld;
+  // A fresh world's own α has produced nothing yet; carrying the last
+  // world's smoothed reading across the restart would flash a stale number.
+  smoothedAlpha = 0;
+  updateHud(newWorld, 0);
+  repaint();
+};
+
 const loop = createRenderLoop({
   world,
   onAdvance: (nextWorld, fps) => {
     latestWorld = nextWorld;
     updateHud(nextWorld, fps);
+    if (isRestartDue(getPopulation(nextWorld).length, autoRestart)) {
+      restart();
+    }
   },
 });
 
@@ -166,4 +189,13 @@ controls.gridButton.addEventListener("click", () => {
   // Repainted here rather than left to the next tick, so the overlay answers
   // the click while the simulation is paused too.
   repaint();
+});
+controls.newWorldButton.addEventListener("click", () => {
+  restart();
+});
+controls.autoRestartButton.addEventListener("click", () => {
+  autoRestart = !autoRestart;
+  controls.autoRestartButton.textContent = autoRestart
+    ? "Auto-restart: on"
+    : "Auto-restart: off";
 });
