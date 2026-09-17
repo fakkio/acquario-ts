@@ -572,10 +572,6 @@ CSV export is the one deliberate exception to having no persistence. It stores o
 
 There is no run persistence: closing the tab loses the run.
 
-### Future
-
-Selecting an organism will show its organelles, resources, age, statistics and neural network. Possible additions: picture-in-picture, a genealogical tree, synapse visualisation.
-
 ---
 
 ## v0.1 scope and stack
@@ -671,21 +667,7 @@ M0 front-loads pan, zoom, pause and step because they are debugging tooling, use
 
 ---
 
-## Future directions
-
-- a founder archive: the next world's generation 0 mutated from genomes carried forward from the last, holding the seed pinned so genetics is the only axis that varies between worlds (ADR-0018 — in-session memory only, and the selection criterion is deliberately still open)
-- growth during life
-- embryonic development
-- organelle damage
-- organelles created or destroyed during life
-- more complex reproduction
-- asynchronous organelle simulation
-- full genealogy
-- manual genome editor
-- user-designed organisms
-- richer metabolic systems
-- new organelle types
-- advanced brain visualisation
+Unshaped ideas for later versions live in [`docs/ideas.md`](./ideas.md) rather than here.
 
 ---
 
