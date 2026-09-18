@@ -141,3 +141,15 @@ Fabio, a proposito di questa scelta: il ticket parlava di un loop solo, e quello
 "mi sta bene, mi sembra una buona soluzione." — Fabio, sui due loop.
 
 Nessuna esitazione, nessuna richiesta di dettagli, nessun "fammi vedere il diff prima". La stessa cifra già vista altrove nella pila di M3: un giudizio secco su una decisione presa da solo dall'agente, senza che ci fosse stato bisogno di grillare per arrivarci. Qui però la domanda sul futuro — se il secondo loop diventerà la casa naturale per la UI di M4 o una toppa da rifare — è rimasta senza risposta. Non ignorata per disattenzione: è una domanda che non si può rispondere adesso, perché dipende da cosa M4 chiederà davvero di disegnare, e M4 non è ancora scritto. Il "mi sta bene" copre il presente, non fa una promessa sul futuro.
+
+---
+
+Il ticket #25 chiede che il seed della sessione "derivi dal seed master" (ADR-0018), senza dire come. La prima scelta dell'agente è stata scrivere da zero un piccolo mulberry32 dentro `session.ts`, con la motivazione che `world/rng.ts` non fa parte del "seam pubblico" del layer world — solo `world/index.ts` lo è, e nessun file di `src/app/` aveva mai importato un sottomodulo di `world/` bypassando il barrel.
+
+---
+
+La code review sull'asse Standards ha confermato l'istinto sul confine — evitare di importare direttamente `world/rng.ts` era la cosa giusta — ma ha segnalato che duplicare l'aritmetica di mulberry32 non era la stessa cosa che rispettare il confine: era semplicemente codice duplicato, perché `deriveChildStream` fa già esattamente quell'operazione, "deriva il prossimo seed da uno stream", per lo stesso motivo per cui un organismo figlio eredita il proprio seed dal genitore.
+
+---
+
+La correzione è stata spostare il confine invece di aggirarlo: `world/index.ts` ora esporta anche `createRngStream` e `deriveChildStream`, e `createSession` chiama quest'ultima invece di reinventarla. Lo stesso generatore deriva sia il seed di un organismo figlio sia il seed del prossimo mondo di una sessione — due usi della stessa idea, "il prossimo stato nasce da questo stream", invece di due implementazioni che sarebbero rimaste a rischio di divergere.
