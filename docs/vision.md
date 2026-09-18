@@ -212,6 +212,10 @@ On death:
 - accumulated energy is dissipated
 - body mass is converted instantly into food, in exactly the amount paid for it at birth
 
+Death is evaluated at step 8 and applied at step 11, and what travels between them is **remains**: a frozen record of the organism's position, its three diffusible stores and its body mass. Frozen, because collisions run at step 10, so a condemned organism is still separated and still moves on its final tick — and it died where its energy ran out, not where its neighbours left it. Remains are deposited through a method of their own rather than through `exchange`, since a deposit is always a credit, never scaled and never partial, and the deposit is summed order-independently for the same reason grants are (ADR-0017).
+
+Mortality is a property of the world, not of the milestone: a world is constructed with it on or off. The immortal world is an instrument rather than M2 scaffolding, because ADR-0015 measures `α` in a world where nothing can select, and M5 must be able to measure it again after calibration moves the constants.
+
 ### Predation
 
 _(v0.2+.)_ Organisms will be able to obtain energy by eating other organisms. This requires dedicated organelles and behaviour.
@@ -505,7 +509,7 @@ PHASE 2 — per organism, in index order (no writes to the world)
   5. maintenance            energy −= (c₀ + β·area) × dt
   6. brownian motion        draw a direction, position += force / drag
   7. evaluate mitosis       → enqueue a pending birth
-  8. evaluate death         → enqueue a pending death
+  8. evaluate death         → freeze remains, enqueue a pending death
 
 PHASE 3 — commit
   9.  apply the delta buffer (proportional scaling if a pool would go negative)
@@ -554,18 +558,19 @@ A fullscreen Canvas2D view with:
 
 - start, pause, and single-tick step while paused
 - zoom and pan
-- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — the count of organisms sitting at zero energy, the measured `α`, and mean ± σ of each gene
+- a new world on demand, and an auto-restart toggle for starting one whenever the population goes extinct
+- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — cumulative deaths, the measured `α`, and mean ± σ of each gene
 - CSV export of that time series
+
+The zero-energy count that M2 shipped belongs to the immortal world, where an aquarium half-parked at zero says the constants are wrong. In a mortal world energy passes through zero to negative and the organism is gone the same tick, so the mortal HUD shows cumulative deaths instead. Cumulative rather than per-tick: `advance` runs up to 240 ticks in one frame, and a per-tick readout loses every death but the last batch's.
+
+Restarting is the **session's** business, never the world's (ADR-0018). A world is one seed from creation to extinction; a session is the sequence of them, each seeded from the last by a PRNG derived from the master seed, so one number reproduces a whole session while the HUD's seed row still identifies the single world on screen.
 
 Rendering encodes state directly: **hue** is `lineageHue`, **brightness** is the energy fraction, **radius** is `bodyRadius`. Dying organisms visibly fade, so starvation waves and boom–bust cycles are readable without opening the CSV.
 
 CSV export is the one deliberate exception to having no persistence. It stores observations, not simulation state, so there is no schema to version — and it is the only way to compare runs offline.
 
 There is no run persistence: closing the tab loses the run.
-
-### Future
-
-Selecting an organism will show its organelles, resources, age, statistics and neural network. Possible additions: picture-in-picture, a genealogical tree, synapse visualisation.
 
 ---
 
@@ -648,7 +653,7 @@ Each milestone is independently runnable and adds exactly one invariant. The ord
 | M0  | `feature/simulation-skeleton` | toolchain; fixed-step accumulator with catch-up cap; seeded PRNG and per-organism streams; canvas, pan/zoom, play/pause/step, HUD shell | same seed ⇒ same state hash                                                               |
 | M1  | `feature/bodies-and-motion`   | organism circles, Stokes drag and brownian motion, uniform grid, positional separation, walls, `lineageHue` rendering                   | overlap decays to touching, and stays under a ceiling on a live run; correct grid queries |
 | M2  | `feature/metabolism`          | `Environment` seam, pools, light LUT, signed diffusion, photosynthesis, respiration, maintenance, caps — **fixed, immortal population** | carbon and oxygen conserved over 100k ticks                                               |
-| M3  | `feature/death`               | death by starvation; mass and contents returned to pools                                                                                | conservation survives death                                                               |
+| M3  | `feature/death`               | death by starvation; remains returned to pools; mortality as a world mode; session restart                                              | conservation survives death                                                               |
 | M4  | `feature/reproduction`        | genome, mutation, mitosis costs, allocation, tangent birth, baseline population                                                         | conservation survives birth                                                               |
 | M5  | `feature/calibration`         | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs                                                     | population converges to predicted `r_opt`                                                 |
 
@@ -656,24 +661,13 @@ M2 runs with a fixed, immortal population on purpose: metabolism is where conser
 
 Immortality in M2 is a **clamp, not an exemption**: maintenance is charged in full and energy simply floors at zero, where an organism sits, still diffusing, able to recover if food drifts its way. Dropping the cost instead would mean M2 never exercises the path M3 and M5 depend on. An organism parked at zero is precisely the one M3 will bury, which is why the count of them is worth a HUD row a milestone early.
 
+From M3 that clamp becomes a **world mode** rather than a milestone's temporary state (ADR-0017). The immortal world outlives M2 because M5 needs it: `α` is measured where nothing can select, and calibration is exactly the milestone that moves the constants `α` would have to be re-measured against. It also keeps M2's 100k-tick conservation gate running in a world with no death code in it at all.
+
 M0 front-loads pan, zoom, pause and step because they are debugging tooling, used in every milestone that follows.
 
 ---
 
-## Future directions
-
-- growth during life
-- embryonic development
-- organelle damage
-- organelles created or destroyed during life
-- more complex reproduction
-- asynchronous organelle simulation
-- full genealogy
-- manual genome editor
-- user-designed organisms
-- richer metabolic systems
-- new organelle types
-- advanced brain visualisation
+Unshaped ideas for later versions live in [`docs/ideas.md`](./ideas.md) rather than here.
 
 ---
 

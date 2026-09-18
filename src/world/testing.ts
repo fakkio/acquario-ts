@@ -3,6 +3,14 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
+import {ExchangeSettlement} from "./environment";
+import type {Pools} from "./ledger";
+import {
+  applyMaintenance,
+  applyPassiveExchange,
+  applyPhotosynthesis,
+  applyRespiration,
+} from "./metabolism";
 import {
   MAX_BODY_RADIUS,
   MIN_RADIUS_FACTOR,
@@ -131,4 +139,37 @@ export function worstExcursion(population: readonly OrganismView[]): number {
       ),
     Number.NEGATIVE_INFINITY,
   );
+}
+
+/**
+ * `runTick`'s steps 2a through 5 — the exchange settlement's two sub-passes,
+ * then photosynthesis, respiration and maintenance — replicated by hand for
+ * whichever test needs to seed a population and read pools without running
+ * a whole world. Shared across this module's test files rather than
+ * redefined in each, since every caller wants the exact same sequence.
+ */
+export function runMetabolism(
+  population: readonly Organism[],
+  pools: Pools,
+): Pools {
+  const settlement = new ExchangeSettlement(pools);
+  const request = settlement.requestPass();
+  for (const organism of population) {
+    applyPassiveExchange(organism, request);
+  }
+  settlement.settle();
+  const grant = settlement.grantPass();
+  for (const organism of population) {
+    applyPassiveExchange(organism, grant);
+  }
+  for (const organism of population) {
+    applyPhotosynthesis(organism, grant);
+  }
+  for (const organism of population) {
+    applyRespiration(organism);
+  }
+  for (const organism of population) {
+    applyMaintenance(organism);
+  }
+  return settlement.commit();
 }

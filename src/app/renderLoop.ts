@@ -5,6 +5,10 @@ export interface RenderLoop {
   pause(): void;
   step(): void;
   isRunning(): boolean;
+  /** Swaps in a new world without touching whether the loop is running or
+   * its fps smoothing — a session restart (ADR-0018) replaces what
+   * `advance` is called on, not the loop driving it. */
+  setWorld(nextWorld: World): void;
 }
 
 export interface RenderLoopOptions {
@@ -87,6 +91,9 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
     },
     isRunning() {
       return running;
+    },
+    setWorld(nextWorld) {
+      world = nextWorld;
     },
   };
 }

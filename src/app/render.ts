@@ -1,4 +1,5 @@
 import type {Camera} from "./camera";
+import type {DeathEffects} from "./deathEffects";
 import {
   AQUARIUM_HEIGHT,
   AQUARIUM_WIDTH,
@@ -53,6 +54,12 @@ const GRID_WIDTH_PX = 1;
 export interface RenderOptions {
   /** Whether the uniform grid's debug overlay is drawn over the water. */
   readonly showGrid: boolean;
+  /** The death-effect layer (ticket #24): recorded and drawn against this
+   * frame's population and wall-clock time, so it animates independently of
+   * whether this repaint was triggered by a tick. */
+  readonly deathEffects: DeathEffects;
+  /** Wall-clock time this frame is drawn at — `deathEffects`' only clock. */
+  readonly nowMs: number;
 }
 
 /**
@@ -111,18 +118,26 @@ export function renderWorld(
     drawGrid(ctx, world, worldScale);
   }
 
-  for (const organism of getPopulation(world)) {
+  const population = getPopulation(world);
+  for (const organism of population) {
     ctx.fillStyle = bodyFillFor(organism);
     ctx.beginPath();
     ctx.arc(organism.x, organism.y, organism.bodyRadius, 0, 2 * Math.PI);
     ctx.fill();
   }
 
-  // Stroked last so bodies resting against a wall sit under it rather than
-  // over it, which is what makes the hard wall read as solid.
+  // Recorded and drawn last, over the bodies and the wall alike: the ring
+  // marks where an organism *was*, so it reads as an overlay on the whole
+  // scene rather than as part of it.
+  options.deathEffects.recordFrame(population, options.nowMs);
+
+  // Stroked before the death effect so a ring at a body resting against a
+  // wall reads over it, the same way a live body would.
   ctx.strokeStyle = WALL_STROKE;
   ctx.lineWidth = WALL_WIDTH_PX / worldScale;
   ctx.strokeRect(0, 0, AQUARIUM_WIDTH, AQUARIUM_HEIGHT);
+
+  options.deathEffects.draw(ctx, worldScale, options.nowMs);
 }
 
 /**

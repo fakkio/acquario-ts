@@ -1,3 +1,4 @@
+import {depositRemains, evaluateDeaths, type Remains} from "./death";
 import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
@@ -49,6 +50,26 @@ const MAX_TICKS_PER_ADVANCE = 240;
  */
 const EPSILON_MS = 1e-9;
 
+/** What the immortal world hands step 8: nothing is ever condemned there. */
+const NO_REMAINS: readonly Remains[] = [];
+
+/**
+ * Whether a world lets energy fall below zero. `"off"` is the **immortal
+ * world** (ADR-0017): an instrument, not M2 scaffolding — ADR-0015 measures
+ * `α` in it, and M5 has to be able to measure it again once calibration
+ * moves the constants. `"on"`, the default from M3, is the mortal world
+ * death eventually acts in.
+ *
+ * A string union rather than a boolean so no call site ever reads
+ * `immortal: false` — the mode names the state a world is *in*, not a
+ * feature it lacks.
+ */
+export type MortalityMode = "on" | "off";
+
+export interface WorldOptions {
+  readonly mortality?: MortalityMode;
+}
+
 declare const worldBrand: unique symbol;
 
 /**
@@ -73,6 +94,14 @@ interface WorldState {
   readonly tick: number;
   readonly accumulatorMs: number;
   readonly globalRng: RngStream;
+  /**
+   * The world's mortality mode (ADR-0017). Deliberately **not** folded into
+   * `hashState`: a hash identifies a state, not the law that produced it,
+   * and two worlds of different mode at tick 0 are the same state — they
+   * only diverge once a tick charges maintenance. Folding it in would
+   * invalidate every hash M2 recorded, for nothing.
+   */
+  readonly mortality: MortalityMode;
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
@@ -98,6 +127,17 @@ interface WorldState {
    * `initialTotalCarbon` does: nothing in a tick reads it back.
    */
   readonly measuredAlpha: number;
+  /**
+   * How many organisms have died since this world's creation, summed across
+   * every tick rather than read per-tick: `advance` can run up to
+   * `MAX_TICKS_PER_ADVANCE` ticks inside one catch-up frame, and a per-tick
+   * readout would show only the last batch's toll and silently drop the
+   * rest. Only ever advances in the mortal world — the immortal world's
+   * floor never lets step 8 condemn anyone. Derived, and nothing in a tick
+   * reads it back, so it stays out of `hashState` for the same reason
+   * `measuredAlpha` does.
+   */
+  readonly cumulativeDeaths: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -113,7 +153,7 @@ export interface AdvanceResult {
   readonly ticksRun: number;
 }
 
-export function createWorld(seed: number): World {
+export function createWorld(seed: number, options: WorldOptions = {}): World {
   const {population, stream} = createPopulation(createRngStream(seed));
   // The carbon ledger's one-time construction: generation 0 starts at
   // diffusive equilibrium, and every later tick's conservation check reads
@@ -125,6 +165,7 @@ export function createWorld(seed: number): World {
     tick: 0,
     accumulatorMs: 0,
     globalRng: stream,
+    mortality: options.mortality ?? "on",
     population,
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
@@ -132,6 +173,7 @@ export function createWorld(seed: number): World {
     // No tick has run yet, so this reads the value a tick that produced
     // no energy at all would report.
     measuredAlpha: 0,
+    cumulativeDeaths: 0,
   });
 }
 
@@ -195,10 +237,23 @@ function runTick(state: WorldState): WorldState {
   const respirationOutcomes = state.population.map((organism) =>
     applyRespiration(organism),
   );
-  // 5. Maintenance: c₀ + β·area, charged in full; energy floors at zero
-  //    and nothing dies (M2's population is fixed for the whole milestone).
+  // 5. Maintenance: c₀ + β·area, charged in full and unconditionally
+  //    (ADR-0017) — whether the result is allowed to go below zero is this
+  //    world's mortality mode, not this reaction's business.
   for (const organism of state.population) {
     applyMaintenance(organism);
+  }
+  // Immortal floor (ADR-0017), not one of ADR-0006's numbered steps: only
+  // in a world constructed with `mortality: "off"` does energy stop here
+  // rather than falling below zero — the instrument ADR-0015 measures `α`
+  // in, and M5 must be able to reconstruct after calibration moves the
+  // constants. In a mortal world this line does not run, and energy passes
+  // through zero to negative, which step 8 (M3) reads to condemn the
+  // organism.
+  if (state.mortality === "off") {
+    for (const organism of state.population) {
+      organism.energy = Math.max(0, organism.energy);
+    }
   }
   const measuredAlpha = meanMeasuredAlpha(
     state.population,
@@ -209,27 +264,49 @@ function runTick(state: WorldState): WorldState {
     applyBrownianMotion(organism);
   }
   // 7. Evaluate mitosis, enqueue — M4.
-  // 8. Evaluate death, enqueue — M3.
+  // 8. Evaluate death: `energy <= 0` condemns an organism (ADR-0017), and
+  //    its remains are frozen here, pre-separation — step 10 has not run
+  //    yet, so a condemned organism still gets to move on its final tick,
+  //    and it deposits the position it died at rather than the one its
+  //    neighbours push it to. Only the mortal world evaluates this: the
+  //    immortal world's floor two steps up never lets energy reach the
+  //    predicate, which is what keeps ADR-0015's fixed population fixed.
+  const {survivors, remains} =
+    state.mortality === "on"
+      ? evaluateDeaths(state.population)
+      : {survivors: state.population, remains: NO_REMAINS};
 
   // ---- Commit: every world mutation, in a fixed order --------------
   // 9. Apply delta buffer: the exchange settlement's grants, decided in
   //    2b above, applied to the pools at this one well-defined point.
-  const pools = settlement.commit();
-  // 10. Collisions and walls. The grid is built here, consumed by the
-  //     separation pass, and dropped when the tick ends: it is an index of
-  //     where the bodies are *now*, and the only place that is true is
-  //     between the last write to a position and the next one. Separation
-  //     runs ahead of the wall constraint, so a body pushed out of another
-  //     body still ends the tick inside the aquarium.
+  const poolsAfterExchange = settlement.commit();
+  // 10. Collisions and walls, run over the *whole* population, condemned
+  //     organisms included — ADR-0017's point exactly. The grid is built
+  //     here, consumed by the separation pass, and dropped when the tick
+  //     ends: it is an index of where the bodies are *now*, and the only
+  //     place that is true is between the last write to a position and the
+  //     next one. Separation runs ahead of the wall constraint, so a body
+  //     pushed out of another body still ends the tick inside the
+  //     aquarium.
   separateOverlaps(state.population, buildUniformGrid(state.population));
   for (const organism of state.population) {
     constrainToAquarium(organism);
   }
-  // 11. Deaths — M3.
+  // 11. Deaths: step 8's remains are deposited into the pools settled at
+  //     step 9, and the population becomes step 8's survivors — never a
+  //     second evaluation of the predicate (ADR-0017).
+  const pools = depositRemains(poolsAfterExchange, remains);
   // 12. Births — M4. Newborns are appended here and stay inert for
   //     their first tick, so no birth cascades within a tick.
   // 13. Tick++.
-  return {...state, pools, tick: state.tick + 1, measuredAlpha};
+  return {
+    ...state,
+    pools,
+    population: survivors,
+    tick: state.tick + 1,
+    measuredAlpha,
+    cumulativeDeaths: state.cumulativeDeaths + remains.length,
+  };
 }
 
 /**
@@ -383,16 +460,39 @@ export function getMeasuredAlpha(world: World): number {
 }
 
 /**
- * How many organisms sit at exactly zero energy right now — M3's future
- * funerals, visible a milestone early (see the ticket). Measured on demand
- * from the population as it stands, for the same reason
+ * How many organisms sit at exactly zero energy right now. Measured on
+ * demand from the population as it stands, for the same reason
  * `getWorstPenetration` builds its own grid rather than reading a stored
  * count: an organism's energy is live, mutable state, so a readout of it
  * is worth having only if it cannot disagree with the state it describes.
+ *
+ * **Scoped to the immortal world** (ADR-0017): there, the maintenance floor
+ * holds a starved organism exactly at zero, which is exactly the signal
+ * that the constants are wrong — and M5 measures `α` in this world. In the
+ * mortal world energy passes straight through zero to negative and the
+ * organism is condemned the same tick (`getCumulativeDeaths` is that
+ * world's counterpart), so nothing ever rests here to be counted and this
+ * reads 0 unconditionally rather than run a filter that would always come
+ * back empty.
  */
 export function getZeroEnergyCount(world: World): number {
-  return toState(world).population.filter((organism) => organism.energy === 0)
-    .length;
+  const state = toState(world);
+  if (state.mortality === "on") {
+    return 0;
+  }
+
+  return state.population.filter((organism) => organism.energy === 0).length;
+}
+
+/**
+ * How many organisms have died since this world was created — cumulative,
+ * not per-tick, so a catch-up `advance` call that runs a whole batch of
+ * ticks loses no death to the readout (see the field's own comment on
+ * `WorldState`). Reads 0 for the lifetime of an immortal world, whose
+ * counterpart readout is `getZeroEnergyCount`.
+ */
+export function getCumulativeDeaths(world: World): number {
+  return toState(world).cumulativeDeaths;
 }
 
 /**

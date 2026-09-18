@@ -51,8 +51,12 @@ function emptyPerDiffusible(): Record<Diffusible, number[]> {
  * pool level, bit-identical: the set of amounts requested by a population
  * does not change when the population is only reordered, and this is the
  * one place that set turns into a single number.
+ *
+ * Exported for `death.ts`'s deposit, which needs the same guarantee for the
+ * same reason (ADR-0017): summed in population order, it would break
+ * ADR-0005's reorder guarantee the day two organisms die on one tick.
  */
-function sumAscending(values: readonly number[]): number {
+export function sumAscending(values: readonly number[]): number {
   return [...values]
     .sort((a, b) => a - b)
     .reduce((sum, value) => sum + value, 0);

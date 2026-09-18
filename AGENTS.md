@@ -14,6 +14,10 @@ Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root, plus `docs/vision.md` for what the world is supposed to do. See `docs/agents/domain.md`.
 
+### Future ideas
+
+Unshaped ideas not yet worth a `vision.md` section, an ADR or a ticket live in `docs/ideas.md`. Delete an idea from there the moment it's implemented or lands elsewhere — never leave it duplicated.
+
 ### Branching
 
 A feature (an issue set from `/to-tickets`, a milestone) gets its own `feature/<slug>` branch off `develop`; a one-off change commits straight to `develop`. See `docs/agents/branching.md`.

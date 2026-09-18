@@ -130,6 +130,14 @@ _Avoid_: ideal size, target radius
 One complete simulation run: an aquarium, its pools, its population, and the clock and random streams that advance them. What a seed determines and a state hash identifies.
 _Avoid_: universe, scene, game state, simulation (as a noun for the state), aquarium (that is the space inside it)
 
+**Session**:
+Every world run back to back in one tab, each seeded from the one before. Not a world — a world is one seed from creation to extinction; a session is the sequence of them. Purely an App-layer concept: nothing in `src/world/` knows it exists.
+_Avoid_: run (that is one world), game, instance, playthrough
+
+**Immortal World**:
+A world constructed with `mortality: "off"`: maintenance still charges in full, but energy floors at zero instead of passing through it, and nothing dies. An instrument, not leftover M2 scaffolding — it is where ADR-0015's `α` is measured free of any selection, and calibration has to be able to measure it again after moving the constants. Mortality is `"on"` by default from M3 on; a world is not "immortal" or "mortal" as a permanent identity, only as the mode it was constructed in.
+_Avoid_: safe mode, dead world (backwards), M2 world (it outlives that milestone)
+
 **Aquarium**:
 The finite, hard-walled region a world's organisms live in: a width, a height, a surface along the top edge and a floor along the bottom, with no wraparound. The area every external concentration is measured over, and the extent the light gradient runs down.
 _Avoid_: tank, arena, canvas, box, world (that is the whole run)
@@ -161,6 +169,10 @@ _Avoid_: state copy, buffer (alone)
 **Delta Buffer**:
 The accumulated, not-yet-applied exchange _grants_ of every organism in the current tick, committed once at the end. It holds what the world has already agreed to hand over, scaled down if a pool could not meet the demand — never the raw requests, which are settled and discarded halfway through the tick.
 _Avoid_: pending changes, queue, accumulator (that is the loop's time accumulator), requests (they do not survive to the commit)
+
+**Remains**:
+The frozen record of what a dying organism returns to the pools: its position, its three diffusible stores and its body mass. Exists within one tick, between step 8 and step 11. Not a corpse — a corpse is v0.2's persistent entity, which M3 deliberately does not have.
+_Avoid_: corpse (reserved), body, carcass, dead organism
 
 ### Reproduction and motion
 

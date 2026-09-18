@@ -1,5 +1,6 @@
 import {describe, expect, it} from "vitest";
 
+import {AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
 import {buildUniformGrid} from "./grid";
 import {
@@ -24,12 +25,19 @@ import {
 } from "./organism";
 import {createRngStream} from "./rng";
 import {separateOverlaps} from "./separation";
-import {organismAt, randomPopulation, shuffle, worstExcursion} from "./testing";
+import {
+  organismAt,
+  randomPopulation,
+  runMetabolism,
+  shuffle,
+  worstExcursion,
+} from "./testing";
 import {
   FIXED_DT_MS,
   advance,
   createWorld,
   getCarbonDrift,
+  getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
   getPoolLevels,
@@ -49,35 +57,6 @@ const referencePopulationFor = (seed: number) => {
   initializeMetabolism(population);
   return population;
 };
-
-// `runTick`'s steps 2a through 5 — the exchange settlement's two
-// sub-passes, then photosynthesis, respiration and maintenance —
-// replicated by hand wherever a test needs to seed a population and read
-// pools without running the whole tick. Shared across describe blocks
-// below rather than redefined in each, since every caller wants the exact
-// same sequence.
-function runMetabolism(population: readonly Organism[], pools: Pools): Pools {
-  const settlement = new ExchangeSettlement(pools);
-  const request = settlement.requestPass();
-  for (const organism of population) {
-    applyPassiveExchange(organism, request);
-  }
-  settlement.settle();
-  const grant = settlement.grantPass();
-  for (const organism of population) {
-    applyPassiveExchange(organism, grant);
-  }
-  for (const organism of population) {
-    applyPhotosynthesis(organism, grant);
-  }
-  for (const organism of population) {
-    applyRespiration(organism);
-  }
-  for (const organism of population) {
-    applyMaintenance(organism);
-  }
-  return settlement.commit();
-}
 
 describe("createWorld + advance + hashState determinism", () => {
   it("produces the same sequence of state hashes for the same seed and the same advance calls", () => {
@@ -611,28 +590,6 @@ describe("respiration and maintenance (M2)", () => {
     expect(finalEnergy.some((e, i) => e < initialEnergy[i])).toBe(true);
   });
 
-  it("never lets an organism's energy go negative, over a long run", () => {
-    let world = createWorld(3);
-
-    for (let tick = 0; tick < 2000; tick++) {
-      ({world} = advance(world, FIXED_DT_MS));
-      for (const organism of getPopulation(world)) {
-        expect(organism.energy).toBeGreaterThanOrEqual(0);
-      }
-    }
-  });
-
-  // M2's population is fixed and immortal on purpose (see the ticket):
-  // energy floors at zero rather than the organism being removed.
-  it("keeps the population count identical at tick 0 and after a long run", () => {
-    let world = createWorld(3);
-    const initialCount = getPopulation(world).length;
-
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
-
-    expect(getPopulation(world).length).toBe(initialCount);
-  });
-
   // Passive exchange (step 2) runs before respiration and maintenance ever
   // look at an organism's energy, so an organism sitting at zero still
   // trades with the environment exactly as a richer one does — and, given
@@ -741,8 +698,71 @@ describe("respiration and maintenance (M2)", () => {
     expect(getMeasuredAlpha(world)).toBeGreaterThan(0);
   });
 
-  it("counts organisms sitting at exactly zero energy", () => {
+  // M0's determinism invariant, now that the hash covers respiration and
+  // maintenance too.
+  it("reaches the same hash at tick N in two runs from the same seed", () => {
+    const TICKS = 500;
+    const runTo = (seed: number) =>
+      hashState(advance(createWorld(seed), TICKS * FIXED_DT_MS).world);
+
+    expect(runTo(3)).toBe(runTo(3));
+    expect(runTo(3)).not.toBe(runTo(4));
+  });
+});
+
+describe("mortality mode (M3)", () => {
+  // ADR-0017: the floor is a property of the immortal world, not of
+  // maintenance itself, so this M2 invariant now has to ask for that world
+  // explicitly rather than get it as `createWorld`'s default.
+  it("never lets an organism's energy go negative, over a long run, in the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      for (const organism of getPopulation(world)) {
+        expect(organism.energy).toBeGreaterThanOrEqual(0);
+      }
+    }
+  });
+
+  // The mortal world is the default from M3 on, and this is the behaviour
+  // that default exists to enable: an organism whose energy is driven to
+  // zero or below is condemned the same tick (`death.ts`), so none is ever
+  // observable holding negative energy — a long run instead shows the
+  // population having shrunk.
+  it("never lets a surviving organism's energy go negative, and shrinks the population, over a long run, in the mortal (default) world", () => {
     let world = createWorld(3);
+    const initialCount = getPopulation(world).length;
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      for (const organism of getPopulation(world)) {
+        expect(organism.energy).toBeGreaterThan(0);
+      }
+    }
+
+    expect(getPopulation(world).length).toBeLessThan(initialCount);
+  });
+
+  // M2's population is fixed and immortal on purpose (see the ticket):
+  // energy floors at zero rather than the organism being removed. Moved to
+  // the immortal world explicitly per ADR-0017 — nothing removes an
+  // organism yet either way, but the invariant this test is naming is
+  // specifically the immortal world's.
+  it("keeps the population count identical at tick 0 and after a long run, in the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+    const initialCount = getPopulation(world).length;
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getPopulation(world).length).toBe(initialCount);
+  });
+
+  // `getZeroEnergyCount` only means something in the immortal world (see
+  // the ticket and ADR-0017): in the mortal default, energy passes straight
+  // through zero to negative, so nothing rests there to be counted.
+  it("counts organisms sitting at exactly zero energy, in the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
 
     ({world} = advance(world, 2000 * FIXED_DT_MS));
 
@@ -753,14 +773,58 @@ describe("respiration and maintenance (M2)", () => {
     expect(getZeroEnergyCount(world)).toBeGreaterThan(0);
   });
 
-  // M0's determinism invariant, now that the hash covers respiration and
-  // maintenance too.
-  it("reaches the same hash at tick N in two runs from the same seed", () => {
-    const TICKS = 500;
-    const runTo = (seed: number) =>
-      hashState(advance(createWorld(seed), TICKS * FIXED_DT_MS).world);
+  // `getZeroEnergyCount` is scoped to the immortal world (see the ticket):
+  // in the mortal default nothing ever rests at exactly zero, so the
+  // readout stays 0 even once the population has visibly shrunk.
+  it("reads 0 for getZeroEnergyCount in the mortal (default) world, even once organisms have died", () => {
+    let world = createWorld(3);
+    const initialCount = getPopulation(world).length;
 
-    expect(runTo(3)).toBe(runTo(3));
-    expect(runTo(3)).not.toBe(runTo(4));
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getPopulation(world).length).toBeLessThan(initialCount);
+    expect(getZeroEnergyCount(world)).toBe(0);
+  });
+
+  it("reads 0 for getCumulativeDeaths for the lifetime of the immortal world", () => {
+    let world = createWorld(3, {mortality: "off"});
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getCumulativeDeaths(world)).toBe(0);
+  });
+
+  // The count a catch-up `advance` call has to get right: `advance` runs up
+  // to `MAX_TICKS_PER_ADVANCE` ticks inside a single call, and a readout
+  // written per-tick rather than accumulated would show only the last
+  // tick's toll. The population is forced deep and dark first, the same way
+  // `death.test.ts`'s acceptance run does, so several organisms starve well
+  // inside one such batch rather than depending on the default population's
+  // placement to produce a death in time.
+  it("counts every death inside a single catch-up batch, matching exactly how far the population shrank", () => {
+    const world = createWorld(3);
+    const initialCount = getPopulation(world).length;
+    for (const organism of getPopulation(world) as unknown as Organism[]) {
+      organism.y = AQUARIUM_HEIGHT - 2;
+    }
+
+    const {world: after} = advance(world, 5000 * FIXED_DT_MS);
+
+    const lost = initialCount - getPopulation(after).length;
+    expect(lost).toBeGreaterThan(0);
+    expect(getCumulativeDeaths(after)).toBe(lost);
+  });
+
+  it("keeps accumulating cumulative deaths across many advance calls, in the mortal (default) world", () => {
+    let world = createWorld(3);
+    const initialCount = getPopulation(world).length;
+
+    for (let tick = 0; tick < 2000; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    const lost = initialCount - getPopulation(world).length;
+    expect(lost).toBeGreaterThan(0);
+    expect(getCumulativeDeaths(world)).toBe(lost);
   });
 });

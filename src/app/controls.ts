@@ -4,6 +4,13 @@ export interface Controls {
   /** Toggles the uniform grid's debug overlay. One button relabelled with
    * the next action, the way play/pause already is. */
   readonly gridButton: HTMLButtonElement;
+  /** Constructs a new world on demand (ADR-0018), at any time, not only at
+   * extinction — debugging tooling for sampling seeds quickly. */
+  readonly newWorldButton: HTMLButtonElement;
+  /** Toggles automatic restart on extinction, off by default: M3 has death
+   * and no birth, so every mortal world shrinks to zero, and its story
+   * deserves to be watchable to its end rather than cut off. */
+  readonly autoRestartButton: HTMLButtonElement;
 }
 
 /**
@@ -32,8 +39,28 @@ export function mountControls(): Controls {
   gridButton.type = "button";
   gridButton.textContent = "Show grid";
 
-  container.append(playPauseButton, stepButton, gridButton);
+  const newWorldButton = document.createElement("button");
+  newWorldButton.type = "button";
+  newWorldButton.textContent = "New world";
+
+  const autoRestartButton = document.createElement("button");
+  autoRestartButton.type = "button";
+  autoRestartButton.textContent = "Auto-restart: off";
+
+  container.append(
+    playPauseButton,
+    stepButton,
+    gridButton,
+    newWorldButton,
+    autoRestartButton,
+  );
   document.body.appendChild(container);
 
-  return {playPauseButton, stepButton, gridButton};
+  return {
+    playPauseButton,
+    stepButton,
+    gridButton,
+    newWorldButton,
+    autoRestartButton,
+  };
 }

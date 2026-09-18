@@ -521,21 +521,28 @@ describe("applyMaintenance", () => {
     expect(before - organism.energy).toBeCloseTo(expectedCost, 12);
   });
 
-  it("clamps energy at zero rather than driving it negative", () => {
+  // ADR-0017: the floor moved out of this function and into `runTick`,
+  // where it applies only to an immortal world. Unconditionally here means
+  // a store too small to cover the cost is driven below zero rather than
+  // clamped — the state a mortal world's death check reads at step 8.
+  it("drives energy negative rather than clamping it at zero", () => {
     const organism = organismAt(0, 0, 1);
     organism.energy = 0.1; // far less than the cost
 
+    const expectedCost =
+      EXISTENCE_COST + BODY_COST_COEFFICIENT * bodyArea(organism);
     applyMaintenance(organism);
 
-    expect(organism.energy).toBe(0);
+    expect(organism.energy).toBeCloseTo(0.1 - expectedCost, 12);
+    expect(organism.energy).toBeLessThan(0);
   });
 
-  it("leaves an already-zero-energy organism at zero", () => {
+  it("drives an already-zero-energy organism further negative", () => {
     const organism = organismAt(0, 0, 1);
     organism.energy = 0;
 
     applyMaintenance(organism);
 
-    expect(organism.energy).toBe(0);
+    expect(organism.energy).toBeLessThan(0);
   });
 });
