@@ -29,24 +29,19 @@ export const MIN_RADIUS_FACTOR = 0.6;
 export const MAX_RADIUS_FACTOR = 1.4;
 
 /**
- * The largest body the world allows, and so the reach every structure that
- * has to bound how far a body extends past its own centre is derived from —
- * the uniform grid's cell size first. Kept here rather than in the grid so
- * there is one answer to "how big can a body get", and the grid asks it
- * rather than restating it.
+ * The largest body generation 0 places — no longer, from M4 on, the largest
+ * body the world allows. `bodyRadius` is a gene with range `> 0` mutating
+ * multiplicatively, so once reproduction exists there is no largest radius
+ * to derive a world-wide ceiling from; the ledger is the only ceiling left,
+ * since a single body cannot exceed the carbon budget (`r ≤ √K`, ADR-0012's
+ * amendment).
  *
- * In M1 nothing grows and nothing is born, so this is exactly the top of
- * generation 0's spread, and a real ceiling.
- *
- * **It stops being one at M4.** `bodyRadius` is a gene with range `> 0`
- * mutating multiplicatively, so once reproduction exists there is no largest
- * radius for anything to derive itself from, and this constant goes on
- * describing generation 0 while the population grows past it. Nothing fails
- * loudly when that happens: a body wider than a cell is a body its neighbours'
- * queries stop finding, with the suite still green. ADR-0012 records what the
- * grid has to do instead.
+ * This constant still describes generation 0's spread, and stays useful for
+ * exactly that: `createPopulation`'s ceiling, and the fallback the grid
+ * reaches for when it is handed no population to derive a size from at all.
  */
-export const MAX_BODY_RADIUS = MAX_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
+export const GENERATION_0_MAX_BODY_RADIUS =
+  MAX_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
 
 /**
  * Everything the App layer is allowed to know about an organism. `World`

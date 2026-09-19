@@ -12,7 +12,7 @@ import {
   applyRespiration,
 } from "./metabolism";
 import {
-  MAX_BODY_RADIUS,
+  GENERATION_0_MAX_BODY_RADIUS,
   MIN_RADIUS_FACTOR,
   Organism,
   type OrganismView,
@@ -65,10 +65,11 @@ export function shuffle(items: Organism[], stream: RngStream): Organism[] {
 }
 
 /**
- * The smallest body the world allows, the counterpart of `MAX_BODY_RADIUS`.
- * It lives here rather than beside its opposite in `organism.ts` because
- * nothing the simulation does needs it: the grid derives its cell size from
- * the largest body, and only tests ever ask how small a body can be.
+ * The smallest body generation 0 places, the counterpart of
+ * `GENERATION_0_MAX_BODY_RADIUS`. It lives here rather than beside its
+ * opposite in `organism.ts` because nothing the simulation does needs it: the
+ * grid derives its cell size from whichever body is largest at build time,
+ * and only tests ever ask how small a body can be.
  */
 export const MIN_BODY_RADIUS = MIN_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
 
@@ -98,7 +99,7 @@ export function randomPopulation(
   seed: number,
   size: number,
   minRadius = MIN_BODY_RADIUS,
-  maxRadius = MAX_BODY_RADIUS,
+  maxRadius = GENERATION_0_MAX_BODY_RADIUS,
 ): Organism[] {
   const draw = openDraws(seed);
   const population: Organism[] = [];

@@ -5,6 +5,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
+import {CARBON_BUDGET_BASELINE_ORGANISMS} from "./constants";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import type {Organism} from "./organism";
 import {createRngStream} from "./rng";
@@ -261,5 +262,22 @@ describe("constrainToAquarium", () => {
 
       expectWhollyInsideAquarium(organism);
     }
+  });
+
+  // The largest body the carbon ledger permits, `r = √K` (ADR-0012's
+  // amendment): a single body cannot exceed the whole carbon budget, so this
+  // is the real ceiling `bodyRadius` faces now that no constant imposes one.
+  // `clamp`'s `min` is `bodyRadius` and its `max` is `AQUARIUM_HEIGHT −
+  // bodyRadius`; the two would cross and the clamp would invert once
+  // `bodyRadius` passed `AQUARIUM_HEIGHT / 2 = 20`, and `√K ≈ 14.14` stays
+  // comfortably under that.
+  it("still holds a body against the wall at the largest radius the carbon budget permits", () => {
+    const largestPermittedRadius = Math.sqrt(CARBON_BUDGET_BASELINE_ORGANISMS);
+    const organism = organismAt(-5, CENTRE_Y, largestPermittedRadius);
+
+    constrainToAquarium(organism);
+
+    expectWhollyInsideAquarium(organism);
+    expect(organism.x).toBe(organism.bodyRadius);
   });
 });

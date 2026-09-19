@@ -7,7 +7,7 @@ import {
 } from "./aquarium";
 import {buildUniformGrid, type UniformGrid} from "./grid";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
-import {MAX_BODY_RADIUS, type Organism} from "./organism";
+import {GENERATION_0_MAX_BODY_RADIUS, type Organism} from "./organism";
 import {createRngStream} from "./rng";
 import {separateOverlaps, worstPenetration} from "./separation";
 import {
@@ -98,7 +98,8 @@ function pileUp(seed: number, size: number, span: number): Organism[] {
       organismAt(
         AQUARIUM_WIDTH / 2 + (draw() - 0.5) * span,
         AQUARIUM_HEIGHT / 2 + (draw() - 0.5) * span,
-        MIN_BODY_RADIUS + draw() * (MAX_BODY_RADIUS - MIN_BODY_RADIUS),
+        MIN_BODY_RADIUS +
+          draw() * (GENERATION_0_MAX_BODY_RADIUS - MIN_BODY_RADIUS),
         i + 1,
       ),
     );
@@ -399,7 +400,12 @@ describe("no overlaps after resolution, with motion disabled", () => {
 
   it("leaves every body wholly inside the aquarium, even separating in a corner", () => {
     const population = Array.from({length: 30}, (_unused, i) =>
-      organismAt(MAX_BODY_RADIUS, MAX_BODY_RADIUS, BASELINE_BODY_RADIUS, i + 1),
+      organismAt(
+        GENERATION_0_MAX_BODY_RADIUS,
+        GENERATION_0_MAX_BODY_RADIUS,
+        BASELINE_BODY_RADIUS,
+        i + 1,
+      ),
     );
     // Fanned out by a hair each, so the pile has normals to separate along
     // rather than one exactly coincident heap.
