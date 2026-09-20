@@ -139,8 +139,16 @@ Every world run back to back in one tab, each seeded from the one before. Not a 
 _Avoid_: run (that is one world), game, instance, playthrough
 
 **Immortal World**:
-A world constructed with `mortality: "off"`: maintenance still charges in full, but energy floors at zero instead of passing through it, and nothing dies. An instrument, not leftover M2 scaffolding — it is where ADR-0015's `α` is measured free of any selection, and calibration has to be able to measure it again after moving the constants. Mortality is `"on"` by default from M3 on; a world is not "immortal" or "mortal" as a permanent identity, only as the mode it was constructed in.
+A world constructed with `mortality: "off"`: maintenance still charges in full, but energy floors at zero instead of passing through it, and nothing dies. Mortality is `"on"` by default from M3 on; a world is not "immortal" or "mortal" as a permanent identity, only as the mode it was constructed in. No longer sufficient on its own as ADR-0015's instrument once a population can grow — see **Fixed Population**.
 _Avoid_: safe mode, dead world (backwards), M2 world (it outlives that milestone)
+
+**Fertility**:
+Whether a world's organisms reproduce, `"on"` or `"off"`, chosen at construction like mortality and independent of it (ADR-0020). Off is not sterility as a trait: no organism in such a world evaluates mitosis at all. `"on"` by default from M4 on.
+_Avoid_: reproduction mode, breeding, sterile
+
+**Fixed Population**:
+A world constructed with both mortality and fertility off: nothing dies and nothing is born, so the population that was placed is the population that remains. ADR-0015's real instrument, where `α` is measured free of any selection — **Immortal World** alone stopped being sufficient for that the moment mitosis could grow the population.
+_Avoid_: static world, frozen world, immortal world (that is only half of it)
 
 **Aquarium**:
 The finite, hard-walled region a world's organisms live in: a width, a height, a surface along the top edge and a floor along the bottom, with no wraparound. The area every external concentration is measured over, and the extent the light gradient runs down.
@@ -177,6 +185,10 @@ _Avoid_: pending changes, queue, accumulator (that is the loop's time accumulato
 **Remains**:
 The frozen record of what a dying organism returns to the pools: its position, its three diffusible stores and its body mass. Exists within one tick, between step 8 and step 11. Not a corpse — a corpse is v0.2's persistent entity, which M3 deliberately does not have.
 _Avoid_: corpse (reserved), body, carcass, dead organism
+
+**Pending Birth**:
+The frozen record of a child between step 7 and step 12: its genome, its four stores, its position and its own stream. The mirror of **Remains** — matter already taken from a parent and not yet given to a population — which is what keeps the carbon ledger balanced at the end of a tick in which something was born.
+_Avoid_: pending organism, child (that is the organism once it exists), egg (reserved for v0.2), birth event
 
 ### Reproduction and motion
 

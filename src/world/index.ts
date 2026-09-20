@@ -20,6 +20,7 @@ export {
   getWorstPenetration,
   getZeroEnergyCount,
   hashState,
+  type FertilityMode,
   type MortalityMode,
   type World,
   type WorldOptions,

@@ -202,3 +202,17 @@ export const DELTA_LINEAGE_HUE = 0.02;
  * to.
  */
 export const GENERATION_0_MUTATION_SCALE = 5;
+
+/**
+ * Mitosis's energy price, `MITOSIS_ENERGY_COST × childArea` (ADR-0019):
+ * strictly proportional, with no flat term, unlike maintenance. The
+ * asymmetry is load-bearing rather than an oversight — `r_opt = 2·c₀/α` is
+ * derived from `reproductiveRate(r) ∝ (α·r − c₀ − β·r²) / r²`, and the
+ * `/ r²` *is* the assumption that a child costs in proportion to its area.
+ * A flat term would put a second knee in that curve and cost M5 its closed
+ * form. Provisional, marked for M5 like the rest of this table: chosen so a
+ * baseline-sized child (area ≈ π) costs on the order of a quarter of a
+ * baseline parent's energy cap (`K_CAP_ENERGY × π ≈ 1257`), affordable at
+ * `BASELINE_GENOME`'s `mitosisEnergyThreshold` without being free.
+ */
+export const MITOSIS_ENERGY_COST = 100;

@@ -118,6 +118,16 @@ export const DIFFUSIBLES: readonly Diffusible[] = [
   "food",
 ];
 
+/** Every `Resource`, energy included, for the modules that need to loop
+ * over all four — `mitosis.ts`'s allocation split, the first caller that
+ * treats energy as just another store to divide (ADR-0019). */
+export const RESOURCES: readonly Resource[] = [
+  "energy",
+  "oxygen",
+  "carbonDioxide",
+  "food",
+];
+
 /**
  * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
  * size: `coefficient × bodyArea`. Energy carries `K_CAP_ENERGY` rather than
@@ -186,9 +196,19 @@ export class Organism {
 }
 
 /**
- * The area a body occupies, in the same length unit as `bodyRadius`. The
- * one place that area is computed, so every cap and every ledger term reads
- * it the same way.
+ * The area a body of `bodyRadius` occupies, in the same length unit as the
+ * radius itself. The one place that area is computed from a bare radius,
+ * so `bodyArea`, `bodyMass` and `capFor` all read it the same way — and so
+ * does `mitosis.ts` (ADR-0019), which has to price a child's cost and caps
+ * from its mutated `bodyRadius` before any `Organism` for it exists to hand
+ * `bodyArea` itself.
+ */
+export function bodyAreaOfRadius(bodyRadius: number): number {
+  return Math.PI * bodyRadius * bodyRadius;
+}
+
+/**
+ * The area a body occupies, in the same length unit as `bodyRadius`.
  *
  * Typed against `Organism | OrganismView` rather than `Organism` alone, so
  * the App layer can compute a cap or an area off the read-only view too —
@@ -196,7 +216,14 @@ export class Organism {
  * needing the mutable class the world itself works with.
  */
 export function bodyArea(organism: Organism | OrganismView): number {
-  return Math.PI * organism.bodyRadius * organism.bodyRadius;
+  return bodyAreaOfRadius(organism.bodyRadius);
+}
+
+/** A body's mass at `bodyRadius`, the same formula `bodyMass` derives from
+ * a live organism — see `bodyAreaOfRadius` for why a radius-only sibling
+ * exists at all. */
+export function bodyMassOfRadius(bodyRadius: number): number {
+  return RHO * bodyAreaOfRadius(bodyRadius);
 }
 
 /**
@@ -209,7 +236,13 @@ export function bodyArea(organism: Organism | OrganismView): number {
  * rather than an inheritance.
  */
 export function bodyMass(organism: Organism): number {
-  return RHO * bodyArea(organism);
+  return bodyMassOfRadius(organism.bodyRadius);
+}
+
+/** The maximum amount of `resource` a body of `bodyRadius` can hold — see
+ * `bodyAreaOfRadius` for why a radius-only sibling of `capFor` exists. */
+export function capForRadius(bodyRadius: number, resource: Resource): number {
+  return CAP_COEFFICIENT[resource] * bodyAreaOfRadius(bodyRadius);
 }
 
 /** The maximum amount of `resource` this organism can hold right now — a
@@ -219,7 +252,7 @@ export function capFor(
   organism: Organism | OrganismView,
   resource: Resource,
 ): number {
-  return CAP_COEFFICIENT[resource] * bodyArea(organism);
+  return capForRadius(organism.bodyRadius, resource);
 }
 
 export interface PopulationDraw {
