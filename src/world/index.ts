@@ -9,6 +9,7 @@ export {
   createWorld,
   FIXED_DT_MS,
   getCarbonDrift,
+  getCumulativeBirths,
   getCumulativeDeaths,
   getGridOccupancy,
   getMeasuredAlpha,

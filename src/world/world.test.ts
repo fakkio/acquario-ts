@@ -38,6 +38,7 @@ import {
   advance,
   createWorld,
   getCarbonDrift,
+  getCumulativeBirths,
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
@@ -1012,5 +1013,44 @@ describe("fertility mode (M4)", () => {
     // The scenario this test claims to exercise actually happened.
     expect(resultA.population.length).toBeGreaterThan(inOrder.length);
     expect(resultB.pools).toEqual(resultA.pools);
+  });
+
+  it("reads 0 for getCumulativeBirths for the lifetime of the infertile world", () => {
+    let world = createWorld(3, {fertility: "off"});
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getCumulativeBirths(world)).toBe(0);
+  });
+
+  // The count a catch-up `advance` call has to get right: `advance` runs up
+  // to `MAX_TICKS_PER_ADVANCE` ticks inside a single call, and a readout
+  // written per-tick rather than accumulated would show only the last
+  // tick's crop of newborns. Immortal so growth is births alone, the same
+  // isolation `mortality mode (M3)`'s catch-up test uses in reverse.
+  it("counts every birth inside a single catch-up batch, matching exactly how far the population grew", () => {
+    let world = createWorld(3, {mortality: "off"});
+    primeForBirth(world);
+    const initialCount = getPopulation(world).length;
+
+    ({world} = advance(world, 5000 * FIXED_DT_MS));
+
+    const grown = getPopulation(world).length - initialCount;
+    expect(grown).toBeGreaterThan(0);
+    expect(getCumulativeBirths(world)).toBe(grown);
+  });
+
+  it("keeps accumulating cumulative births across many advance calls, in the fertile (default) world", () => {
+    let world = createWorld(3, {mortality: "off"});
+    primeForBirth(world);
+    const initialCount = getPopulation(world).length;
+
+    for (let tick = 0; tick < 20; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    const grown = getPopulation(world).length - initialCount;
+    expect(grown).toBeGreaterThan(0);
+    expect(getCumulativeBirths(world)).toBe(grown);
   });
 });

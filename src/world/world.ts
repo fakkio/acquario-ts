@@ -166,6 +166,17 @@ interface WorldState {
    * `measuredAlpha` does.
    */
   readonly cumulativeDeaths: number;
+  /**
+   * How many organisms have been born since this world's creation, summed
+   * across every tick rather than read per-tick, for the same reason
+   * `cumulativeDeaths` is: `advance` can run up to `MAX_TICKS_PER_ADVANCE`
+   * ticks inside one catch-up frame, and a per-tick readout would show only
+   * the last batch's births and silently drop the rest. Only ever advances
+   * in a fertile world — an infertile one never evaluates mitosis at all.
+   * Derived, and nothing in a tick reads it back, so it stays out of
+   * `hashState` for the same reason `cumulativeDeaths` does.
+   */
+  readonly cumulativeBirths: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -203,6 +214,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     // no energy at all would report.
     measuredAlpha: 0,
     cumulativeDeaths: 0,
+    cumulativeBirths: 0,
   });
 }
 
@@ -354,6 +366,7 @@ function runTick(state: WorldState): WorldState {
     tick: state.tick + 1,
     measuredAlpha,
     cumulativeDeaths: state.cumulativeDeaths + remains.length,
+    cumulativeBirths: state.cumulativeBirths + births.length,
   };
 }
 
@@ -541,6 +554,17 @@ export function getZeroEnergyCount(world: World): number {
  */
 export function getCumulativeDeaths(world: World): number {
   return toState(world).cumulativeDeaths;
+}
+
+/**
+ * How many organisms have been born since this world was created —
+ * cumulative, not per-tick, for the same reason `getCumulativeDeaths` is
+ * (see the field's own comment on `WorldState`). Reads 0 for the lifetime
+ * of an infertile world, whose counterpart mode `mortality: "off"` is to
+ * `getCumulativeDeaths`.
+ */
+export function getCumulativeBirths(world: World): number {
+  return toState(world).cumulativeBirths;
 }
 
 /**
