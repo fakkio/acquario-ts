@@ -3,27 +3,39 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {K_CAP, K_CAP_ENERGY, RHO} from "./constants";
+import {
+  GENERATION_0_MUTATION_SCALE,
+  K_CAP,
+  K_CAP_ENERGY,
+  RHO,
+} from "./constants";
+import {
+  BASELINE_GENOME,
+  mutateGenome,
+  type Genome,
+  type MutationOptions,
+} from "./genome";
 import {foldString} from "./hash";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
 
 /**
  * How many organisms `createWorld` places. Generation 0 is placed, not bred:
- * mitosis and the baseline genome it mutates from arrive in M4.
+ * mitosis, arriving with the rest of M4, is what grows the population from
+ * here on.
  */
 export const STARTING_POPULATION = 40;
 
 /**
- * Generation-0 body radii are drawn uniformly between these multiples of the
- * baseline, which is why they sit either side of 1: the baseline has to stay
- * the population's central body, or the length unit the whole calibration
+ * Generation-0 body radii land between these multiples of the baseline,
+ * which is why they sit either side of 1: the baseline has to stay the
+ * population's central body, or the length unit the whole calibration
  * method rests on ends up smaller than the median organism.
  *
- * The spread exists so the `1/r` diffusion coefficient of the motion ticket
- * is visible by eye, and so the grid's cell size has a real largest radius to
- * derive itself from. None of it is heritable: the variation comes from the
- * global stream at placement, and the `Genome` that makes it heritable
- * arrives in M4.
+ * From M4 the spread is a consequence of mutation rather than a placement
+ * rule of its own: each founder is `BASELINE_GENOME` mutated once with every
+ * δ scaled by `GENERATION_0_MUTATION_SCALE` (`createPopulation`), and these
+ * two factors are `createPopulation`'s ceiling and the grid's fallback cell
+ * size rather than a range anything still draws from directly.
  */
 export const MIN_RADIUS_FACTOR = 0.6;
 export const MAX_RADIUS_FACTOR = 1.4;
@@ -63,8 +75,7 @@ export interface OrganismView {
 export interface OrganismInit {
   readonly x: number;
   readonly y: number;
-  readonly bodyRadius: number;
-  readonly lineageHue: number;
+  readonly genome: Genome;
   readonly rng: RngStream;
   /**
    * The four internal resource stores, all defaulting to 0. Left optional
@@ -125,11 +136,13 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
  * moves a body by writing to it, rather than by allocating a replacement
  * population every one of sixty ticks a second.
  *
- * `x`/`y` and `rng` are the state a tick advances. `bodyRadius` and
- * `lineageHue` are fixed for a life: both mutate at reproduction from M4 on,
- * where the child gets its own values, never in place on a living organism.
- * They are plain fields here rather than a `Genome` because nothing in M1
- * reproduces, so nothing in M1 is heritable.
+ * `x`/`y` and `rng` are the state a tick advances. `genome` is fixed for a
+ * life: it changes only at birth, through `mutateGenome`, where the child
+ * gets its own record — never in place on a living organism. `bodyRadius`
+ * and `lineageHue` stay readable as getters over it, so every existing read
+ * of either — in `grid.ts`, `motion.ts`, `metabolism.ts`, `separation.ts`,
+ * `render.ts` and the test fixtures — keeps working untouched, and
+ * `OrganismView` stays exactly what it was.
  *
  * No rotation and no angular velocity: a circle with no organelles has no
  * visible orientation, and rotation arrives in v0.2 with the organelles whose
@@ -143,8 +156,7 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
 export class Organism {
   x: number;
   y: number;
-  readonly bodyRadius: number;
-  readonly lineageHue: number;
+  readonly genome: Genome;
   /** Per ADR-0007, consumed only by this organism, so its sequence depends
    * on its own lineage and not on how many draws the rest of the world made. */
   rng: RngStream;
@@ -156,13 +168,20 @@ export class Organism {
   constructor(init: OrganismInit) {
     this.x = init.x;
     this.y = init.y;
-    this.bodyRadius = init.bodyRadius;
-    this.lineageHue = init.lineageHue;
+    this.genome = init.genome;
     this.rng = init.rng;
     this.energy = init.energy ?? 0;
     this.oxygen = init.oxygen ?? 0;
     this.carbonDioxide = init.carbonDioxide ?? 0;
     this.food = init.food ?? 0;
+  }
+
+  get bodyRadius(): number {
+    return this.genome.bodyRadius;
+  }
+
+  get lineageHue(): number {
+    return this.genome.lineageHue;
   }
 }
 
@@ -210,9 +229,21 @@ export interface PopulationDraw {
 }
 
 /**
- * Places generation 0 from the global stream. Bodies land entirely inside
- * the aquarium; overlaps between them are expected and are the separation
- * ticket's problem, not this one's.
+ * Places generation 0 from the global stream. Each founder is
+ * `BASELINE_GENOME` put through the same mutation operator every later
+ * birth uses, with its probability forced to 1 and every δ scaled by
+ * `GENERATION_0_MUTATION_SCALE` — so no two founders are identical, and the
+ * spread lands in the range M1 already calibrated.
+ *
+ * `lineageHue` is the one gene generation 0 does not inherit: it is drawn
+ * uniformly over `[0, 1)` here, overwriting whatever the operator drifted
+ * it to, because forty founders each one mutation from a single baseline
+ * would sit within a hair of the same hue — forty near-indistinguishable
+ * shades of one colour, in the milestone that introduces the gene whose
+ * whole purpose is making descent visible (`docs/vision.md`).
+ *
+ * Bodies land entirely inside the aquarium; overlaps between them are
+ * expected and are the separation ticket's problem, not this one's.
  */
 export function createPopulation(globalRng: RngStream): PopulationDraw {
   const draws = openDraws(globalRng);
@@ -222,17 +253,17 @@ export function createPopulation(globalRng: RngStream): PopulationDraw {
     // Derived before the placement draws, so an organism's own stream is
     // fixed by its position in the placement order and by nothing else.
     const rng = draws.child();
-    const bodyRadius =
-      BASELINE_BODY_RADIUS *
-      (MIN_RADIUS_FACTOR +
-        draws.unit() * (MAX_RADIUS_FACTOR - MIN_RADIUS_FACTOR));
+    const mutated = draws.mutate(BASELINE_GENOME, {
+      probability: 1,
+      scale: GENERATION_0_MUTATION_SCALE,
+    });
+    const genome: Genome = {...mutated, lineageHue: draws.unit()};
 
     population.push(
       new Organism({
-        x: placeWithin(draws.unit(), AQUARIUM_WIDTH, bodyRadius),
-        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, bodyRadius),
-        bodyRadius,
-        lineageHue: draws.unit() * 360,
+        x: placeWithin(draws.unit(), AQUARIUM_WIDTH, genome.bodyRadius),
+        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, genome.bodyRadius),
+        genome,
         rng,
       }),
     );
@@ -243,9 +274,11 @@ export function createPopulation(globalRng: RngStream): PopulationDraw {
 
 /**
  * Folds every organism's mutable state into the running world hash, so M0's
- * determinism invariant covers bodies and not only the clock. `lineageHue`
- * rides along even though it never changes in M1: it starts drifting in M4,
- * and a field left out here is a field the invariant silently stops testing.
+ * determinism invariant covers bodies and not only the clock. Every gene
+ * folds in, including the two M4 adds — `mitosisEnergyThreshold` and
+ * `childAllocationRatio` — per the rule: what enters the hash is what the
+ * next tick reads, and a gene left out is a gene the invariant silently
+ * stops covering.
  *
  * The four internal stores fold in too, per the rule M2 adds beside
  * `hashState`: what enters the hash is what the next tick *reads*, and
@@ -257,9 +290,10 @@ export function foldPopulation(
 ): number {
   let folded = hash;
   for (const organism of population) {
+    const {genome} = organism;
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(organism.bodyRadius)}|${String(organism.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.bodyRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}`,
     );
   }
 
@@ -272,9 +306,9 @@ function placeWithin(unit: number, span: number, bodyRadius: number): number {
 }
 
 /**
- * A cursor over an immutable stream. Placement makes five draws per organism
- * and threading `stream` through each by hand buries the placement rules
- * under bookkeeping; the cursor keeps the draw *order* — the thing
+ * A cursor over an immutable stream. Placement makes several draws per
+ * organism and threading `stream` through each by hand buries the placement
+ * rules under bookkeeping; the cursor keeps the draw *order* — the thing
  * determinism actually depends on — readable as a list.
  */
 function openDraws(stream: RngStream) {
@@ -290,6 +324,11 @@ function openDraws(stream: RngStream) {
       const derivation = deriveChildStream(current);
       current = derivation.parentStream;
       return derivation.childStream;
+    },
+    mutate(genome: Genome, options?: MutationOptions): Genome {
+      const mutation = mutateGenome(genome, current, options);
+      current = mutation.stream;
+      return mutation.genome;
     },
     stream(): RngStream {
       return current;

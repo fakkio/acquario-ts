@@ -150,3 +150,55 @@ export const EXISTENCE_COST = 1.0;
  * as its own area.
  */
 export const BODY_COST_COEFFICIENT = 1;
+
+/**
+ * M4's mutation constants (ADR-0021): every one provisional, open for M5 to
+ * move, in the style this table already established for M2's constants.
+ */
+
+/**
+ * The probability that any one gene mutates at all, drawn independently per
+ * gene. At four genes, this leaves roughly a third of births exact clones —
+ * `docs/vision.md`'s "some births are exact clones".
+ */
+export const MUTATION_PROBABILITY = 0.25;
+
+/**
+ * `bodyRadius`'s multiplicative step size: a mutation applies `× (1 +
+ * u·δ)` or its reciprocal with equal probability. Chosen, together with
+ * `GENERATION_0_MUTATION_SCALE`, so that scaling it by 5 reproduces
+ * generation 0's `[1/1.4, 1.4]` spread — the range M1 already calibrated —
+ * from a single ordinary birth's step.
+ */
+export const DELTA_BODY_RADIUS = 0.08;
+
+/**
+ * `mitosisEnergyThreshold`'s additive step size, clamped to `[0, 1]`. Small
+ * enough that a lineage's threshold drifts rather than jumps between
+ * strategies in one birth.
+ */
+export const DELTA_MITOSIS_ENERGY_THRESHOLD = 0.05;
+
+/**
+ * `childAllocationRatio`'s additive step size, clamped to `[0, 1]`. Same
+ * order as `DELTA_MITOSIS_ENERGY_THRESHOLD`, for the same reason: both are
+ * dimensionless ratio genes mutating by the same law (ADR-0002).
+ */
+export const DELTA_CHILD_ALLOCATION_RATIO = 0.05;
+
+/**
+ * `lineageHue`'s additive drift, wrapping modulo 1. Slow enough that a
+ * clade reads as one colour from birth to birth, fast enough that a sweep
+ * across the population is visible over hundreds of generations.
+ */
+export const DELTA_LINEAGE_HUE = 0.02;
+
+/**
+ * Multiplies every δ above for generation 0 only, so founders spread across
+ * the range a lineage would otherwise take many generations to explore.
+ * Derived, not picked: `DELTA_BODY_RADIUS × 5 = 0.4` puts founder radii in
+ * `[1/1.4, 1.4]` of the baseline, whose top end is exactly
+ * `MAX_RADIUS_FACTOR` — generation 0's spread stays what M1 calibrated it
+ * to.
+ */
+export const GENERATION_0_MUTATION_SCALE = 5;

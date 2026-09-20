@@ -39,8 +39,12 @@ _Avoid_: colony, swarm, agents, creatures
 ### Genetics
 
 **Genome**:
-The complete heritable description of an organism. In v0.1 a flat record of four fields; from v0.2 a `Gene[]`.
+The complete heritable description of an organism. In v0.1 a flat record of four genes — `bodyRadius`, `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue` — held by the organism and fixed for its life; from v0.2 a `Gene[]`.
 _Avoid_: DNA (in code — fine in prose), chromosome
+
+**Mutation**:
+The change a genome undergoes when it is copied at birth. Applied to the child, drawn from the parent's own stream, before the child's area, costs and caps are computed — never to a living organism, whose genome is fixed for its life. Each gene mutates with its own independent probability, so some births are exact clones.
+_Avoid_: variation, drift (that is what `lineageHue` does), evolution
 
 **Gene**:
 One heritable, independently mutable field of the genome.
@@ -59,11 +63,11 @@ The gene, in `[0, 1]`, giving the fraction of the parent's _remaining_ internal 
 _Avoid_: split ratio, inheritance ratio
 
 **Lineage Hue**:
-A heritable gene with no physiological effect, drifting slightly each generation, rendered as the body's hue. A neutral marker used to make descent visible.
+A heritable gene in `[0, 1)` with no physiological effect, drifting slightly at each birth and wrapping, rendered as the body's hue. A neutral marker used to make descent visible. The one gene generation 0 does not take from the baseline genome: founders draw it across the whole range, because forty founders a single mutation apart would be forty shades of one colour, and a marker that cannot tell them apart is not a marker.
 _Avoid_: colour gene, tag, marker (alone)
 
 **Baseline Genome**:
-The single minimal genome that the generation-0 population is independently mutated from; a _baseline organism_ is one carrying it. Its body radius is the baseline radius, and it sits deliberately below the optimal radius, so a run's first visible story is the population climbing toward one.
+The single minimal genome the generation-0 population is independently mutated from; a _baseline organism_ is one carrying it. It fixes the three functional genes only: `lineageHue` is drawn rather than inherited at generation 0. Its body radius is the baseline radius, and it sits deliberately below the optimal radius, so a run's first visible story is the population climbing toward one.
 _Avoid_: seed genome, ancestor, template
 
 **Baseline Radius**:

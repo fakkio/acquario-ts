@@ -409,7 +409,7 @@ Further details:
 
 ### Initial population
 
-At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. Not identical clones, not fully random genomes — variance from tick zero for selection to act on.
+At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. Not identical clones, not fully random genomes — variance from tick zero for selection to act on. `lineageHue` is the one gene exempt from that common baseline: each founder draws it uniformly over its own range instead of inheriting it, because forty founders each one mutation from a single baseline would be forty near-indistinguishable shades of one colour, and a marker locus that cannot tell them apart is not a marker.
 
 Each organism's initial internal resources are set so that tick 0 is already **diffusive equilibrium**: the three diffusibles start at exactly the ambient concentration, so nothing crosses a membrane until metabolism moves it. A run therefore opens on the thing worth watching rather than on a filling transient.
 

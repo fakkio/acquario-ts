@@ -4,6 +4,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {ExchangeSettlement} from "./environment";
+import {BASELINE_GENOME} from "./genome";
 import type {Pools} from "./ledger";
 import {
   applyMaintenance,
@@ -30,7 +31,8 @@ import {createRngStream, nextRng, type RngStream} from "./rng";
 /**
  * An organism placed by hand. `seed` picks its stream, so a test that cares
  * which numbers a body draws can pin one and a test that only needs a body
- * somewhere can ignore it.
+ * somewhere can ignore it. The two reproduction genes ride along at
+ * `BASELINE_GENOME`'s values; no test in this suite yet cares which.
  */
 export function organismAt(
   x: number,
@@ -41,8 +43,7 @@ export function organismAt(
   return new Organism({
     x,
     y,
-    bodyRadius,
-    lineageHue: 200,
+    genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.5},
     rng: createRngStream(seed),
   });
 }

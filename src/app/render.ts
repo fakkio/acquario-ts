@@ -143,11 +143,12 @@ export function renderWorld(
 /**
  * Untested per ADR-0013's TDD boundary, like everything else that draws.
  *
- * A body's fill colour: `lineageHue` unchanged, brightness carrying the
- * energy fraction linearly between `BODY_LIGHTNESS_FLOOR` and
- * `BODY_LIGHTNESS_FULL`. No perceptual compression the way
- * `waterFillAt` applies to light — the energy fraction is already linear
- * in `[0, 1]`, with no orders-of-magnitude spread to compress.
+ * A body's fill colour: `lineageHue` converted from the genome's `[0, 1)`
+ * unit to the degrees `hsl()` expects, brightness carrying the energy
+ * fraction linearly between `BODY_LIGHTNESS_FLOOR` and `BODY_LIGHTNESS_FULL`.
+ * No perceptual compression the way `waterFillAt` applies to light — the
+ * energy fraction is already linear in `[0, 1]`, with no orders-of-magnitude
+ * spread to compress.
  */
 function bodyFillFor(organism: OrganismView): string {
   const energyFraction = organism.energy / capFor(organism, "energy");
@@ -155,7 +156,7 @@ function bodyFillFor(organism: OrganismView): string {
     BODY_LIGHTNESS_FLOOR +
     (BODY_LIGHTNESS_FULL - BODY_LIGHTNESS_FLOOR) * energyFraction;
 
-  return `hsl(${String(organism.lineageHue)}, 70%, ${String(lightness)}%)`;
+  return `hsl(${String(organism.lineageHue * 360)}, 70%, ${String(lightness)}%)`;
 }
 
 /**
