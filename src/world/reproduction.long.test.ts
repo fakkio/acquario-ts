@@ -71,7 +71,8 @@ import {
  * Run unprimed at `{mortality: "on", fertility: "on"}`, 40 founders lose
  * 39 to starvation by tick 11k, one survivor rides out to 20k, and not one
  * birth ever fires — the founders' food never climbs past roughly 12% of
- * cap, confirming the ratio measured above from the other side. That is
+ * cap, the same order as the ~6% measured above from the other side
+ * (primed, immortal, infertile). That is
  * not a tuning miss `MITOSIS_ENERGY_COST` or `mitosisEnergyThreshold` can
  * close: both gate the *energy* check in `evaluateMitosis`, and the wall
  * here is the *food* check — `mitosisMassCost = ρ × childArea`, forced by
