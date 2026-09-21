@@ -6,6 +6,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {K_CAP, K_CAP_ENERGY} from "./constants";
+import {BASELINE_GENOME, type Genome} from "./genome";
 import {EMPTY_HASH} from "./hash";
 import {
   MAX_RADIUS_FACTOR,
@@ -42,7 +43,7 @@ describe("createPopulation", () => {
     }
   });
 
-  it("varies body radius around the baseline, within the stated factors", () => {
+  it("varies body radius around the baseline, within the spread M1 calibrated", () => {
     const radii = populationFor(7).map((organism) => organism.bodyRadius);
 
     for (const radius of radii) {
@@ -57,15 +58,36 @@ describe("createPopulation", () => {
     expect(new Set(radii).size).toBeGreaterThan(1);
   });
 
-  it("gives every organism a distinct hue inside the colour wheel", () => {
+  // Founders are independently mutated from one baseline genome, so the
+  // three functional genes have to tell them apart pairwise — a marker that
+  // cannot distinguish forty founders is not a marker.
+  it("gives founders pairwise-distinct values in all three functional genes", () => {
+    const population = populationFor(7);
+    const bodyRadii = population.map((organism) => organism.genome.bodyRadius);
+    const thresholds = population.map(
+      (organism) => organism.genome.mitosisEnergyThreshold,
+    );
+    const ratios = population.map(
+      (organism) => organism.genome.childAllocationRatio,
+    );
+
+    expect(new Set(bodyRadii).size).toBe(STARTING_POPULATION);
+    expect(new Set(thresholds).size).toBe(STARTING_POPULATION);
+    expect(new Set(ratios).size).toBe(STARTING_POPULATION);
+  });
+
+  it("draws lineageHue uniformly over [0, 1), spread rather than clustered", () => {
     const hues = populationFor(7).map((organism) => organism.lineageHue);
 
     for (const hue of hues) {
       expect(hue).toBeGreaterThanOrEqual(0);
-      expect(hue).toBeLessThan(360);
+      expect(hue).toBeLessThan(1);
     }
 
     expect(new Set(hues).size).toBeGreaterThan(1);
+    // A baseline-inherited hue would sit within one mutation step of a
+    // single value; a uniform draw spreads across most of the wheel.
+    expect(Math.max(...hues) - Math.min(...hues)).toBeGreaterThan(0.5);
   });
 
   it("gives every organism its own stream, distinct from every other one's", () => {
@@ -94,12 +116,16 @@ describe("createPopulation", () => {
 });
 
 describe("foldPopulation", () => {
-  const organismWith = (init: Partial<OrganismInit>) =>
+  const BASE_GENOME: Genome = {...BASELINE_GENOME, lineageHue: 0.5};
+
+  const organismWith = (
+    genomeChange: Partial<Genome> = {},
+    init: Partial<OrganismInit> = {},
+  ) =>
     new Organism({
       x: 3,
       y: 4,
-      bodyRadius: 1,
-      lineageHue: 200,
+      genome: {...BASE_GENOME, ...genomeChange},
       rng: createRngStream(11),
       ...init,
     });
@@ -108,40 +134,62 @@ describe("foldPopulation", () => {
     foldPopulation(EMPTY_HASH, [organism]);
 
   it("folds an unchanged organism to the same value", () => {
-    expect(foldOne(organismWith({}))).toBe(foldOne(organismWith({})));
+    expect(foldOne(organismWith())).toBe(foldOne(organismWith()));
   });
 
   // Each of these is one clause of M0's determinism invariant, now that it
   // covers bodies: a field left out of the fold is a field two divergent
   // runs could differ in while still hashing the same.
   it.each([
+    ["body radius", {bodyRadius: BASE_GENOME.bodyRadius + 0.0000001}],
+    [
+      "mitosis energy threshold",
+      {mitosisEnergyThreshold: BASE_GENOME.mitosisEnergyThreshold + 0.0000001},
+    ],
+    [
+      "child allocation ratio",
+      {childAllocationRatio: BASE_GENOME.childAllocationRatio + 0.0000001},
+    ],
+    ["lineage hue", {lineageHue: BASE_GENOME.lineageHue + 0.0000001}],
+  ])("changes when %s changes", (_field, genomeChange) => {
+    expect(foldOne(organismWith(genomeChange))).not.toBe(
+      foldOne(organismWith()),
+    );
+  });
+
+  it.each([
     ["position x", {x: 3.0000001}],
     ["position y", {y: 4.0000001}],
-    ["body radius", {bodyRadius: 1.0000001}],
-    ["lineage hue", {lineageHue: 201}],
     ["stream state", {rng: createRngStream(12)}],
     ["energy", {energy: 0.0000001}],
     ["oxygen", {oxygen: 0.0000001}],
     ["carbon dioxide", {carbonDioxide: 0.0000001}],
     ["food", {food: 0.0000001}],
   ])("changes when %s changes", (_field, change) => {
-    expect(foldOne(organismWith(change))).not.toBe(foldOne(organismWith({})));
+    expect(foldOne(organismWith({}, change))).not.toBe(foldOne(organismWith()));
   });
 });
 
 describe("internal resource stores", () => {
-  const organismWith = (init: Partial<OrganismInit>) =>
+  const organismWith = (
+    genomeChange: Partial<Genome> = {},
+    init: Partial<OrganismInit> = {},
+  ) =>
     new Organism({
       x: 3,
       y: 4,
-      bodyRadius: 2,
-      lineageHue: 200,
+      genome: {
+        ...BASELINE_GENOME,
+        bodyRadius: 2,
+        lineageHue: 0.5,
+        ...genomeChange,
+      },
       rng: createRngStream(11),
       ...init,
     });
 
   it("default to zero, since only initializeMetabolism fills generation 0", () => {
-    const organism = organismWith({});
+    const organism = organismWith();
 
     expect(organism.energy).toBe(0);
     expect(organism.oxygen).toBe(0);
@@ -150,17 +198,14 @@ describe("internal resource stores", () => {
   });
 
   it("derives body area from body radius", () => {
-    expect(bodyArea(organismWith({bodyRadius: 2}))).toBeCloseTo(
-      Math.PI * 4,
-      12,
-    );
+    expect(bodyArea(organismWith())).toBeCloseTo(Math.PI * 4, 12);
   });
 
   // ρ = 1 by construction, so mass and area coincide, but bodyMass is its
   // own function rather than a stored field: nothing on Organism holds a
   // mass a caller could let drift out of step with bodyRadius.
   it("derives body mass from body area, with no stored field of its own", () => {
-    const organism = organismWith({bodyRadius: 2});
+    const organism = organismWith();
 
     expect(bodyMass(organism)).toBeCloseTo(bodyArea(organism), 12);
     expect(
@@ -169,7 +214,7 @@ describe("internal resource stores", () => {
   });
 
   it("caps the three diffusibles at K_CAP times body area", () => {
-    const organism = organismWith({bodyRadius: 2});
+    const organism = organismWith();
     const expectedCap = K_CAP * bodyArea(organism);
 
     expect(capFor(organism, "oxygen")).toBeCloseTo(expectedCap, 12);
@@ -178,7 +223,7 @@ describe("internal resource stores", () => {
   });
 
   it("caps energy at its own coefficient rather than sharing K_CAP", () => {
-    const organism = organismWith({bodyRadius: 2});
+    const organism = organismWith();
 
     expect(capFor(organism, "energy")).toBeCloseTo(
       K_CAP_ENERGY * bodyArea(organism),

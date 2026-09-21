@@ -54,11 +54,13 @@ interface LongRun {
   readonly alphaSamples: readonly AlphaSample[];
 }
 
-// Run in the immortal world explicitly (ADR-0017): this gate is M2's, and
-// it keeps running in a world with no death code in it at all, regardless
-// of what M3 makes the default elsewhere.
+// Run in the fixed-population world explicitly (ADR-0017, ADR-0020): this
+// gate is M2's, and it keeps running in a world with no death or birth code
+// in it at all, regardless of what M3 and M4 make the default elsewhere —
+// `mortality: "off"` alone stopped being enough for that once mitosis could
+// grow the population, ADR-0020's whole reason for existing.
 function runLong(seed: number): LongRun {
-  let world: World = createWorld(seed, {mortality: "off"});
+  let world: World = createWorld(seed, {mortality: "off", fertility: "off"});
   const alphaSamples: AlphaSample[] = [];
 
   for (let tick = 1; tick <= TICKS; tick++) {

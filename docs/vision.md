@@ -409,7 +409,7 @@ Further details:
 
 ### Initial population
 
-At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. Not identical clones, not fully random genomes — variance from tick zero for selection to act on.
+At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. Not identical clones, not fully random genomes — variance from tick zero for selection to act on. `lineageHue` is the one gene exempt from that common baseline: each founder draws it uniformly over its own range instead of inheriting it, because forty founders each one mutation from a single baseline would be forty near-indistinguishable shades of one colour, and a marker locus that cannot tell them apart is not a marker.
 
 Each organism's initial internal resources are set so that tick 0 is already **diffusive equilibrium**: the three diffusibles start at exactly the ambient concentration, so nothing crosses a membrane until metabolism moves it. A run therefore opens on the thing worth watching rather than on a filling transient.
 
@@ -508,14 +508,14 @@ PHASE 2 — per organism, in index order (no writes to the world)
   4. respiration            food + O₂ → energy + CO₂       (internal state only)
   5. maintenance            energy −= (c₀ + β·area) × dt
   6. brownian motion        draw a direction, position += force / drag
-  7. evaluate mitosis       → enqueue a pending birth
+  7. evaluate mitosis       → mutate, price, debit the parent, enqueue a pending birth
   8. evaluate death         → freeze remains, enqueue a pending death
 
 PHASE 3 — commit
   9.  apply the delta buffer (proportional scaling if a pool would go negative)
   10. collisions and wall constraints
   11. apply deaths  → return body mass and internal contents to the pools
-  12. apply births  → mutate the genome, pay the costs, append to the population
+  12. apply births  → construct each pending child, constrain it to the aquarium, append
   13. tick++
 ```
 

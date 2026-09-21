@@ -15,6 +15,7 @@ import {
   applyPhotosynthesis,
   applyRespiration,
 } from "./metabolism";
+import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   STARTING_POPULATION,
@@ -37,6 +38,7 @@ import {
   advance,
   createWorld,
   getCarbonDrift,
+  getCumulativeBirths,
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
@@ -328,6 +330,14 @@ describe("collisions", () => {
    * once per organism, then one separation over the grid as it stands after
    * motion, then the wall constraint. Any tick that ran them twice, in the
    * other order, or against a grid built before motion, lands somewhere else.
+   *
+   * Run infertile (M4): the hand-rolled pipeline below replicates steps 2
+   * through 6 and step 10 only, never step 7 or step 12, so a world left at
+   * the default fertility could legitimately diverge from it the moment one
+   * organism crosses its mitosis threshold — a real birth, not a bug, but
+   * one this equality has no way to replicate. Mortality is left at its
+   * default deliberately: no organism starves in 60 ticks from a standing
+   * start either, so there is nothing here for it to diverge on.
    */
   it("runs motion, one separation pass and the wall constraint, once each per tick", () => {
     const SEED = 8;
@@ -355,7 +365,7 @@ describe("collisions", () => {
     }
 
     const {world, ticksRun} = advance(
-      createWorld(SEED),
+      createWorld(SEED, {fertility: "off"}),
       PIPELINE_TICKS * FIXED_DT_MS,
     );
 
@@ -710,12 +720,16 @@ describe("respiration and maintenance (M2)", () => {
   });
 });
 
+// M4 (ADR-0020): fertility is a mode independent of mortality, precisely so
+// this whole block can go on meaning "death without birth" — every world
+// built here now says `fertility: "off"` explicitly, and the interaction
+// between the two modes gets its own "fertility mode (M4)" block below.
 describe("mortality mode (M3)", () => {
   // ADR-0017: the floor is a property of the immortal world, not of
   // maintenance itself, so this M2 invariant now has to ask for that world
   // explicitly rather than get it as `createWorld`'s default.
   it("never lets an organism's energy go negative, over a long run, in the immortal world", () => {
-    let world = createWorld(3, {mortality: "off"});
+    let world = createWorld(3, {mortality: "off", fertility: "off"});
 
     for (let tick = 0; tick < 2000; tick++) {
       ({world} = advance(world, FIXED_DT_MS));
@@ -731,7 +745,7 @@ describe("mortality mode (M3)", () => {
   // observable holding negative energy — a long run instead shows the
   // population having shrunk.
   it("never lets a surviving organism's energy go negative, and shrinks the population, over a long run, in the mortal (default) world", () => {
-    let world = createWorld(3);
+    let world = createWorld(3, {fertility: "off"});
     const initialCount = getPopulation(world).length;
 
     for (let tick = 0; tick < 2000; tick++) {
@@ -750,7 +764,7 @@ describe("mortality mode (M3)", () => {
   // organism yet either way, but the invariant this test is naming is
   // specifically the immortal world's.
   it("keeps the population count identical at tick 0 and after a long run, in the immortal world", () => {
-    let world = createWorld(3, {mortality: "off"});
+    let world = createWorld(3, {mortality: "off", fertility: "off"});
     const initialCount = getPopulation(world).length;
 
     ({world} = advance(world, 2000 * FIXED_DT_MS));
@@ -762,7 +776,7 @@ describe("mortality mode (M3)", () => {
   // the ticket and ADR-0017): in the mortal default, energy passes straight
   // through zero to negative, so nothing rests there to be counted.
   it("counts organisms sitting at exactly zero energy, in the immortal world", () => {
-    let world = createWorld(3, {mortality: "off"});
+    let world = createWorld(3, {mortality: "off", fertility: "off"});
 
     ({world} = advance(world, 2000 * FIXED_DT_MS));
 
@@ -777,7 +791,7 @@ describe("mortality mode (M3)", () => {
   // in the mortal default nothing ever rests at exactly zero, so the
   // readout stays 0 even once the population has visibly shrunk.
   it("reads 0 for getZeroEnergyCount in the mortal (default) world, even once organisms have died", () => {
-    let world = createWorld(3);
+    let world = createWorld(3, {fertility: "off"});
     const initialCount = getPopulation(world).length;
 
     ({world} = advance(world, 2000 * FIXED_DT_MS));
@@ -787,7 +801,7 @@ describe("mortality mode (M3)", () => {
   });
 
   it("reads 0 for getCumulativeDeaths for the lifetime of the immortal world", () => {
-    let world = createWorld(3, {mortality: "off"});
+    let world = createWorld(3, {mortality: "off", fertility: "off"});
 
     ({world} = advance(world, 2000 * FIXED_DT_MS));
 
@@ -802,7 +816,7 @@ describe("mortality mode (M3)", () => {
   // inside one such batch rather than depending on the default population's
   // placement to produce a death in time.
   it("counts every death inside a single catch-up batch, matching exactly how far the population shrank", () => {
-    const world = createWorld(3);
+    const world = createWorld(3, {fertility: "off"});
     const initialCount = getPopulation(world).length;
     for (const organism of getPopulation(world) as unknown as Organism[]) {
       organism.y = AQUARIUM_HEIGHT - 2;
@@ -816,7 +830,7 @@ describe("mortality mode (M3)", () => {
   });
 
   it("keeps accumulating cumulative deaths across many advance calls, in the mortal (default) world", () => {
-    let world = createWorld(3);
+    let world = createWorld(3, {fertility: "off"});
     const initialCount = getPopulation(world).length;
 
     for (let tick = 0; tick < 2000; tick++) {
@@ -826,5 +840,217 @@ describe("mortality mode (M3)", () => {
     const lost = initialCount - getPopulation(world).length;
     expect(lost).toBeGreaterThan(0);
     expect(getCumulativeDeaths(world)).toBe(lost);
+  });
+});
+
+describe("fertility mode (M4)", () => {
+  // Boosts every organism straight past mitosis's threshold gate and both
+  // physical requirements, so a birth is imminent rather than a matter of
+  // waiting out thousands of ticks of differentiation — the same trick
+  // `mortality mode (M3)`'s catch-up test already plays on `y` to force a
+  // death quickly.
+  function primeForBirth(world: World): void {
+    for (const organism of getPopulation(world) as unknown as Organism[]) {
+      organism.energy = capFor(organism, "energy");
+      organism.food = capFor(organism, "food");
+    }
+  }
+
+  it("grows the population once organisms have enough energy and food to breed", () => {
+    let world = createWorld(3);
+    primeForBirth(world);
+    const initialCount = getPopulation(world).length;
+
+    ({world} = advance(world, 20 * FIXED_DT_MS));
+
+    expect(getPopulation(world).length).toBeGreaterThan(initialCount);
+  });
+
+  // The invariant `motion`'s "never lets a body cross the aquarium
+  // boundary" test already exercises over a long default run — this is the
+  // same claim, forced to actually cover a birth tick rather than trusting
+  // one occurred somewhere in 2000 ticks by chance.
+  it("never lets a newborn land outside the aquarium, births included", () => {
+    let world = createWorld(3);
+    primeForBirth(world);
+    let worstSoFar = Number.NEGATIVE_INFINITY;
+
+    for (let tick = 0; tick < 30; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      worstSoFar = Math.max(worstSoFar, worstExcursion(getPopulation(world)));
+    }
+
+    expect(getPopulation(world).length).toBeGreaterThan(STARTING_POPULATION);
+    expect(worstSoFar).toBeLessThanOrEqual(0);
+  });
+
+  // The short-run counterpart of "carbon ledger (M2)"'s check, now with
+  // births actually growing the population inside the window measured —
+  // mitosis moves mass only between a parent's own stores and its child's,
+  // never through a pool, so the ledger has to hold exactly as it did
+  // before reproduction existed.
+  //
+  // Measured against a baseline struck *after* `primeForBirth`, not against
+  // `getWorldCarbonDrift`'s tick-0 one: priming pours carbon into every
+  // organism's stores by hand, outside the tick pipeline and without
+  // touching a pool, which is a deliberate unbalancing of this test's own
+  // setup rather than anything the simulation is supposed to conserve
+  // through.
+  it("conserves carbon and oxygen within tolerance over a short run in which the population grows", () => {
+    // `totalCarbon`/`totalOxygen` read real `Organism[]`, not the read-only
+    // `OrganismView[]` the world hands the App layer — the same cast
+    // `primeForBirth` uses above, and for the same reason: this test's own
+    // business is with the mutable population, not with what a renderer
+    // would be allowed to see.
+    const population = (world: World) =>
+      getPopulation(world) as unknown as Organism[];
+
+    let world = createWorld(3);
+    primeForBirth(world);
+    const referenceCarbon = totalCarbon(
+      population(world),
+      getPoolLevels(world),
+    );
+    const referenceOxygen = totalOxygen(
+      population(world),
+      getPoolLevels(world),
+    );
+    let peakPopulation = getPopulation(world).length;
+
+    for (let tick = 0; tick < 500; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+      const carbonDrift =
+        Math.abs(
+          totalCarbon(population(world), getPoolLevels(world)) -
+            referenceCarbon,
+        ) / referenceCarbon;
+      const oxygenDrift =
+        Math.abs(
+          totalOxygen(population(world), getPoolLevels(world)) -
+            referenceOxygen,
+        ) / referenceOxygen;
+      expect(carbonDrift).toBeLessThan(1e-9);
+      expect(oxygenDrift).toBeLessThan(1e-9);
+      peakPopulation = Math.max(peakPopulation, getPopulation(world).length);
+    }
+
+    // A population primed to breed immediately can boom and then correct —
+    // that is a real ecological outcome (see the ticket's own risk note),
+    // not a defect — so the growth claim is checked against the run's peak
+    // rather than against wherever the population happens to sit at the
+    // end of the window.
+    expect(peakPopulation).toBeGreaterThan(STARTING_POPULATION);
+  });
+
+  // M0's determinism invariant, now that the hash covers births too.
+  it("reaches the same hash at tick N in two runs from the same seed, once births are in the mix", () => {
+    const runTo = (seed: number) => {
+      let world = createWorld(seed);
+      primeForBirth(world);
+      for (let tick = 0; tick < 20; tick++) {
+        ({world} = advance(world, FIXED_DT_MS));
+      }
+      return hashState(world);
+    };
+
+    expect(runTo(3)).toBe(runTo(3));
+  });
+
+  // ADR-0019's order-independence guarantee, exercised head-on: a
+  // population priced to breed within a handful of ticks, so at least two
+  // organisms almost certainly breed on the same tick, has to leave the
+  // pools bit-identical whichever order it is held in — the M4 counterpart
+  // of `death.test.ts`'s deposit test and `world.test.ts`'s own exchange
+  // and metabolism versions above. Mitosis never calls `Environment.exchange`
+  // and `appendBirths` never touches a pool, so this is also a check that
+  // wiring mitosis into the pipeline did not quietly change that.
+  it("leaves the pools bit-identical whatever order a population primed to breed is held in", () => {
+    const seedPopulation = (): {population: Organism[]; pools: Pools} => {
+      const population = randomPopulation(21, 20);
+      const pools = initializeMetabolism(population);
+      for (const organism of population) {
+        organism.energy = capFor(organism, "energy");
+        organism.food = capFor(organism, "food");
+      }
+      return {population, pools};
+    };
+
+    const runFertileTicks = (
+      population: readonly Organism[],
+      pools: Pools,
+      ticks: number,
+    ): {population: readonly Organism[]; pools: Pools} => {
+      let currentPopulation = population;
+      let currentPools = pools;
+      for (let tick = 0; tick < ticks; tick++) {
+        currentPools = runMetabolism(currentPopulation, currentPools);
+        for (const organism of currentPopulation) {
+          applyBrownianMotion(organism);
+        }
+        const births = currentPopulation
+          .map((organism) => evaluateMitosis(organism))
+          .filter((birth): birth is PendingBirth => birth !== null);
+        separateOverlaps(
+          currentPopulation,
+          buildUniformGrid(currentPopulation),
+        );
+        for (const organism of currentPopulation) {
+          constrainToAquarium(organism);
+        }
+        currentPopulation = appendBirths(currentPopulation, births);
+      }
+      return {population: currentPopulation, pools: currentPools};
+    };
+
+    const {population: inOrder, pools: poolsA} = seedPopulation();
+    const {population: reference, pools: poolsB} = seedPopulation();
+    const shuffled = shuffle([...reference], createRngStream(4242));
+
+    const resultA = runFertileTicks(inOrder, poolsA, 5);
+    const resultB = runFertileTicks(shuffled, poolsB, 5);
+
+    expect(shuffled).not.toEqual(reference);
+    // The scenario this test claims to exercise actually happened.
+    expect(resultA.population.length).toBeGreaterThan(inOrder.length);
+    expect(resultB.pools).toEqual(resultA.pools);
+  });
+
+  it("reads 0 for getCumulativeBirths for the lifetime of the infertile world", () => {
+    let world = createWorld(3, {fertility: "off"});
+
+    ({world} = advance(world, 2000 * FIXED_DT_MS));
+
+    expect(getCumulativeBirths(world)).toBe(0);
+  });
+
+  // The count a catch-up `advance` call has to get right: `advance` runs up
+  // to `MAX_TICKS_PER_ADVANCE` ticks inside a single call, and a readout
+  // written per-tick rather than accumulated would show only the last
+  // tick's crop of newborns. Immortal so growth is births alone, the same
+  // isolation `mortality mode (M3)`'s catch-up test uses in reverse.
+  it("counts every birth inside a single catch-up batch, matching exactly how far the population grew", () => {
+    let world = createWorld(3, {mortality: "off"});
+    primeForBirth(world);
+    const initialCount = getPopulation(world).length;
+
+    ({world} = advance(world, 5000 * FIXED_DT_MS));
+
+    const grown = getPopulation(world).length - initialCount;
+    expect(grown).toBeGreaterThan(0);
+    expect(getCumulativeBirths(world)).toBe(grown);
+  });
+
+  it("keeps accumulating cumulative births across many advance calls, in the fertile (default) world", () => {
+    let world = createWorld(3, {mortality: "off"});
+    primeForBirth(world);
+    const initialCount = getPopulation(world).length;
+
+    for (let tick = 0; tick < 20; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    const grown = getPopulation(world).length - initialCount;
+    expect(grown).toBeGreaterThan(0);
+    expect(getCumulativeBirths(world)).toBe(grown);
   });
 });

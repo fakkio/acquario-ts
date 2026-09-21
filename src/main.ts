@@ -9,6 +9,7 @@ import {createSession, isRestartDue} from "./app/session";
 import {
   createWorld,
   getCarbonDrift,
+  getCumulativeBirths,
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
@@ -59,11 +60,6 @@ const updateHud = (currentWorld: World, fps: number): void => {
   hud.setField("fps", "FPS", fps.toFixed(0));
   hud.setField("tick", "Tick", String(getTick(currentWorld)));
   hud.setField("seed", "Seed", String(getSeed(currentWorld)));
-  hud.setField(
-    "population",
-    "Population",
-    String(getPopulation(currentWorld).length),
-  );
   // M1's invariant, live: how deep the worst-overlapping pair stands, in
   // baseline body radii. Three decimals, because what the row is watched for
   // is whether the number sits at zero or holds a floor — not what its fourth
@@ -94,6 +90,16 @@ const updateHud = (currentWorld: World, fps: number): void => {
     "Zero-energy",
     String(getZeroEnergyCount(currentWorld)),
   );
+  // Population, births and deaths are set together (ticket #30) so they
+  // read on the HUD as one group: population is the number that finally
+  // moves once a world can grow, and it only means something read beside
+  // how it got there.
+  hud.setField(
+    "population",
+    "Population",
+    String(getPopulation(currentWorld).length),
+  );
+  hud.setField("births", "Births", String(getCumulativeBirths(currentWorld)));
   hud.setField("deaths", "Deaths", String(getCumulativeDeaths(currentWorld)));
   // Smoothed here, in the App layer, per ADR-0015: a moving average kept in
   // the world would be state crossing tick boundaries with no reader inside

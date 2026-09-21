@@ -4,6 +4,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {ExchangeSettlement} from "./environment";
+import {BASELINE_GENOME} from "./genome";
 import type {Pools} from "./ledger";
 import {
   applyMaintenance,
@@ -12,7 +13,7 @@ import {
   applyRespiration,
 } from "./metabolism";
 import {
-  MAX_BODY_RADIUS,
+  GENERATION_0_MAX_BODY_RADIUS,
   MIN_RADIUS_FACTOR,
   Organism,
   type OrganismView,
@@ -30,7 +31,8 @@ import {createRngStream, nextRng, type RngStream} from "./rng";
 /**
  * An organism placed by hand. `seed` picks its stream, so a test that cares
  * which numbers a body draws can pin one and a test that only needs a body
- * somewhere can ignore it.
+ * somewhere can ignore it. The two reproduction genes ride along at
+ * `BASELINE_GENOME`'s values; no test in this suite yet cares which.
  */
 export function organismAt(
   x: number,
@@ -41,8 +43,7 @@ export function organismAt(
   return new Organism({
     x,
     y,
-    bodyRadius,
-    lineageHue: 200,
+    genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.5},
     rng: createRngStream(seed),
   });
 }
@@ -65,10 +66,11 @@ export function shuffle(items: Organism[], stream: RngStream): Organism[] {
 }
 
 /**
- * The smallest body the world allows, the counterpart of `MAX_BODY_RADIUS`.
- * It lives here rather than beside its opposite in `organism.ts` because
- * nothing the simulation does needs it: the grid derives its cell size from
- * the largest body, and only tests ever ask how small a body can be.
+ * The smallest body generation 0 places, the counterpart of
+ * `GENERATION_0_MAX_BODY_RADIUS`. It lives here rather than beside its
+ * opposite in `organism.ts` because nothing the simulation does needs it: the
+ * grid derives its cell size from whichever body is largest at build time,
+ * and only tests ever ask how small a body can be.
  */
 export const MIN_BODY_RADIUS = MIN_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
 
@@ -98,7 +100,7 @@ export function randomPopulation(
   seed: number,
   size: number,
   minRadius = MIN_BODY_RADIUS,
-  maxRadius = MAX_BODY_RADIUS,
+  maxRadius = GENERATION_0_MAX_BODY_RADIUS,
 ): Organism[] {
   const draw = openDraws(seed);
   const population: Organism[] = [];

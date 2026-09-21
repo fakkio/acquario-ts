@@ -1,6 +1,6 @@
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 import type {Organism} from "./organism";
-import {nextRng, type RngStream} from "./rng";
+import {drawUnitVector} from "./rng";
 
 /**
  * How bodies move, per ADR-0008: overdamped, at low Reynolds number.
@@ -41,59 +41,13 @@ const BROWNIAN_FORCE = 2;
  * and its own stream — which is what lets the phase run in any order.
  */
 export function applyBrownianMotion(organism: Organism): void {
-  const direction = drawDirection(organism.rng);
+  const direction = drawUnitVector(organism.rng);
   organism.rng = direction.stream;
 
   const velocity = BROWNIAN_FORCE / (DRAG_PER_RADIUS * organism.bodyRadius);
 
   organism.x += direction.x * velocity;
   organism.y += direction.y * velocity;
-}
-
-/**
- * A uniformly distributed unit vector, by rejection sampling the unit disc:
- * draw a point in the square, keep it if it landed inside the circle,
- * normalise. Roughly a fifth of draws are thrown away, and the loop consumes a
- * number of draws that varies from tick to tick.
- *
- * The obvious alternative — draw an angle and take its cosine and sine — is
- * one draw and no loop, and it is rejected on ADR-0007's grounds. That ADR
- * settles for same-engine determinism precisely because `Math.sin` and friends
- * are implementation-defined to the last ulp, and records as the consequence
- * that v0.1's inner loop is left "using arithmetic only", so the remaining gap
- * to bit-portability is "one table to freeze rather than an audit of every
- * formula". Putting a transcendental in the hottest loop in the simulation
- * would not break the guarantee as stated, but it would quietly cost that
- * consequence. Every operation below is drawn from the `+ − × ÷ sqrt` set the
- * same ADR names as bit-identical everywhere.
- *
- * The varying draw count costs nothing: per-organism streams are exactly what
- * ADR-0007 introduces so that changing how many numbers brownian motion
- * consumes cannot shift any other organism's sequence.
- */
-function drawDirection(stream: RngStream): {
-  readonly x: number;
-  readonly y: number;
-  readonly stream: RngStream;
-} {
-  let current = stream;
-
-  for (;;) {
-    const drawX = nextRng(current);
-    const drawY = nextRng(drawX.stream);
-    current = drawY.stream;
-
-    const x = drawX.value * 2 - 1;
-    const y = drawY.value * 2 - 1;
-    const lengthSquared = x * x + y * y;
-
-    // Outside the disc would bias the direction toward the square's corners;
-    // dead centre has no direction to point in at all.
-    if (lengthSquared > 0 && lengthSquared <= 1) {
-      const length = Math.sqrt(lengthSquared);
-      return {x: x / length, y: y / length, stream: current};
-    }
-  }
 }
 
 /**

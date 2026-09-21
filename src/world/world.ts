@@ -16,6 +16,7 @@ import {
   applyRespiration,
   type RespirationOutcome,
 } from "./metabolism";
+import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -53,6 +54,10 @@ const EPSILON_MS = 1e-9;
 /** What the immortal world hands step 8: nothing is ever condemned there. */
 const NO_REMAINS: readonly Remains[] = [];
 
+/** What an infertile world hands step 7: nobody is ever evaluated for
+ * mitosis there — see `FertilityMode`. */
+const NO_BIRTHS: readonly PendingBirth[] = [];
+
 /**
  * Whether a world lets energy fall below zero. `"off"` is the **immortal
  * world** (ADR-0017): an instrument, not M2 scaffolding — ADR-0015 measures
@@ -66,8 +71,25 @@ const NO_REMAINS: readonly Remains[] = [];
  */
 export type MortalityMode = "on" | "off";
 
+/**
+ * Whether a world's organisms reproduce (ADR-0020, glossary: Fertility).
+ * `"off"` is not sterility as a trait: no organism in such a world
+ * evaluates mitosis at all, the same way `mortality: "off"` never lets an
+ * organism reach the death predicate. `"on"` is the default from M4 — a
+ * population can grow for the first time in the project's history.
+ *
+ * Independent of `MortalityMode`, deliberately: they are two different
+ * mechanisms, one a floor under energy and the other a step in the resolve
+ * phase, and collapsing them into one flag would mean `mortality` silently
+ * controlling something that is not mortality. A world constructed with
+ * both off is ADR-0020's **Fixed Population** — ADR-0015's instrument,
+ * where `α` is measured free of any selection.
+ */
+export type FertilityMode = "on" | "off";
+
 export interface WorldOptions {
   readonly mortality?: MortalityMode;
+  readonly fertility?: FertilityMode;
 }
 
 declare const worldBrand: unique symbol;
@@ -102,6 +124,12 @@ interface WorldState {
    * invalidate every hash M2 recorded, for nothing.
    */
   readonly mortality: MortalityMode;
+  /**
+   * The world's fertility mode (ADR-0020). Deliberately **not** folded into
+   * `hashState`, for the same reason `mortality` is not: a hash identifies
+   * a state, not the law that produced it.
+   */
+  readonly fertility: FertilityMode;
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
@@ -138,6 +166,17 @@ interface WorldState {
    * `measuredAlpha` does.
    */
   readonly cumulativeDeaths: number;
+  /**
+   * How many organisms have been born since this world's creation, summed
+   * across every tick rather than read per-tick, for the same reason
+   * `cumulativeDeaths` is: `advance` can run up to `MAX_TICKS_PER_ADVANCE`
+   * ticks inside one catch-up frame, and a per-tick readout would show only
+   * the last batch's births and silently drop the rest. Only ever advances
+   * in a fertile world — an infertile one never evaluates mitosis at all.
+   * Derived, and nothing in a tick reads it back, so it stays out of
+   * `hashState` for the same reason `cumulativeDeaths` does.
+   */
+  readonly cumulativeBirths: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -166,6 +205,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     accumulatorMs: 0,
     globalRng: stream,
     mortality: options.mortality ?? "on",
+    fertility: options.fertility ?? "on",
     population,
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
@@ -174,6 +214,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     // no energy at all would report.
     measuredAlpha: 0,
     cumulativeDeaths: 0,
+    cumulativeBirths: 0,
   });
 }
 
@@ -263,7 +304,20 @@ function runTick(state: WorldState): WorldState {
   for (const organism of state.population) {
     applyBrownianMotion(organism);
   }
-  // 7. Evaluate mitosis, enqueue — M4.
+  // 7. Evaluate mitosis: per organism, writing only to that organism —
+  //    exactly like the steps above — and enqueuing a pending birth
+  //    (ADR-0019). Runs *before* step 8 reads energy, deliberately: the
+  //    parent pays here, so an organism that breeds at exactly its
+  //    threshold and then cannot cover its own maintenance is condemned by
+  //    the very next step, its child already alive. Only a fertile world
+  //    evaluates this at all — an infertile one never asks, the same way
+  //    an immortal world never lets step 8's predicate fire.
+  const births: readonly PendingBirth[] =
+    state.fertility === "on"
+      ? state.population
+          .map((organism) => evaluateMitosis(organism))
+          .filter((birth): birth is PendingBirth => birth !== null)
+      : NO_BIRTHS;
   // 8. Evaluate death: `energy <= 0` condemns an organism (ADR-0017), and
   //    its remains are frozen here, pre-separation — step 10 has not run
   //    yet, so a condemned organism still gets to move on its final tick,
@@ -296,16 +350,23 @@ function runTick(state: WorldState): WorldState {
   //     step 9, and the population becomes step 8's survivors — never a
   //     second evaluation of the predicate (ADR-0017).
   const pools = depositRemains(poolsAfterExchange, remains);
-  // 12. Births — M4. Newborns are appended here and stay inert for
-  //     their first tick, so no birth cascades within a tick.
+  // 12. Births: step 7's pending births are constructed, constrained to
+  //     the aquarium — step 10's separation and wall clamp have already
+  //     run for everyone else this tick — and appended (ADR-0019).
+  //     Appended rather than spliced in, so newborns are inert for their
+  //     first tick: the iteration above never sees them, which rules out
+  //     half-initialised organisms metabolising or a birth cascade within
+  //     one tick.
+  const population = appendBirths(survivors, births);
   // 13. Tick++.
   return {
     ...state,
     pools,
-    population: survivors,
+    population,
     tick: state.tick + 1,
     measuredAlpha,
     cumulativeDeaths: state.cumulativeDeaths + remains.length,
+    cumulativeBirths: state.cumulativeBirths + births.length,
   };
 }
 
@@ -493,6 +554,17 @@ export function getZeroEnergyCount(world: World): number {
  */
 export function getCumulativeDeaths(world: World): number {
   return toState(world).cumulativeDeaths;
+}
+
+/**
+ * How many organisms have been born since this world was created —
+ * cumulative, not per-tick, for the same reason `getCumulativeDeaths` is
+ * (see the field's own comment on `WorldState`). Reads 0 for the lifetime
+ * of an infertile world, whose counterpart mode `mortality: "off"` is to
+ * `getCumulativeDeaths`.
+ */
+export function getCumulativeBirths(world: World): number {
+  return toState(world).cumulativeBirths;
 }
 
 /**

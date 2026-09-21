@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 import {buildUniformGrid, type UniformGrid} from "./grid";
-import {MAX_BODY_RADIUS, type Organism} from "./organism";
+import {GENERATION_0_MAX_BODY_RADIUS, type Organism} from "./organism";
 import {createRngStream} from "./rng";
 import {
   MIN_BODY_RADIUS,
@@ -72,7 +72,7 @@ function oneBodyPerCell(): Organism[] {
         organismAt(
           (column + 0.5) * GEOMETRY.cellSize,
           (row + 0.5) * GEOMETRY.cellSize,
-          MAX_BODY_RADIUS,
+          GENERATION_0_MAX_BODY_RADIUS,
         ),
       );
     }
@@ -97,14 +97,24 @@ describe("buildUniformGrid", () => {
     );
   });
 
-  // Close to restating `CELL_SIZE = 2 · MAX_BODY_RADIUS`, and kept anyway,
-  // because an inequality is not the computation: it pins the constraint the
-  // computation has to satisfy rather than recomputing its result. It is
-  // also the test that turns itself on later — M4 mutates `bodyRadius`, and
-  // the day the largest body the world allows grows past half a cell, every
-  // query silently starts missing neighbours. This fails first instead.
-  it("keeps a cell wide enough to hold the largest body the world allows", () => {
-    expect(GEOMETRY.cellSize).toBeGreaterThanOrEqual(2 * MAX_BODY_RADIUS);
+  // An empty population has no largest body to derive a size from — M3's
+  // worlds can and do go extinct, and the render layer calls this on
+  // whatever population exists. The fallback has to be a real number, not a
+  // division by zero, and generation 0's ceiling is what it falls back to.
+  it("falls back to generation 0's ceiling for an empty population, rather than dividing by zero", () => {
+    expect(GEOMETRY.cellSize).toBe(2 * GENERATION_0_MAX_BODY_RADIUS);
+    expect(GEOMETRY.columns).toBeGreaterThan(0);
+    expect(GEOMETRY.rows).toBeGreaterThan(0);
+  });
+
+  // The property this ticket exists to add: cell size tracks *this build's*
+  // population rather than a module constant, so a body that has grown past
+  // generation 0's ceiling still gets a cell wide enough to hold it.
+  it("derives cell size from the largest body radius actually in the population", () => {
+    const grown = organismAt(30, 20, 5 * GENERATION_0_MAX_BODY_RADIUS);
+    const grid = buildUniformGrid([grown, organismAt(10, 10)]);
+
+    expect(grid.cellSize).toBe(2 * grown.bodyRadius);
   });
 
   // Rebuilt from scratch means exactly this: a grid is a function of the
@@ -129,14 +139,24 @@ describe("buildUniformGrid", () => {
   // indexes past the buckets and the build throws — a crash, on a body that
   // is merely in the wrong place.
   it("buckets a body that sits outside the aquarium into the nearest edge cell", () => {
-    const strayed = organismAt(-20, AQUARIUM_HEIGHT + 20);
+    // Radius pinned to generation 0's ceiling so this grid's own cell size
+    // comes out equal to `GEOMETRY`'s, which is built from nobody and falls
+    // back to that same ceiling — otherwise the two disagree on where the
+    // cells even are.
+    const strayed = organismAt(
+      -20,
+      AQUARIUM_HEIGHT + 20,
+      GENERATION_0_MAX_BODY_RADIUS,
+    );
     const grid = buildUniformGrid([strayed]);
 
     expect(totalBucketed(grid)).toBe(1);
     expect(
       grid.occupancy().counts[(GEOMETRY.rows - 1) * GEOMETRY.columns],
     ).toBe(1);
-    expect(grid.query(0, AQUARIUM_HEIGHT, MAX_BODY_RADIUS)).toContain(strayed);
+    expect(
+      grid.query(0, AQUARIUM_HEIGHT, GENERATION_0_MAX_BODY_RADIUS),
+    ).toContain(strayed);
   });
 
   it("keeps no state between builds, so one grid never sees another's population", () => {
@@ -160,7 +180,9 @@ describe("query", () => {
       found += expectFindsEveryBodyTouching(grid, population, {
         x: draw() * AQUARIUM_WIDTH,
         y: draw() * AQUARIUM_HEIGHT,
-        radius: MIN_BODY_RADIUS + draw() * (MAX_BODY_RADIUS - MIN_BODY_RADIUS),
+        radius:
+          MIN_BODY_RADIUS +
+          draw() * (GENERATION_0_MAX_BODY_RADIUS - MIN_BODY_RADIUS),
       });
     }
 
@@ -173,7 +195,12 @@ describe("query", () => {
   it("returns every organism within range when the smallest and largest bodies are mixed", () => {
     const population = [
       ...randomPopulation(11, 100, MIN_BODY_RADIUS, MIN_BODY_RADIUS),
-      ...randomPopulation(12, 100, MAX_BODY_RADIUS, MAX_BODY_RADIUS),
+      ...randomPopulation(
+        12,
+        100,
+        GENERATION_0_MAX_BODY_RADIUS,
+        GENERATION_0_MAX_BODY_RADIUS,
+      ),
       ...randomPopulation(13, 100),
     ];
     const grid = buildUniformGrid(population);
@@ -184,11 +211,30 @@ describe("query", () => {
       found += expectFindsEveryBodyTouching(grid, population, {
         x: draw() * AQUARIUM_WIDTH,
         y: draw() * AQUARIUM_HEIGHT,
-        radius: draw() * MAX_BODY_RADIUS,
+        radius: draw() * GENERATION_0_MAX_BODY_RADIUS,
       });
     }
 
     expect(found).toBeGreaterThan(0);
+  });
+
+  // The failure ADR-0012 predicted: bucketed by a fixed `CELL_SIZE`, a body
+  // this large is still found by its own cell, but a neighbour more than one
+  // *old* cell width away is missed entirely, silently, with everything else
+  // in the suite green. This fails before this ticket's fix and passes after
+  // it, because cell size now tracks this body rather than generation 0's.
+  it("finds a body far larger than generation 0's ceiling, from a neighbour beside it", () => {
+    const grown = organismAt(20, 20, 10 * GENERATION_0_MAX_BODY_RADIUS);
+    const neighbour = organismAt(
+      grown.x + grown.bodyRadius + MIN_BODY_RADIUS,
+      grown.y,
+      MIN_BODY_RADIUS,
+    );
+    const grid = buildUniformGrid([grown, neighbour]);
+
+    expect(
+      grid.query(neighbour.x, neighbour.y, neighbour.bodyRadius),
+    ).toContain(grown);
   });
 
   // Where a bucketing scheme breaks if it looks only at the cell a query's
@@ -196,11 +242,14 @@ describe("query", () => {
   it("finds a body straddling a cell border, from the cell on either side", () => {
     const border = 4 * GEOMETRY.cellSize;
     const population = [
-      organismAt(border, 5 * GEOMETRY.cellSize, MAX_BODY_RADIUS),
+      organismAt(border, 5 * GEOMETRY.cellSize, GENERATION_0_MAX_BODY_RADIUS),
     ];
     const grid = buildUniformGrid(population);
 
-    for (const offset of [-MAX_BODY_RADIUS, MAX_BODY_RADIUS]) {
+    for (const offset of [
+      -GENERATION_0_MAX_BODY_RADIUS,
+      GENERATION_0_MAX_BODY_RADIUS,
+    ]) {
       expect(
         expectFindsEveryBodyTouching(grid, population, {
           x: border + offset,
@@ -213,7 +262,9 @@ describe("query", () => {
 
   it("finds a body sitting on a four-cell corner, from each of the four cells", () => {
     const corner = {x: 4 * GEOMETRY.cellSize, y: 3 * GEOMETRY.cellSize};
-    const population = [organismAt(corner.x, corner.y, MAX_BODY_RADIUS)];
+    const population = [
+      organismAt(corner.x, corner.y, GENERATION_0_MAX_BODY_RADIUS),
+    ];
     const grid = buildUniformGrid(population);
 
     for (const dx of [-1, 1]) {
@@ -222,9 +273,9 @@ describe("query", () => {
         // range of each of the four cells, or the loop below checks nothing.
         expect(
           expectFindsEveryBodyTouching(grid, population, {
-            x: corner.x + dx * MAX_BODY_RADIUS,
-            y: corner.y + dy * MAX_BODY_RADIUS,
-            radius: MAX_BODY_RADIUS,
+            x: corner.x + dx * GENERATION_0_MAX_BODY_RADIUS,
+            y: corner.y + dy * GENERATION_0_MAX_BODY_RADIUS,
+            radius: GENERATION_0_MAX_BODY_RADIUS,
           }),
         ).toBe(1);
       }
@@ -257,7 +308,7 @@ describe("query", () => {
     const population = randomPopulation(21, 200);
     const grid = buildUniformGrid(population);
 
-    const candidates = grid.query(at.x, at.y, MAX_BODY_RADIUS);
+    const candidates = grid.query(at.x, at.y, GENERATION_0_MAX_BODY_RADIUS);
 
     // No `undefined` from reading past the buckets, and nothing conjured.
     for (const candidate of candidates) {
@@ -273,7 +324,7 @@ describe("query", () => {
   // both if the far body is found and if the near one is lost.
   const midX = AQUARIUM_WIDTH / 2;
   const midY = AQUARIUM_HEIGHT / 2;
-  const inset = MAX_BODY_RADIUS;
+  const inset = GENERATION_0_MAX_BODY_RADIUS;
 
   it.each([
     [
@@ -307,7 +358,7 @@ describe("query", () => {
       const farBody = organismAt(far.x, far.y);
       const grid = buildUniformGrid([nearBody, farBody]);
 
-      const candidates = grid.query(at.x, at.y, MAX_BODY_RADIUS);
+      const candidates = grid.query(at.x, at.y, GENERATION_0_MAX_BODY_RADIUS);
 
       expect(candidates).toContain(nearBody);
       expect(candidates).not.toContain(farBody);
@@ -327,7 +378,7 @@ describe("query", () => {
     const candidates = grid.query(
       AQUARIUM_WIDTH / 2,
       AQUARIUM_HEIGHT / 2,
-      MAX_BODY_RADIUS,
+      GENERATION_0_MAX_BODY_RADIUS,
     );
 
     expect(candidates.length).toBeGreaterThan(0);
@@ -350,10 +401,10 @@ describe("query", () => {
     expect(candidates.length).toBeLessThan(population.length / 20);
   });
 
-  // What deriving cell size from the largest allowed body buys, in the form
-  // that can fail: halve the cell and a query spans five columns instead of
-  // three, and the bounded-work guarantee goes with it.
-  it("touches at most nine cells, even for the largest body the world allows", () => {
+  // What deriving cell size from the population's largest body buys, in the
+  // form that can fail: halve the cell and a query spans five columns
+  // instead of three, and the bounded-work guarantee goes with it.
+  it("touches at most nine cells, even at generation 0's largest radius", () => {
     const grid = buildUniformGrid(oneBodyPerCell());
 
     for (let row = 0; row < GEOMETRY.rows; row++) {
@@ -361,7 +412,7 @@ describe("query", () => {
         const candidates = grid.query(
           (column + 0.5) * GEOMETRY.cellSize,
           (row + 0.5) * GEOMETRY.cellSize,
-          MAX_BODY_RADIUS,
+          GENERATION_0_MAX_BODY_RADIUS,
         );
 
         expect(candidates.length).toBeLessThanOrEqual(9);
@@ -378,7 +429,7 @@ describe("query", () => {
     const circle = {
       x: AQUARIUM_WIDTH / 2,
       y: AQUARIUM_HEIGHT / 2,
-      radius: MAX_BODY_RADIUS,
+      radius: GENERATION_0_MAX_BODY_RADIUS,
     };
 
     const inOrder = buildUniformGrid(population).query(
@@ -415,10 +466,18 @@ describe("occupancy", () => {
     const row = 2;
     const inside = (at: number) => (at + 0.5) * GEOMETRY.cellSize;
 
+    // Radius pinned to generation 0's ceiling, for the same reason the
+    // stray-body test above pins it: this population's own cell size has to
+    // come out equal to `GEOMETRY`'s for `inside`'s coordinates to land in
+    // the cells the assertions below name.
     const occupancy = buildUniformGrid([
-      organismAt(inside(column), inside(row)),
-      organismAt(inside(column) + 0.1, inside(row) - 0.1),
-      organismAt(inside(column), inside(row + 1)),
+      organismAt(inside(column), inside(row), GENERATION_0_MAX_BODY_RADIUS),
+      organismAt(
+        inside(column) + 0.1,
+        inside(row) - 0.1,
+        GENERATION_0_MAX_BODY_RADIUS,
+      ),
+      organismAt(inside(column), inside(row + 1), GENERATION_0_MAX_BODY_RADIUS),
     ]).occupancy();
 
     expect(occupancy.counts[row * occupancy.columns + column]).toBe(2);

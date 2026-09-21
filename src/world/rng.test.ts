@@ -1,6 +1,11 @@
 import {describe, expect, it} from "vitest";
 
-import {createRngStream, deriveChildStream, nextRng} from "./rng";
+import {
+  createRngStream,
+  deriveChildStream,
+  drawUnitVector,
+  nextRng,
+} from "./rng";
 
 describe("createRngStream + nextRng", () => {
   it("produces the same sequence of draws for the same seed", () => {
@@ -75,5 +80,52 @@ describe("deriveChildStream", () => {
     expect(deriveChildStream(parentA).childStream).not.toEqual(
       deriveChildStream(parentB).childStream,
     );
+  });
+});
+
+// Moved here from `motion.ts` (ADR-0019): a seeded random unit vector is
+// this module's business, brownian motion's use of one is incidental. The
+// rejection-sampling loop's own correctness — the disc it draws from, the
+// bias the square's corners would add — was never under test by name before
+// the move; it only had `applyBrownianMotion`'s step-length assertions in
+// `motion.test.ts` exercising it indirectly. These are new coverage, not a
+// relocation of existing tests.
+describe("drawUnitVector", () => {
+  it("draws a vector of unit length", () => {
+    let stream = createRngStream(11);
+    for (let i = 0; i < 200; i++) {
+      const draw = drawUnitVector(stream);
+      expect(Math.hypot(draw.x, draw.y)).toBeCloseTo(1, 12);
+      stream = draw.stream;
+    }
+  });
+
+  it("produces the same vector for the same stream", () => {
+    const a = drawUnitVector(createRngStream(7));
+    const b = drawUnitVector(createRngStream(7));
+
+    expect(a.x).toBe(b.x);
+    expect(a.y).toBe(b.y);
+    expect(a.stream).toEqual(b.stream);
+  });
+
+  it("covers more than one quadrant across many draws, rather than favouring one direction", () => {
+    let stream = createRngStream(3);
+    const quadrants = new Set<string>();
+
+    for (let i = 0; i < 200; i++) {
+      const draw = drawUnitVector(stream);
+      stream = draw.stream;
+      quadrants.add(`${draw.x >= 0 ? "+" : "-"}${draw.y >= 0 ? "+" : "-"}`);
+    }
+
+    expect(quadrants.size).toBe(4);
+  });
+
+  it("advances the stream it was handed rather than reusing its state", () => {
+    const stream = createRngStream(7);
+    const {stream: advanced} = drawUnitVector(stream);
+
+    expect(advanced).not.toEqual(stream);
   });
 });

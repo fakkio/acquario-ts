@@ -89,7 +89,7 @@ export function createDeathEffects(): DeathEffects {
         const age = (nowMs - effect.startMs) / EFFECT_DURATION_MS;
         const radius = effect.bodyRadius * (1 + EXPANSION_RADII * age);
 
-        ctx.strokeStyle = `hsla(${String(effect.lineageHue)}, 70%, 60%, ${String(1 - age)})`;
+        ctx.strokeStyle = `hsla(${String(effect.lineageHue * 360)}, 70%, 60%, ${String(1 - age)})`;
         ctx.beginPath();
         ctx.arc(effect.x, effect.y, radius, 0, 2 * Math.PI);
         ctx.stroke();
