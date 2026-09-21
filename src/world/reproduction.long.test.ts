@@ -64,7 +64,33 @@ import {
  * What it does assert — conservation, determinism, and that reproduction
  * and death both genuinely happened — is exactly what M4's own code is
  * responsible for.
+ *
+ * **Ticket #31 asked for more, and hit the same wall harder.** #31 wants
+ * this run *unprimed* — a plain `createWorld` start — plus population
+ * non-zero at tick 100k and neither collapsed nor pegged at the ceiling.
+ * Run unprimed at `{mortality: "on", fertility: "on"}`, 40 founders lose
+ * 39 to starvation by tick 11k, one survivor rides out to 20k, and not one
+ * birth ever fires — the founders' food never climbs past roughly 12% of
+ * cap, confirming the ratio measured above from the other side. That is
+ * not a tuning miss `MITOSIS_ENERGY_COST` or `mitosisEnergyThreshold` can
+ * close: both gate the *energy* check in `evaluateMitosis`, and the wall
+ * here is the *food* check — `mitosisMassCost = ρ × childArea`, forced by
+ * ADR-0019 to equal a same-sized child's entire food cap, against a food
+ * store that structurally never gets past roughly a tenth of its own cap
+ * while respiration stays supply-limited (ADR-0015). Neither of M4's own
+ * levers touches that side of the ledger. Per #31's own instruction — "if
+ * the gate cannot be made to pass without changing a law rather than a
+ * constant, that is a finding about the model" — this is recorded as a
+ * comment on #31 rather than forced into a passing assertion here.
+ * Closing that gap for real is a pre-calibration question for M5 (moving
+ * `RHO`, `K_CAP` or the reaction-rate constants), not something this
+ * ticket's scope owns, so #31 stays open against this finding instead of
+ * being closed on a weakened test.
  */
+// Roughly 3.9s for this file's whole suite — two full 100k-tick runs, the
+// primed run above plus the determinism repeat below — measured on this
+// ticket's own machine, the one place that number is written down (as #20
+// records its own run cost in `conservation.long.test.ts`).
 const TICKS = 100_000;
 const SEED = 7;
 
@@ -147,6 +173,12 @@ describe("conservation survives birth: the 100k gate (#29)", () => {
 
   it("conserves total oxygen within 1e-9 relative drift", () => {
     expect(Math.abs(run.oxygenDrift)).toBeLessThan(1e-9);
+  });
+
+  it("drains no pool to zero", () => {
+    expect(run.pools.food).toBeGreaterThan(0);
+    expect(run.pools.carbonDioxide).toBeGreaterThan(0);
+    expect(run.pools.oxygen).toBeGreaterThan(0);
   });
 
   // Non-vacuity, the milestone's own instruction: a run that never
