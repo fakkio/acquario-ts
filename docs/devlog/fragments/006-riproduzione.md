@@ -45,3 +45,37 @@ La decisione di "pre-caricare" il gate invece di aspettare M5 l'ha presa l'agent
 ---
 
 Il primo tentativo di misurare il conservation drift sul gate a 100k tick ha dato uno spavento: un errore del 19-20%, che sembrava un leak di carbonio vero. Era un artefatto del test, non un bug della simulazione — il confronto era contro il totale calcolato _prima_ del priming, non dopo, e il priming stesso inietta materia negli organismi senza passare dai pool. Rifatto il confronto contro la baseline giusta (dopo il priming, non prima), il drift è sceso a 1e-16. La simulazione era corretta dall'inizio; era il test a guardare il numero sbagliato. L'ha trovato e corretto l'agente, da solo, prima ancora che il gate finito arrivasse a Fabio.
+
+---
+
+Il ticket #31 si era già scritto la propria via di fuga, mesi prima di sapere se le sarebbe servita: "if the gate cannot be made to pass without changing a law rather than a constant, that is a finding about the model and it belongs in a comment on the issue before it belongs in the code." Non una speranza ottimista che tutto sarebbe filato liscio — una clausola di uscita, già pronta, per lo scenario esatto che poi si è verificato.
+
+---
+
+Fatta girare la versione "vera" del gate — nessun priming, popolazione di partenza normale, mortalità e fertilità entrambe accese — il risultato è stato più netto di quanto il #29 avesse già misurato. Non solo il cibo non basta mai: la popolazione crolla da 40 fondatori a 1 superstite entro 11.000 tick, zero nascite in tutto l'arco osservato. E non è un declino lento — il massimo di cibo posseduto da un organismo si stabilizza già al tick 5.000 e non si muove più per altri 15.000. Una run che smette di raccontare qualcosa di nuovo dopo un ventesimo del tempo che le è stato dato.
+
+---
+
+Il dettaglio che chiude la questione non è servito misurarlo su una run: è nel codice. Con ρ = K_CAP = 1, il costo in massa di un figlio è, per costruzione, esattamente la cap di cibo di un figlio della stessa taglia — non una vicinanza empirica, un'uguaglianza esatta. Le due manopole che il ticket #31 concede a M4 — soglia di energia, costo energetico del figlio — controllano solo il varco sull'energia dentro `evaluateMitosis`, mai quello sul cibo. Nessun valore possibile di nessuna delle due può chiudere un divario 8-10x su una risorsa che quelle manopole non toccano.
+
+---
+
+Di fronte al bivio — documentare e rimandare, toccare una costante "di legge" fuori dal perimetro di M4, o riscrivere i criteri di accettazione del ticket — la scelta non è stata presa in autonomia: è stata sottoposta a Fabio con tre opzioni esplicite, prima di scrivere una riga di codice. Diverso dal giro precedente su #29, dove la stessa famiglia di problema (uno scarto tra il piano e quello che la fisica del modello permette) era stata gestita in autonomia e mostrata solo a cose fatte. Qui la domanda è arrivata prima, non dopo — perché la posta in gioco non era più "che test scrivo", ma "che cosa significa che un milestone non può chiudersi come previsto".
+
+---
+
+> Non ho esitato, era chiaramente la scelta giusta aspettare per regolare le variabili quando avremo una simulazione più completa.
+
+Nessun tentennamento tra le tre strade, per Fabio. Toccare le costanti adesso, prima che l'acquario sia abbastanza completo da dire qualcosa di vero su sé stesso, sarebbe stato tarare al buio — non una prudenza generica, ma la stessa logica che governa tutto M5: le costanti si misurano su una run, non si indovinano su carta.
+
+---
+
+> sorpresa
+
+Alla domanda se si aspettasse che il ticket #31, scritto mesi prima, avesse già previsto con tanta precisione la propria via d'uscita — "se il gate non passa senza toccare una legge, è un finding, non un test annacquato" — la risposta di Fabio è stata secca: sorpresa, non previsione confermata. Il ticket sapeva, in anticipo, di poter non sapere.
+
+---
+
+> Era difficile prevedere le soglie giuste prima di avere un acquario almeno in parte funzionante.
+
+La ragione per cui #29 aveva sbagliato l'unico rischio che si era scritto in anticipo (temeva il boom fino al soffitto di carbonio, non l'estinzione per fame) non è una svista che si potesse correggere leggendo meglio `docs/vision.md`: le soglie giuste — quanto costa un figlio, quanto puoi accumulare — non si possono dedurre a tavolino da un acquario che ancora non esiste. Si scoprono facendolo girare.
