@@ -90,7 +90,7 @@ cap(resource) = kCap(resource) × bodyArea
 
 Because a cap scales with area, it is really a maximum internal _concentration_. Direct competition for a single internal volume is deferred to a later version.
 
-`kCap` is **1 for the three diffusibles** — that is the choice defining the concentration unit, and it means a cap binds only when the world outside is richer than the organism can be. Energy gets a coefficient of its own, `kCapEnergy`, because energy is not a carbon or oxygen quantity and its unit is fixed independently by `β = 1`. One coefficient shared across all four would be a coincidence of notation, not a shared physical constant.
+`kCap` is **1 for CO₂ and O₂** and larger for food. It carries `ρ`'s own dimension, so only the ratio `kCap/ρ` is physical: `ρ` alone fixes the carbon unit, and setting both to 1 was one unit choice plus one silent assertion — that an organism can hold exactly its own body's worth of a diffusible. That assertion is load-bearing at mitosis, where it would force a parent to sit at exactly 100% of its food cap to afford a child, so food is given headroom of its own (ADR-0022). Energy gets `kCapEnergy`, because energy is not a carbon or oxygen quantity and its unit is fixed independently by `β = 1`.
 
 ---
 
@@ -126,6 +126,8 @@ Energy is deliberately **not** conserved: it enters as light, is fixed by photos
 
 Because carbon is finite, the population has a hard ceiling set by the world rather than by any tuning constant, and total extinction is a genuinely possible outcome — neither guaranteed nor artificially prevented.
 
+That ceiling is a breeding ceiling rather than a starvation one, and it has a closed form. Growth locks carbon into bodies, so the ambient concentration falls as the population rises, and reproduction stops of its own accord once ambient carbon drops below body density (ADR-0022). The calibration method below runs that relation backwards to choose the carbon budget.
+
 ### Reaction rates
 
 Both reactions follow **mass action** on internal concentrations, each multiplied by the geometric factor its physics implies:
@@ -142,6 +144,8 @@ Low oxygen throttles respiration continuously, with no suffocation rule written 
 Every operation is `+ − × ÷`, so ADR-0007's consequence that v0.1's inner loop evaluates no transcendental survives the arrival of metabolism.
 
 And energy income comes out **linear in `r` on its own**, which is the assumption `r_opt = 2·c₀/α` rests on. Respiration's capacity scales with area while its supply scales with perimeter and with diameter, so capacity outgrows supply and the internal concentrations self-adjust downward until consumption matches what is arriving. Respiration is therefore supply-limited in the regime the simulation runs in, and income settles at `α·r`. A flat capacity law would instead put a second knee in the income curve, and `r_opt` would stop being the closed form.
+
+The same supply-limitation has one consequence the closed form does not carry. Internal concentrations falling with `r` means the mitosis mass gate, which is a threshold on one of them, imposes a **maximum reproductive radius**: above it an organism earns perfectly well and can never afford a child. M5 measures that radius and the income exponent, and gates on them before treating convergence on `r_opt` as evidence of anything (ADR-0025).
 
 Saturating (Michaelis–Menten) kinetics are the fallback if the dynamics turn out stiff; they cost one extra constant per substrate and buy nothing until they are needed.
 
@@ -165,7 +169,7 @@ Light is sampled at the **body's centre**, not at its upper edge. The projected-
 
 Because v0.1 has no thrusters and no gravity, depth is not under genetic control. What light produces instead is spatial heterogeneity of income, plus a **positional founder effect**: since children are born tangent to their parents, position is quasi-heritable, and a lineage that happens to sit in the photic zone breeds faster and passes on the good address. Genetic control of depth arrives in v0.2 together with thrusters and buoyancy.
 
-This also gives v0.1 two viable strategies from a single genome: organisms in the light fix carbon, while organisms in the dark subsist on food absorbed passively from the pool — food that corpses put there.
+This also gives v0.1 two ways to live from a single genome, and only one of them is a way to persist. In the light an organism fixes carbon and can build a child. In the dark it survives on food absorbed passively from the pool — food that corpses put there — but it cannot breed: respiration steadily turns its internal food into CO₂ and nothing turns it back, so a dark body fills with carbon in the wrong chemical form (ADR-0023). Its energy balance admits a band of radii centred well above `r_opt`, so the dark is a habitat of rare large bodies with no lineages in it, populated by emigrants from the light. v0.2's eating is what opens it.
 
 ### Resource pools
 
@@ -262,7 +266,7 @@ The `c₀/r²` term is what prevents a race to zero: without a flat cost, smalle
 
 `r_opt` is a **design input**: pick the radius organisms should converge on, then derive `c₀ = α·r_opt/2`. The baseline genome deliberately starts below `r_opt`, so the first thing a run shows is the population climbing toward a value predicted on paper.
 
-`α` is **not** one of the world's constants (ADR-0015). Energy comes only from respiration, whose substrate arrives by photosynthesis — proportional to the light at _this_ depth — and by food diffusion — proportional to how rich the pool currently is. So `α` is a field over the aquarium and a function of time, and it is measured rather than declared. M2 reports the population mean; M5 solves `c₀` against that measurement. There is no circularity, because `α` is measured in a world with a fixed immortal population where nothing can select, and the prediction is fixed before the world that tests it exists.
+`α` is **not** one of the world's constants (ADR-0015). Energy comes only from respiration, whose substrate arrives by photosynthesis — proportional to the light at _this_ depth — and by food diffusion — proportional to how rich the pool currently is. So `α` is a field over the aquarium and a function of time, and it is measured rather than declared. M2 reports the population mean; M5 solves `c₀` against the mean over the **photic band**, because selection acts only through reproduction and reproduction happens only in the light (ADR-0023). There is no circularity, because `α` is measured in a fixed population where nothing can select, and the prediction is fixed before the world that tests it exists.
 
 ### Organelle costs
 
@@ -344,7 +348,7 @@ The tick is the simulation's own unit of time, so every world quantity is expres
 
 A consequence worth stating: an organism that stops pushing stops immediately. There is no coasting, and inertial gliding can never become an evolvable strategy.
 
-Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means _higher variance_ in lifetime light income.
+Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means _higher variance_ in lifetime light income. It is also a selective pressure on `bodyRadius` that `r_opt` does not carry, since a small body leaves the photic band before it has bred many times, which is why ADR-0025 gates on **tenancy**.
 
 ### Collisions
 
@@ -398,6 +402,8 @@ Strategy gene:
 ```
 
 The child's body mass is paid out of the parent's internal food store — matter, not just fuel. `childAllocationRatio` then splits only what remains after both costs are paid.
+
+The mass requirement is stricter than it looks, and it is what decides whether a world can reproduce at all. Photosynthesis and respiration are exact inverses on carbon, so an organism's _total_ internal carbon changes only by diffusion and relaxes to the ambient concentration `s`. A parent can therefore hold a same-sized child's mass only where `s ≥ ρ` — a property of the carbon budget, not of any metabolic coefficient (ADR-0022).
 
 Further details:
 
@@ -559,16 +565,15 @@ A fullscreen Canvas2D view with:
 - start, pause, and single-tick step while paused
 - zoom and pan
 - a new world on demand, and an auto-restart toggle for starting one whenever the population goes extinct
-- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — cumulative deaths, the measured `α`, and mean ± σ of each gene
-- CSV export of that time series
+- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — cumulative births and deaths, the measured `α` over both the photic band and the whole population, and mean ± σ of each gene
 
 The zero-energy count that M2 shipped belongs to the immortal world, where an aquarium half-parked at zero says the constants are wrong. In a mortal world energy passes through zero to negative and the organism is gone the same tick, so the mortal HUD shows cumulative deaths instead. Cumulative rather than per-tick: `advance` runs up to 240 ticks in one frame, and a per-tick readout loses every death but the last batch's.
 
 Restarting is the **session's** business, never the world's (ADR-0018). A world is one seed from creation to extinction; a session is the sequence of them, each seeded from the last by a PRNG derived from the master seed, so one number reproduces a whole session while the HUD's seed row still identifies the single world on screen.
 
-Rendering encodes state directly: **hue** is `lineageHue`, **brightness** is the energy fraction, **radius** is `bodyRadius`. Dying organisms visibly fade, so starvation waves and boom–bust cycles are readable without opening the CSV.
+Rendering encodes state directly: **hue** is `lineageHue`, **brightness** is the energy fraction, **radius** is `bodyRadius`. Dying organisms visibly fade, so starvation waves and boom–bust cycles are readable without reading a single number.
 
-CSV export is the one deliberate exception to having no persistence. It stores observations, not simulation state, so there is no schema to version — and it is the only way to compare runs offline.
+The CSV export this section used to promise is gone. The calibration harness replaced it (ADR-0024): comparing runs offline was the whole justification, and a reproducible command whose output diffs does that better than a file someone remembered to click for.
 
 There is no run persistence: closing the tab loses the run.
 
@@ -602,7 +607,7 @@ The minimal organism, built end to end, with no organelles:
 - mitosis with mutation via seeded PRNG; four-gene genome
 - initial population mutated from a common baseline genome
 - uniform-grid collision detection with positional separation, hard walls
-- Canvas2D rendering; start / pause / single step / zoom / pan; HUD and CSV export
+- Canvas2D rendering; start / pause / single step / zoom / pan; HUD with gene statistics
 - death by starvation
 
 ### Deferred to v0.2+
@@ -626,11 +631,11 @@ Two automated invariants and one scientific criterion.
 
 2. **Determinism.** The same seed yields an identical state hash at tick N, across runs on the same build and engine.
 
-3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed from the constants and from the `α` measured in M2's selection-free world (ADR-0015): drift does not converge on a number predicted in advance, only selection does. When simulation meets the closed-form prediction, v0.1 is correct.
+3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed from the constants and from the `α` measured over the **photic band** of a selection-free fixed population (ADR-0015, ADR-0023): drift does not converge on a number predicted in advance, only selection does. Its operational form — fifteen runs, the band around the prediction, and the requirement that the runs end closer together than the baseline genomes they started from — is in ADR-0025. When simulation meets the closed-form prediction, v0.1 is correct.
 
 ### Calibration method
 
-Non-dimensionalise rather than guess. Fix `kCap = 1` (defining the concentration unit), `β = 1` (defining the energy unit) and `ρ = 1` (carbon per unit area), and set the length unit to the baseline radius — three constants eliminated by construction. Choose the `r_opt` you want to see and derive `c₀` from it. Express the initial pools as a **carbon budget** phrased as "enough carbon for K baseline organisms, the remainder dissolved", so the number being tuned is an ecological one you have intuitions about.
+Non-dimensionalise rather than guess. Fix `β = 1` (defining the energy unit) and `ρ = 1` (defining the carbon unit), and set the length unit to the baseline radius — three constants eliminated by construction. `kCap` is **not** one of them: it carries `ρ`'s own dimension, so only the ratio `kCap/ρ` is physical and it is a free parameter wearing a unit's clothes (ADR-0022). Then choose the numbers you have intuitions about and derive the rest: the `r_opt` you want to see gives `c₀`, and the population ceiling you want gives the **carbon budget**, still phrased as "enough carbon for K baseline organisms, the remainder dissolved".
 
 `K` stays the input and the ambient concentration falls out of it in closed form, with no iteration, because requiring tick 0 to be at diffusive equilibrium ties the internal stores to the ambient value. With `A = Σ bodyArea` over the generation-0 population and `s` the total ambient carbon concentration:
 
@@ -639,6 +644,12 @@ K · π = A + (A + aquariumArea) · s      →      s = (K·π − A) / (A + aqu
 ```
 
 `s` then splits between CO₂ and food. A world that starts CO₂-rich and food-poor opens on carbon fixation in the photic zone, which is the story the closed cycle is there to tell.
+
+Running that relation backwards is how `K` itself is chosen. Reproduction halts once `s` falls to `ρ` (ADR-0022), so the population ceiling is closed-form too, and the carbon budget follows from the ceiling rather than the other way round:
+
+```text
+N_max = K/(2·r²) − aquariumArea/(2π·r²)      →      K = 2·r²·N_max + aquariumArea/π
+```
 
 Oxygen is an independent knob, since the CO₂ term already carries oxygen of its own: choose the ambient O₂ concentration directly and let the oxygen budget follow.
 
@@ -655,7 +666,7 @@ Each milestone is independently runnable and adds exactly one invariant. The ord
 | M2  | `feature/metabolism`          | `Environment` seam, pools, light LUT, signed diffusion, photosynthesis, respiration, maintenance, caps — **fixed, immortal population** | carbon and oxygen conserved over 100k ticks                                               |
 | M3  | `feature/death`               | death by starvation; remains returned to pools; mortality as a world mode; session restart                                              | conservation survives death                                                               |
 | M4  | `feature/reproduction`        | genome, mutation, mitosis costs, allocation, tangent birth, baseline population                                                         | conservation survives birth                                                               |
-| M5  | `feature/calibration`         | HUD statistics, CSV export, constants solved for target `r_opt`, done-criteria runs                                                     | population converges to predicted `r_opt`                                                 |
+| M5  | `feature/calibration`         | calibration harness; constants solved for target `r_opt`; HUD gene statistics; done-criteria runs                                       | population converges to predicted `r_opt`                                                 |
 
 M2 runs with a fixed, immortal population on purpose: metabolism is where conservation bugs live, and isolating a leak is far easier with `N` pinned. M3 and M4 then each add exactly one new way to move mass.
 

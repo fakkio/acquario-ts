@@ -109,7 +109,7 @@ An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `in
 _Avoid_: density, level
 
 **Cap**:
-The maximum amount of a resource an organism can hold: `kCap × bodyArea`, i.e. a maximum internal concentration.
+The maximum amount of a resource an organism can hold: `kCap(resource) × bodyArea`, i.e. a maximum internal concentration. Only `kCap/ρ` is physical, since `ρ` alone carries the carbon unit (ADR-0022).
 _Avoid_: capacity, limit, storage
 
 **Existence Cost**:
@@ -127,6 +127,10 @@ _Avoid_: upkeep, basal cost, body cost (that is one of its two terms)
 **Optimal Radius**:
 The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable in closed form from the world's constants. The prediction v0.1 is validated against.
 _Avoid_: ideal size, target radius
+
+**Energy Income Coefficient**:
+`α`, the energy an organism earns per tick per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Photic Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
+_Avoid_: income rate, efficiency, alpha (alone, in prose)
 
 ### World
 
@@ -170,6 +174,10 @@ _Avoid_: mass budget, total mass
 The region near the surface where light is strong enough for photosynthesis to matter.
 _Avoid_: surface layer, light zone
 
+**Photic Band**:
+The depth range `α` is measured over, fixed in advance by a light threshold rather than derived from where breeding turns out to happen. Narrower and sharper than the **Photic Zone**, which stays the informal ecological region.
+_Avoid_: photic zone (that is the region, not the measurement window), light band, depth bin
+
 **Tick**:
 One fixed-length step of simulated time. Decoupled from rendering frames.
 _Avoid_: frame, step (reserve "step" for the manual single-tick control), update
@@ -207,3 +215,17 @@ _Avoid_: collision response, bounce, impulse resolution
 **Uniform Grid**:
 The spatial index rebuilt each tick, bucketing organisms by cell index for neighbour queries.
 _Avoid_: spatial hash, quadtree, broadphase
+
+### Calibration
+
+**Calibration Harness**:
+The headless script that constructs worlds, runs them and reports the numbers M5's constants are chosen against. An instrument and never a gate: it asserts nothing, and the gates live in the long suite (ADR-0024).
+_Avoid_: benchmark, tuner, calibration test, sweep (that is one of its runs)
+
+**Done-Criteria Run**:
+One of the fifteen runs, five seeds by three baseline genomes, whose gene means decide whether v0.1 met ADR-0011's criteria. An extinct one is a failed one, never an excluded one.
+_Avoid_: acceptance run, validation run, final run, convergence test
+
+**Tenancy**:
+The ratio of the time an organism spends inside the **Photic Band** to its reproductive period: how many births a lineage gets per stay in the light. Low tenancy means a gene mean is reporting geography rather than genetics (ADR-0025).
+_Avoid_: residence time (that is only the numerator), dwell time, photic time
