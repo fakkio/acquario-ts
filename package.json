@@ -37,6 +37,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "calibrate": "node --import ./scripts/ts-esm-resolver.mjs scripts/calibrate.ts",
     "dev": "vite",
     "lint": "eslint .",
     "prepare": "husky",

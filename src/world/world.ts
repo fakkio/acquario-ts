@@ -3,6 +3,7 @@ import {ExchangeSettlement} from "./environment";
 import {type Genome} from "./genome";
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
+import {isPhotic} from "./light";
 import {
   foldPools,
   initializeMetabolism,
@@ -173,15 +174,16 @@ interface WorldState {
   readonly initialTotalCarbon: number;
   readonly initialTotalOxygen: number;
   /**
-   * ADR-0015's population-mean `α`: this tick's respiration energy over
-   * body radius, averaged over organisms whose respiration was *not*
-   * throttled by a full energy store, from the tick that has just run.
-   * Read fresh every tick and never smoothed here — smoothing is the App
-   * layer's job, so a moving average never becomes state this record has
-   * to carry, and stays out of `hashState` for the same reason
-   * `initialTotalCarbon` does: nothing in a tick reads it back.
+   * ADR-0015's `α`, in the two readings ADR-0023 asks for: this tick's
+   * respiration energy over body radius, averaged over organisms whose
+   * respiration was *not* throttled by a full energy store, from the tick
+   * that has just run — once over the whole population and once over the
+   * photic band alone. Read fresh every tick and never smoothed here —
+   * smoothing is the App layer's job, so a moving average never becomes
+   * state this record has to carry, and stays out of `hashState` for the
+   * same reason `initialTotalCarbon` does: nothing in a tick reads it back.
    */
-  readonly measuredAlpha: number;
+  readonly measuredAlpha: MeasuredAlpha;
   /**
    * How many organisms have died since this world's creation, summed across
    * every tick rather than read per-tick: `advance` can run up to
@@ -240,9 +242,9 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
     initialTotalOxygen: totalOxygen(population, pools),
-    // No tick has run yet, so this reads the value a tick that produced
-    // no energy at all would report.
-    measuredAlpha: 0,
+    // No tick has run yet, so both readings report the value a tick that
+    // produced no energy at all would.
+    measuredAlpha: NO_ENERGY_PRODUCED,
     cumulativeDeaths: 0,
     cumulativeBirths: 0,
   });
@@ -420,6 +422,27 @@ function runTick(state: WorldState): WorldState {
 }
 
 /**
+ * ADR-0015's `α`, read twice over the same tick (ADR-0023). `whole` is the
+ * population mean M2 shipped, unchanged; `photic` is the same mean taken
+ * over the organisms inside the **photic band** — the only ones that can
+ * ever contribute a birth, and therefore the only ones `c₀` is worth
+ * solving against, since selection acts through reproduction alone.
+ *
+ * Two scalars, never an array of depth bins: ADR-0015's depth-binned
+ * consequence was withdrawn with the CSV it existed for (ADR-0024), and an
+ * array allocated every tick for a reader that no longer exists is a cost
+ * with nothing on the other side of it.
+ */
+interface MeasuredAlpha {
+  readonly whole: number;
+  readonly photic: number;
+}
+
+/** What both readings report for a tick with no admissible organism in it
+ * — the same value a tick that produced no energy at all would. */
+const NO_ENERGY_PRODUCED: MeasuredAlpha = {whole: 0, photic: 0};
+
+/**
  * ADR-0015's population mean: `energyProduced / bodyRadius`, averaged over
  * every organism whose respiration this tick was *not* throttled by a full
  * energy store — those measure the size of their own tank rather than the
@@ -427,23 +450,41 @@ function runTick(state: WorldState): WorldState {
  * genuinely poor, and that is part of what the mean has to say. Reads 0
  * for a population that is entirely throttled, the same value a tick that
  * produced no energy at all would report.
+ *
+ * One fold producing both readings rather than two folds over the same
+ * array (ADR-0023: "the same fold with one more predicate"). The depth
+ * predicate sits beside the throttle predicate rather than replacing it:
+ * an organism excluded from the whole-population mean is excluded from the
+ * band's too, so the two numbers stay comparable — the only thing that
+ * differs between them is the set, never the rule.
  */
 function meanMeasuredAlpha(
   population: readonly Organism[],
   outcomes: readonly RespirationOutcome[],
-): number {
+): MeasuredAlpha {
   let sum = 0;
   let count = 0;
+  let photicSum = 0;
+  let photicCount = 0;
   for (let i = 0; i < population.length; i++) {
     const outcome = outcomes[i];
     if (outcome.throttledByFullEnergyStore) {
       continue;
     }
-    sum += outcome.energyProduced / population[i].bodyRadius;
+    const organism = population[i];
+    const alpha = outcome.energyProduced / organism.bodyRadius;
+    sum += alpha;
     count++;
+    if (isPhotic(organism.y)) {
+      photicSum += alpha;
+      photicCount++;
+    }
   }
 
-  return count > 0 ? sum / count : 0;
+  return {
+    whole: count > 0 ? sum / count : 0,
+    photic: photicCount > 0 ? photicSum / photicCount : 0,
+  };
 }
 
 export function advance(world: World, elapsedMs: number): AdvanceResult {
@@ -566,7 +607,22 @@ export function getOxygenDrift(world: World): number {
  * and unsmoothed: smoothing it into something legible on the HUD is the
  * App layer's job, so it adds no state here. */
 export function getMeasuredAlpha(world: World): number {
-  return toState(world).measuredAlpha;
+  return toState(world).measuredAlpha.whole;
+}
+
+/**
+ * ADR-0023's reading of the same tick: `α` over the **photic band** alone,
+ * the depth range fixed in advance by `PHOTIC_BAND_DEPTH`.
+ *
+ * This is the one `c₀` is solved against. `c₀ = α·r_opt/2` decides where
+ * `bodyRadius` converges, convergence is produced by reproduction, and in
+ * v0.1 reproduction happens only in the light — so a mean that includes
+ * organisms which will never contribute a birth predicts an optimum for a
+ * depth no lineage occupies. Reads 0 for a tick with nobody admissible in
+ * the band, exactly as `getMeasuredAlpha` does for an empty population.
+ */
+export function getPhoticAlpha(world: World): number {
+  return toState(world).measuredAlpha.photic;
 }
 
 /**

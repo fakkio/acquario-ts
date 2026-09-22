@@ -10,6 +10,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
+import {PHOTIC_BAND_DEPTH} from "./light";
 import {
   applyMaintenance,
   applyPassiveExchange,
@@ -45,6 +46,7 @@ import {
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
+  getPhoticAlpha,
   getPoolLevels,
   getPopulation,
   getTick,
@@ -709,6 +711,77 @@ describe("respiration and maintenance (M2)", () => {
     ({world} = advance(world, 50 * FIXED_DT_MS));
 
     expect(getMeasuredAlpha(world)).toBeGreaterThan(0);
+  });
+
+  /**
+   * ADR-0023's split reading. Both worlds below are **fixed populations**
+   * (mortality and fertility both off), because that is the only world
+   * either `α` is a measurement in, and both are built from an explicit
+   * founder list so the depth the reading is about is chosen rather than
+   * drawn.
+   */
+  describe("photic-band alpha", () => {
+    const ladderAt = (depth: number): Founder[] =>
+      [6, 18, 30, 42, 54].map((x) => ({
+        x,
+        y: depth,
+        genome: {...BASELINE_GENOME, lineageHue: 0.5},
+      }));
+
+    const fixedWorldOf = (founders: Founder[], ticks: number) =>
+      advance(
+        createWorld(3, {
+          mortality: "off",
+          fertility: "off",
+          generation0: {founders},
+        }),
+        ticks * FIXED_DT_MS,
+      ).world;
+
+    it("reads zero at tick 0, exactly as the whole-population mean does", () => {
+      const world = createWorld(3);
+
+      expect(getPhoticAlpha(world)).toBe(0);
+    });
+
+    it("reads zero when every body sits below the band", () => {
+      const world = fixedWorldOf(ladderAt(AQUARIUM_HEIGHT - 2), 50);
+
+      expect(getMeasuredAlpha(world)).toBeGreaterThan(0);
+      expect(getPhoticAlpha(world)).toBe(0);
+    });
+
+    it("agrees with the whole-population mean when every body is in the band", () => {
+      const world = fixedWorldOf(ladderAt(2), 50);
+
+      expect(getPhoticAlpha(world)).toBeGreaterThan(0);
+      expect(getPhoticAlpha(world)).toBeCloseTo(getMeasuredAlpha(world), 12);
+    });
+
+    it("reports the brighter of the two ecologies when the population straddles the band", () => {
+      const world = fixedWorldOf(
+        [...ladderAt(2), ...ladderAt(AQUARIUM_HEIGHT - 2)],
+        50,
+      );
+
+      expect(getPhoticAlpha(world)).toBeGreaterThan(getMeasuredAlpha(world));
+    });
+
+    it("counts a body exactly on the band's floor as inside it", () => {
+      const world = fixedWorldOf(
+        [
+          {
+            x: 30,
+            y: PHOTIC_BAND_DEPTH,
+            genome: {...BASELINE_GENOME, lineageHue: 0.5},
+          },
+        ],
+        1,
+      );
+
+      expect(getPhoticAlpha(world)).toBe(getMeasuredAlpha(world));
+      expect(getPhoticAlpha(world)).toBeGreaterThan(0);
+    });
   });
 
   // M0's determinism invariant, now that the hash covers respiration and

@@ -92,7 +92,20 @@ export class ExchangeSettlement {
   // `commit`.
   private readonly granted = emptyPerDiffusible();
 
-  constructor(private readonly pools: Pools) {}
+  /**
+   * Spelled out as a field and an assignment rather than as a constructor
+   * parameter property, which is the one piece of TypeScript syntax that
+   * cannot be erased by deleting types alone. `erasableSyntaxOnly` in
+   * `tsconfig.json` keeps the whole of `src/` that way on purpose: it is
+   * what lets the calibration harness (ADR-0024) run the simulation under
+   * plain `node` with nothing but a resolver hook, instead of the repo
+   * taking on a TypeScript runtime for the sake of one instrument.
+   */
+  private readonly pools: Pools;
+
+  constructor(pools: Pools) {
+    this.pools = pools;
+  }
 
   /** What `requestPass` and `grantPass` share: reading a pool's
    * concentration and the light at a depth are the same lookup regardless

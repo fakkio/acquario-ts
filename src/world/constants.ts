@@ -6,7 +6,65 @@
  * and freezes before it says anything. M5 re-solves several of them
  * against a measured α; each entry below says whether it is fixed by
  * construction or open for that.
+ *
+ * Every entry the calibration can move is wrapped in `tunable` and can be
+ * overridden from the environment — `ACQUARIO_<NAME>` — read **once, at
+ * module import** (ADR-0024). That is what lets the harness sweep by
+ * re-invoking itself per candidate instead of hand-editing this file
+ * between runs, and it is the cost ADR-0024 said would have to be paid
+ * somewhere: the alternative was threading a `WorldConstants` record
+ * through `createWorld` and into every module that reads this one,
+ * permanently, for an instrument used in a single milestone. An override
+ * never changes a committed value; it changes what one process sees.
+ *
+ * The constants that *fix a unit* are deliberately left outside the
+ * mechanism, so a sweep cannot reach them at all — see `RHO`,
+ * `LIGHT_SURFACE_INTENSITY`, `BODY_COST_COEFFICIENT` and
+ * `LIGHT_ATTENUATION_K` below.
+ *
+ * This module still imports nothing, and the property is worth keeping:
+ * nothing it holds can depend on anything that reads it. `globalThis` is
+ * not an import, and the browser — where there is no `process` at all —
+ * reads an empty table and every committed value.
  */
+
+/** The one prefix the environment is read through, so a variable meant for
+ * something else can never be mistaken for a constant. */
+const OVERRIDE_PREFIX = "ACQUARIO_";
+
+const environmentOverrides: Readonly<Record<string, string | undefined>> =
+  (globalThis as {process?: {env?: Record<string, string | undefined>}}).process
+    ?.env ?? {};
+
+/** Every name `tunable` has been asked for, so the check at the bottom of
+ * this file can tell an override of a real constant from a typo. */
+const tunableNames = new Set<string>();
+
+/**
+ * One constant, overridable from `ACQUARIO_<name>`.
+ *
+ * A bad value throws at import rather than falling back to the committed
+ * one. A sweep is a loop of child processes whose only output is a report,
+ * and a run that silently ignored the candidate it was asked for would put
+ * a number in that report under the wrong label — the one failure mode an
+ * instrument must not have.
+ */
+function tunable(name: string, committed: number): number {
+  tunableNames.add(name);
+  const override = environmentOverrides[OVERRIDE_PREFIX + name];
+  if (override === undefined) {
+    return committed;
+  }
+
+  const parsed = Number(override);
+  if (override.trim() === "" || !Number.isFinite(parsed)) {
+    throw new Error(
+      `${OVERRIDE_PREFIX}${name} is not a finite number: ${JSON.stringify(override)}`,
+    );
+  }
+
+  return parsed;
+}
 
 /**
  * Each diffusible's cap coefficient: a cap of `K_CAP[resource] × bodyArea`
@@ -34,9 +92,9 @@
  * entry here is a compile error there.
  */
 export const K_CAP = {
-  oxygen: 1,
-  carbonDioxide: 1,
-  food: 1,
+  oxygen: tunable("K_CAP_OXYGEN", 1),
+  carbonDioxide: tunable("K_CAP_CARBON_DIOXIDE", 1),
+  food: tunable("K_CAP_FOOD", 1),
 };
 
 /**
@@ -44,6 +102,10 @@ export const K_CAP = {
  * (ADR-0022). `ρ = 1` collapses body mass onto body area; `K_CAP` used to
  * be described as making the same move for concentration, and does not —
  * see its comment above.
+ *
+ * **Not tunable, absolutely.** It is the carbon unit. Overriding it would
+ * calibrate nothing: `s` is proportional to `ρ` through the budget, so
+ * `s/ρ` — the only ratio that matters — never moves (ADR-0022).
  */
 export const RHO = 1;
 
@@ -54,7 +116,7 @@ export const RHO = 1;
  * autonomy for a baseline body at the respiration rate M2's later slices
  * land. Open for M5 to move.
  */
-export const K_CAP_ENERGY = 400;
+export const K_CAP_ENERGY = tunable("K_CAP_ENERGY", 400);
 
 /**
  * The carbon budget, phrased as "enough carbon for K baseline organisms" —
@@ -63,7 +125,10 @@ export const K_CAP_ENERGY = 400;
  * headroom for M4's mitosis to grow the population before M5 tunes this
  * for real. Open for M5 to move.
  */
-export const CARBON_BUDGET_BASELINE_ORGANISMS = 200;
+export const CARBON_BUDGET_BASELINE_ORGANISMS = tunable(
+  "CARBON_BUDGET_BASELINE_ORGANISMS",
+  200,
+);
 
 /**
  * How initial ambient carbon splits between CO₂ and food: in favour of
@@ -71,14 +136,17 @@ export const CARBON_BUDGET_BASELINE_ORGANISMS = 200;
  * story, once M2's later slices land, is fixation in the photic zone
  * rather than an already-full food pool. Open for M5 to move.
  */
-export const AMBIENT_CO2_SHARE = 0.75;
+export const AMBIENT_CO2_SHARE = tunable("AMBIENT_CO2_SHARE", 0.75);
 
 /**
  * Oxygen's ambient concentration, chosen directly rather than derived: the
  * CO₂ term already carries oxygen of its own (ADR-0001), so oxygen needs
  * no closed-form tie to the carbon budget. Open for M5 to move.
  */
-export const AMBIENT_OXYGEN_CONCENTRATION = 0.5;
+export const AMBIENT_OXYGEN_CONCENTRATION = tunable(
+  "AMBIENT_OXYGEN_CONCENTRATION",
+  0.5,
+);
 
 /**
  * Passive exchange's rate coefficient (ADR-0003): `flux = kDiffusion ×
@@ -86,13 +154,21 @@ export const AMBIENT_OXYGEN_CONCENTRATION = 0.5;
  * `r / (2·kDiffusion)` — 100 ticks for a baseline body to reach diffusive
  * equilibrium from a standing start, which is fast enough that a run's
  * opening transient is over quickly and slow enough to read as diffusion
- * rather than as a snap to equilibrium. Open for M5 to move.
+ * rather than as a snap to equilibrium.
+ *
+ * Reachable from the environment, and deliberately **out of M5's sweep**
+ * (ADR-0022): that same time constant is how long a parent takes to reach
+ * the mitosis mass gate, so it sets the reproductive period, and moving it
+ * rescales every other measurement in the run rather than changing one of
+ * them.
  */
-export const K_DIFFUSION = 0.005;
+export const K_DIFFUSION = tunable("K_DIFFUSION", 0.005);
 
 /**
  * The light unit: fixed by construction, the same move `RHO` makes for
  * carbon. Surface light is exactly 1.
+ *
+ * **Not tunable, absolutely**, for the same reason `RHO` is not.
  */
 export const LIGHT_SURFACE_INTENSITY = 1;
 
@@ -103,6 +179,11 @@ export const LIGHT_SURFACE_INTENSITY = 1;
  * puts the photic zone at the aquarium's top quarter — enough of a split
  * that depth is worth something, without every organism below it sitting
  * in total darkness.
+ *
+ * **Not tunable.** `PHOTIC_BAND_DEPTH` is derived from this value and is
+ * fixed before any calibration run (ADR-0023), so a sweep able to move
+ * this one would be moving the window `α` is measured through. Reopenable
+ * only with an ADR, which means editing this line.
  */
 export const LIGHT_ATTENUATION_K = Math.log(10) / 10;
 
@@ -117,7 +198,7 @@ export const LIGHT_ATTENUATION_K = Math.log(10) / 10;
  * next M2 slice re-derives it once respiration closes the cycle and a run
  * exists to read.
  */
-export const K_PHOTO = 0.03;
+export const K_PHOTO = tunable("K_PHOTO", 0.03);
 
 /**
  * Respiration's rate coefficient: `rate = kResp × C_internal(food) ×
@@ -129,8 +210,14 @@ export const K_PHOTO = 0.03;
  * perimeter, so a large body's respiration stays supply-limited rather
  * than substrate-limited, and consumption settles wherever it matches
  * what is arriving rather than at some internal ceiling.
+ *
+ * Reachable from the environment, and **not a lever M5 pulls** (ADR-0025).
+ * Lowering it is the obvious-looking way to let food pile up toward the
+ * mass gate and it is backwards: it pushes respiration out of the
+ * supply-limited regime, and supply-limitation is the only reason income
+ * is linear in `r`. `K_PHOTO` is the lever instead.
  */
-export const K_RESP = 1.0;
+export const K_RESP = tunable("K_RESP", 1.0);
 
 /**
  * Carbon-to-energy conversion: every unit of food (and matching O₂)
@@ -151,7 +238,10 @@ export const K_RESP = 1.0;
  * `createWorld` out to 100k ticks and reading where the population
  * settles rather than by solving for it on paper.
  */
-export const RESPIRATION_ENERGY_YIELD = 800;
+export const RESPIRATION_ENERGY_YIELD = tunable(
+  "RESPIRATION_ENERGY_YIELD",
+  800,
+);
 
 /**
  * The flat existence cost `c₀` (ADR-0009): the size-independent half of
@@ -165,13 +255,18 @@ export const RESPIRATION_ENERGY_YIELD = 800;
  * for M5 to re-derive properly against the *measured* `α`, which this
  * milestone's HUD now exposes.
  */
-export const EXISTENCE_COST = 1.0;
+export const EXISTENCE_COST = tunable("EXISTENCE_COST", 1.0);
 
 /**
  * The body-cost coefficient `β` in maintenance's area-scaled half, `β ×
  * area`. Fixed at 1 by construction, the same calibration move that fixes
- * `K_CAP` and `ρ`: it is what lets a baseline body's body cost read simply
- * as its own area.
+ * `ρ`: it is what lets a baseline body's body cost read simply as its own
+ * area. (`K_CAP` was once described as a third such move and is not — see
+ * its own comment.)
+ *
+ * **Not tunable, absolutely.** It is the energy unit, and `c₀` is solved
+ * against an `α` measured in that unit; moving it would move the scale the
+ * prediction is stated in.
  */
 export const BODY_COST_COEFFICIENT = 1;
 
@@ -185,7 +280,7 @@ export const BODY_COST_COEFFICIENT = 1;
  * gene. At four genes, this leaves roughly a third of births exact clones —
  * `docs/vision.md`'s "some births are exact clones".
  */
-export const MUTATION_PROBABILITY = 0.25;
+export const MUTATION_PROBABILITY = tunable("MUTATION_PROBABILITY", 0.25);
 
 /**
  * `bodyRadius`'s multiplicative step size: a mutation applies `× (1 +
@@ -194,28 +289,34 @@ export const MUTATION_PROBABILITY = 0.25;
  * generation 0's `[1/1.4, 1.4]` spread — the range M1 already calibrated —
  * from a single ordinary birth's step.
  */
-export const DELTA_BODY_RADIUS = 0.08;
+export const DELTA_BODY_RADIUS = tunable("DELTA_BODY_RADIUS", 0.08);
 
 /**
  * `mitosisEnergyThreshold`'s additive step size, clamped to `[0, 1]`. Small
  * enough that a lineage's threshold drifts rather than jumps between
  * strategies in one birth.
  */
-export const DELTA_MITOSIS_ENERGY_THRESHOLD = 0.05;
+export const DELTA_MITOSIS_ENERGY_THRESHOLD = tunable(
+  "DELTA_MITOSIS_ENERGY_THRESHOLD",
+  0.05,
+);
 
 /**
  * `childAllocationRatio`'s additive step size, clamped to `[0, 1]`. Same
  * order as `DELTA_MITOSIS_ENERGY_THRESHOLD`, for the same reason: both are
  * dimensionless ratio genes mutating by the same law (ADR-0002).
  */
-export const DELTA_CHILD_ALLOCATION_RATIO = 0.05;
+export const DELTA_CHILD_ALLOCATION_RATIO = tunable(
+  "DELTA_CHILD_ALLOCATION_RATIO",
+  0.05,
+);
 
 /**
  * `lineageHue`'s additive drift, wrapping modulo 1. Slow enough that a
  * clade reads as one colour from birth to birth, fast enough that a sweep
  * across the population is visible over hundreds of generations.
  */
-export const DELTA_LINEAGE_HUE = 0.02;
+export const DELTA_LINEAGE_HUE = tunable("DELTA_LINEAGE_HUE", 0.02);
 
 /**
  * Multiplies every δ above for generation 0 only, so founders spread across
@@ -225,7 +326,10 @@ export const DELTA_LINEAGE_HUE = 0.02;
  * `MAX_RADIUS_FACTOR` — generation 0's spread stays what M1 calibrated it
  * to.
  */
-export const GENERATION_0_MUTATION_SCALE = 5;
+export const GENERATION_0_MUTATION_SCALE = tunable(
+  "GENERATION_0_MUTATION_SCALE",
+  5,
+);
 
 /**
  * Mitosis's energy price, `MITOSIS_ENERGY_COST × childArea` (ADR-0019):
@@ -239,4 +343,24 @@ export const GENERATION_0_MUTATION_SCALE = 5;
  * baseline parent's energy cap (`K_CAP_ENERGY × π ≈ 1257`), affordable at
  * `BASELINE_GENOME`'s `mitosisEnergyThreshold` without being free.
  */
-export const MITOSIS_ENERGY_COST = 100;
+export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
+
+/**
+ * Last, once every `tunable` above has registered its name: an
+ * `ACQUARIO_`-prefixed variable that matched nothing is a typo, or a
+ * constant somebody expected to be reachable and is not, and either way
+ * the run about to start is not the run that was asked for. It throws
+ * rather than warns, because a sweep's output is a table of numbers under
+ * labels, and a candidate silently run at the committed value lands in
+ * that table under the wrong one.
+ */
+for (const key of Object.keys(environmentOverrides)) {
+  if (
+    key.startsWith(OVERRIDE_PREFIX) &&
+    !tunableNames.has(key.slice(OVERRIDE_PREFIX.length))
+  ) {
+    throw new Error(
+      `${key} does not name a tunable constant. The constants that fix a unit — RHO, LIGHT_SURFACE_INTENSITY, BODY_COST_COEFFICIENT — and LIGHT_ATTENUATION_K are deliberately unreachable; see src/world/constants.ts.`,
+    );
+  }
+}

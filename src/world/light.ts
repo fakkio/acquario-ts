@@ -1,4 +1,4 @@
-import {AQUARIUM_HEIGHT} from "./aquarium";
+import {AQUARIUM_HEIGHT, BASELINE_BODY_RADIUS} from "./aquarium";
 import {LIGHT_ATTENUATION_K, LIGHT_SURFACE_INTENSITY} from "./constants";
 
 /**
@@ -74,4 +74,32 @@ export function lightAt(y: number): number {
   const upper = LIGHT_TABLE[upperIndex];
 
   return lower + (upper - lower) * fraction;
+}
+
+/**
+ * The **photic band**'s floor (glossary; ADR-0023): the depth at or above
+ * which an organism counts as living in the light, in baseline radii.
+ *
+ * Ten radii down is where `LIGHT_ATTENUATION_K` was chosen to put a tenth
+ * of the surface value, which is already what `docs/vision.md` calls the
+ * photic zone — so this constant names a boundary the world already had
+ * rather than drawing a new one. It is read in three places that must all
+ * mean the same depth: the `α` fold in `world.ts`, the HUD, and the
+ * calibration harness.
+ *
+ * **Not a tunable.** It lives here rather than in `constants.ts` for two
+ * reasons: it is a length, and lengths are written against
+ * `BASELINE_BODY_RADIUS`, which `constants.ts` deliberately cannot import;
+ * and it is fixed *before* calibration and stays fixed through it. A
+ * threshold derived from where breeding turned out to happen would
+ * reintroduce exactly the circularity ADR-0015 spent a section removing,
+ * so it is not in the table the harness is allowed to override.
+ */
+export const PHOTIC_BAND_DEPTH = 10 * BASELINE_BODY_RADIUS;
+
+/** Whether a body's centre sits inside the photic band. Sampled at the
+ * centre, never the upper edge, for the same reason `lightAt` is — see its
+ * comment above. */
+export function isPhotic(y: number): boolean {
+  return y <= PHOTIC_BAND_DEPTH;
 }
