@@ -1,4 +1,4 @@
-# Una costante travestita da unità
+# Quanto dura una misura
 
 M5 non ha ancora una riga di codice e ha già smentito tre cose che il progetto dava per assodate. Nessuna delle tre è uscita da una run: sono uscite da cinque giri di domande, a tavolino, prima ancora che esistesse l'harness che dovrebbe misurarle. È il contrario di come erano andate le milestone precedenti, dove le sorprese arrivavano sempre dai numeri.
 
@@ -77,3 +77,97 @@ Avevo tenuto per me la scrittura della spec e dei ticket, e l'agente ci aveva le
 Non c'era nessuna linea. C'era una coda. Prima si fa il grilling, poi la spec, poi i ticket, e quando l'ho detto eravamo ancora dentro il primo.
 
 Gli ADR sono usciti da lì non perché siano meno miei, ma perché il grilling era il passo in corso.
+
+---
+
+Il primo ticket di M5 ha un deliverable curioso: tre allargamenti del mondo e zero cambiamenti di comportamento. La verifica sta in una riga, scritta nel ticket stesso: un mondo costruito senza opzioni deve arrivare allo stesso hash di prima. Un commit intero la cui prova di correttezza è che un numero non si muove.
+
+Additive means additive, dice il ticket, che tradotto è: se hai allargato bene, non si vede niente.
+
+---
+
+Ho verificato l'invarianza avanzando il mondo di `500 × FIXED_DT_MS` in una chiamata sola, e ho scritto i tre hash nel commit message come prova. Erano giusti. Erano anche identici prima e dopo, quindi la conclusione reggeva.
+
+Solo che `MAX_TICKS_PER_ADVANCE` taglia una singola `advance` a 240 tick. Quei tre numeri erano il tick 240 con scritto sopra tick 500. Nessuno poteva riprodurli: chi avesse rifatto la misura nel modo ovvio, cinquecento chiamate da un tick, avrebbe ottenuto tre hash diversi e non avrebbe saputo quale dei due era rotto.
+
+La misura era corretta e irriproducibile nello stesso momento. È il caso peggiore, perché non fallisce.
+
+---
+
+L'ha trovata un agente di revisione, rifacendo la misura per conto suo in un worktree staccato invece di leggere il numero che gli avevo messo davanti.
+
+Vale la pena metterlo accanto al frammento sui cinque giri di design, quello dove scrivevo che la revisione non c'era e che le smentite dell'agente erano l'unico controllo attivo. Qui la revisione c'era, ed è servita esattamente per la cosa per cui serve: non ha trovato un errore di ragionamento, ha trovato un numero che nessuno aveva ricontato.
+
+---
+
+`K_CAP` diventa una tabella per risorsa, e ogni voce resta 1. Nessuna cap si muove di un millesimo.
+
+Sembra lavoro a vuoto ed è l'opposto. Fra due ticket il cibo salirà sopra `ρ`, e quel diff conterrà un numero cambiato e nient'altro. Chi lo aprirà fra sei mesi non dovrà separare il cambio di forma dal cambio di valore, perché sono in due commit diversi.
+
+Allarga la forma adesso, sposta il valore dopo. Costa un commit in più e compra l'attribuibilità.
+
+---
+
+ADR-0022 ha ritrattato per iscritto la frase "`kCap = 1` fissa l'unità di concentrazione". `vision.md` era stato corretto in due punti su tre. Il terzo, la riga sull'unità della luce, diceva ancora la frase vecchia. E con lui un commento in `ledger.ts` e due in `reproduction.long.test.ts`.
+
+Quattro posti dove il progetto continuava ad affermare una cosa che si era già ritrattata, in un repo dove la ritrattazione stessa è il titolo del mucchio di frammenti.
+
+Una decisione scritta in un ADR non si propaga da sola. Si propaga dove qualcuno è andato a guardare.
+
+---
+
+Sono andato a controllare se il repo avesse davvero l'abitudine di fidarsi di numeri raccontati a voce, e la risposta è più precisa dell'accusa.
+
+`death.test.ts` dice "Measured at 269 ticks to extinction", e due righe sotto c'è `const SEED = 71` dentro il `describe` che quella run la esegue. Rilanci il test e 269 torna. Il tolerance `1e-9` di `conservation.long.test.ts` è argomentato nel commento sopra al test che lo misura, con il seed nello stesso file.
+
+`RESPIRATION_ENERGY_YIELD = 800` invece dice "found by running `createWorld` out to 100k ticks and reading where the population settles". Nessun seed. Nessuna opzione: quel mondo era immortale? fertile? Nessun comando. E `EXISTENCE_COST` sta a 1.0 "for the same reason", cioè per la stessa run irripetibile.
+
+Non è una questione di disciplina. Un numero sopravvive esattamente quanto il codice che l'ha misurato. Dove la misura stava dentro un test è ancora viva; dove stava solo in un commento è il racconto di una run in cui nessuno può più entrare.
+
+---
+
+E c'è la coincidenza che rende la cosa un debito invece che un aneddoto: le due costanti non riproducibili sono esattamente le due che M5 deve ri-derivare. `EXISTENCE_COST` è quella che il ticket #35 deve risolvere contro l'α misurata nella banda fotica.
+
+M5 non sta correggendo un'abitudine sbagliata. Sta pagando un conto preciso, aperto da due numeri la cui provenienza è evaporata.
+
+---
+
+Il mio errore era della stessa famiglia, e la differenza fra i due casi non è la gravità: è quanto sono durati. Il mio trenta secondi, perché qualcuno ha rifatto la misura. Quegli altri quattro milestone, perché nessuno l'ha rifatta.
+
+---
+
+Perché una misura scritta in un commento non ha modo di fallire. Un test rotto diventa rosso; un numero sbagliato in un commit message resta lì e sembra una prova.
+
+Questo spiega anche una decisione della spec di M5 che a prima lettura sembrava pignola: l'harness non asserisce niente, riporta e basta, e i gate stanno nella long suite. "A test that prints instead of asserting is a test that can never fail." Vero, e lo stesso vale per il suo output. Quindi la regola che serve non è che l'harness asserisca, ma che ogni numero che produce sia ri-ottenibile con un comando, proprio perché quel numero non potrà mai diventare rosso da solo.
+
+Il controllo umano, nelle milestone che restano, va speso dove un'affermazione non ha modo di fallire. Non sul codice: sui numeri.
+
+---
+
+Messi in fila, i ritrovamenti di M5 sono tre forme della stessa cosa.
+
+`K_CAP = 1` era scritta con la sicurezza che si usa per le cose derivate, e non era derivata: nessuno aveva rifatto quella derivazione per quattro milestone. `RESPIRATION_ENERGY_YIELD = 800` è scritta con la sicurezza che si usa per le cose misurate, e la run che la misurò non è più raggiungibile. E la ritrattazione di ADR-0022 è arrivata in due punti su sei, perché gli altri quattro nessuno è andato a rileggerli.
+
+Un'affermazione dura finché nessuno rifà il lavoro che c'è sotto. La misura è il caso più netto perché ha una scadenza che non si vede: il numero resta leggibile per sempre, è la run che scompare.
+
+---
+
+E in tutti e tre i casi, la cosa che ha rifatto il lavoro è stata qualcuno che lo ha rifatto a mano. L'agente che al terzo giro ri-deriva e si smentisce. La revisione che rilancia la misura dell'hash in un worktree staccato invece di leggere il numero che le avevo messo davanti. Io che vado a cercare con `grep` quante volte il repo dice "measured".
+
+Niente di tutto questo è automatico, e il progetto una cosa automatica ce l'ha: l'invariante di conservazione rifà la stessa verifica centomila volte di fila, a ogni tick, e `vision.md` la chiama da sempre "the single best bug detector the project has", cioè il miglior rilevatore di bug che il progetto possiede.
+
+È l'unica affermazione del progetto che non può invecchiare, perché è l'unica che si ricontrolla da sola.
+
+---
+
+Questo articolo si chiude su un verdetto che ancora non esiste. Le quindici run di done-criteria diranno se le medie geniche atterrano entro il ±15% dell'`r_opt` previsto, e la spec di M5 mette per iscritto che un verdetto è dovuto in entrambi i casi: "It is not a reason to widen the ±15% band, and the band is fixed before the runs precisely so that widening it later is recognisable as a refusal rather than a judgement call." Allargare la banda dopo, dice, si riconoscerebbe come un rifiuto e non come un giudizio.
+
+Quindi il pezzo è impegnato in anticipo a pubblicare anche il risultato negativo. Non è coraggio: è che la banda è stata fissata prima, e adesso non è più mia.
+
+---
+
+Ed è la stessa moneta del filo, girata dall'altro lato.
+
+Una misura che non si può rifare non vale niente, perché il numero sopravvive alla run che lo ha prodotto. Una previsione fissata dopo la misura non vale niente, perché non c'è più niente che possa smentirla.
+
+Sono tutte e due questioni di ordine, non di rigore. Prima la previsione, poi la misura; e la misura deve restare rifacibile più a lungo del numero che stampa.
