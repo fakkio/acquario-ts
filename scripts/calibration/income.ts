@@ -347,7 +347,19 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
 }
 
 export interface IncomeReport {
-  readonly exponent: number;
+  /**
+   * `n` over the rungs that reached a settled regime, which is the one
+   * ADR-0025 defines the gate against, and `n` over every rung the ladder
+   * admitted.
+   *
+   * Both, and in this order, because they differ and the difference runs
+   * one way: the transient rungs pull the slope *toward* the gate. A
+   * summary carrying only `all` would be a report flattering itself by
+   * layout, which is the one thing an instrument that asserts nothing has
+   * left to get wrong.
+   */
+  readonly exponentSettled: number;
+  readonly exponentAllRungs: number;
   readonly maxReproductiveRadius: number | null;
 }
 
@@ -410,7 +422,13 @@ export function reportIncome(): IncomeReport {
     .map(({rungs}) => fitExponent(rungs, true))
     .filter((fit) => Number.isFinite(fit.n));
   row(
-    "n, across seeds",
+    "n, settled rungs only",
+    settledFits.length === 0
+      ? "unfittable — fewer than 3 rungs reached a settled regime"
+      : `${meanSigma(settledFits.map((fit) => fit.n))} over ${String(settledFits[0].points)} rungs`,
+  );
+  row(
+    "n, every admitted rung",
     fitted.length === 0
       ? `unfittable — fewer than 3 rungs yielded a window in any seed`
       : `${meanSigma(fitted.map((fit) => fit.n))} over ${String(fitted.length)} of ${String(fits.length)} seeds`,
@@ -418,12 +436,6 @@ export function reportIncome(): IncomeReport {
   if (fitted.length > 0) {
     row("fit r², across seeds", meanSigma(fitted.map((fit) => fit.rSquared)));
   }
-  row(
-    "n, settled rungs only",
-    settledFits.length === 0
-      ? "unfittable — fewer than 3 rungs reached a settled regime"
-      : `${meanSigma(settledFits.map((fit) => fit.n))} over ${String(settledFits[0].points)} rungs`,
-  );
   row(
     "rungs admitted",
     `${String(fits[0].points)} of ${String(LADDER_RUNGS)} (seed ${String(first.seed)})`,
@@ -466,7 +478,8 @@ export function reportIncome(): IncomeReport {
   );
 
   return {
-    exponent: meanAndSigma(fitted.map((fit) => fit.n)).mean,
+    exponentSettled: meanAndSigma(settledFits.map((fit) => fit.n)).mean,
+    exponentAllRungs: meanAndSigma(fitted.map((fit) => fit.n)).mean,
     maxReproductiveRadius: maxRadius,
   };
 }

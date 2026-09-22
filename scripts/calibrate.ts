@@ -147,7 +147,10 @@ function main(): void {
     "r_opt = 2·c₀/α_photic, as committed",
     num((2 * constants.EXISTENCE_COST) / alpha.photic),
   );
-  row("n, measured", num(income.exponent));
+  // The settled fit first, and named as the gate's own number: it is what
+  // ADR-0025 defines `n` over, and it is the less comfortable of the two.
+  row("n, settled regime (the gate's)", num(income.exponentSettled));
+  row("n, every admitted rung", num(income.exponentAllRungs));
   row(
     "r_max, measured",
     income.maxReproductiveRadius === null

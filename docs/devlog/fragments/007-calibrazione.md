@@ -171,3 +171,66 @@ Ed è la stessa moneta del filo, girata dall'altro lato.
 Una misura che non si può rifare non vale niente, perché il numero sopravvive alla run che lo ha prodotto. Una previsione fissata dopo la misura non vale niente, perché non c'è più niente che possa smentirla.
 
 Sono tutte e due questioni di ordine, non di rigore. Prima la previsione, poi la misura; e la misura deve restare rifacibile più a lungo del numero che stampa.
+
+---
+
+L'harness è atterrato prima che si muovesse una costante, ed è la prima volta in M5 che una previsione di carta viene messa alla prova. Ha retto: `α_dark` misurata 1.240 contro una soglia di 2.000, e tutti e dodici i raggi, da 0.25 a 8.0, muoiono sotto la luce.
+
+Ma la conferma migliore non è il verdetto, è la forma. ADR-0023 diceva che il buio ammette una banda e non un tetto, perché la condizione di sopravvivenza è una parabola all'ingiù: i piccoli muoiono sul costo fisso, i grandi sul costo d'area. La tabella dei morti la disegna. Il più piccolo muore al tick 61, il centro della scala regge fino al 317, il più grande ricade al 242.
+
+La banda è vuota, ma è vuota per il motivo previsto. Il vertice della parabola sta sotto la linea di pochissimo; non è la parabola a essere sbagliata.
+
+---
+
+Cinque giri di domande avevano azzeccato la fisica e sbagliato lo strumento.
+
+Il ticket #34 descrive la misura del reddito energetico come esatta, e lo è: in una popolazione fissa nessuno nasce, nessuno muore, nessuno paga un figlio, quindi l'energia cambia per due soli termini e `Δenergia + (c₀ + β·area)` è la respirazione, non una stima della respirazione.
+
+Solo che vale finché l'energia è libera di scendere. Il mondo immortale la ferma a zero. E il corpo che sbatte contro quel pavimento è esattamente quello il cui reddito non copre il proprio mantenimento, cioè quello di cui volevo sapere il reddito.
+
+Lo strumento vede solo gli organismi che non hanno bisogno di lui.
+
+---
+
+La prima versione dell'harness ha usato una sola finestra per tutta la scala dei raggi, come diceva il ticket. Ha ammesso tre pioli su dieci e ha stampato `NaN`.
+
+La seconda cerca, per ogni piolo, il tratto più lungo in cui quel corpo non era né a zero né al massimo. Ne ammette dieci su dieci, con un `r²` di 0.98. Sembra la fine della storia.
+
+Non lo è. Quei quattro pioli grandi uno stato stazionario non ce l'hanno: sono leggibili solo mentre scendono, fra il tick 1 e il tick 350, dentro il transitorio di apertura del mondo. ADR-0025 l'esponente lo definisce sul regime limitato dall'offerta, che è un'altra cosa.
+
+---
+
+Quindi `n` è riportato due volte, e le due volte non dicono la stessa cosa.
+
+```
+n, across seeds            1.161 ± 0.0091
+n, settled rungs only      1.400 ± 0.0071
+```
+
+Il gate di ADR-0025 vuole `n` fra 0.9 e 1.15. Il primo numero è appena fuori, e appena fuori somiglia a una questione di taratura. Il secondo non somiglia a niente del genere.
+
+I quattro pioli misurati nel transitorio tirano la pendenza verso il basso, cioè verso il gate. Se non li avessi marcati, l'harness avrebbe stampato un numero più vicino a passare di quanto il mondo meriti.
+
+Il numero comodo era quello che usciva dal non guardare.
+
+---
+
+C'è una riga nell'intestazione del report che non è una misura. È aritmetica che il progetto possedeva già.
+
+`N_max = K/(2r²) − aquariumArea/(2π r²)`, la formula chiusa del tetto di popolazione, scritta in ADR-0022. Valutata alle costanti di oggi, con `K = 200`, dà **−30**.
+
+Un tetto negativo vuol dire che il mondo è sterile per fisica, prima di qualunque domanda di taratura. Nessuno aveva mandato avanti quella formula. Era lì, derivata, corretta, e per farla parlare è servito scrivere lo strumento che la stampa in una riga insieme alle altre.
+
+Il mucchio dice che un'affermazione dura finché nessuno rifà il lavoro che c'è sotto. Questa non aveva nemmeno bisogno che si rifacesse il lavoro: bastava sostituire un numero.
+
+---
+
+> mi sto stufando di rispondere a tutte queste domande sui frammenti per un devlog che tanto poi faccio scrivere a te
+
+Il mucchio esiste perché l'articolo esca dalle notazioni invece che dal diff. Ma se guardo questo file, le cose che dal diff non si ricostruiscono sono cinque, e sono tutte righe che ho buttato lì mentre facevo altro: il buio non noioso, i conti lasciati andare a sentimento, la curiosità sull'alpha, la resa sulla geografia, la coda grilling-spec-ticket.
+
+Nessuna delle cinque è la risposta a una domanda. Sono tutte cose dette lavorando.
+
+Le domande producono l'analisi che l'agente fa del proprio codice, che è esattamente la cosa che dal diff si ricostruisce benissimo.
+
+E c'è il rovescio, che è la parte che non mi aspettavo: siccome l'articolo lo faccio scrivere a lui, il mucchio conta di più, non di meno. Se lo scrivessi io, le mie notazioni ce le avrei in testa e il file sarebbe una comodità. Così è l'unico canale che hanno.
