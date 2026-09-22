@@ -66,6 +66,16 @@ export interface OrganismView {
   readonly y: number;
   readonly bodyRadius: number;
   readonly lineageHue: number;
+  /**
+   * The two reproduction genes, on the view from M5 so that all four genes
+   * can be read where the statistics over them are computed — the HUD and
+   * the calibration harness. They go here rather than behind a
+   * `getGeneStatistics` reader of the world's, the same call ADR-0015 made
+   * when it left `α` smoothing to the App layer: a second path to the same
+   * numbers is a second thing to keep in agreement.
+   */
+  readonly mitosisEnergyThreshold: number;
+  readonly childAllocationRatio: number;
   readonly energy: number;
   readonly oxygen: number;
   readonly carbonDioxide: number;
@@ -130,15 +140,16 @@ export const RESOURCES: readonly Resource[] = [
 
 /**
  * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
- * size: `coefficient × bodyArea`. Energy carries `K_CAP_ENERGY` rather than
- * the three diffusibles' `K_CAP`, because its unit is fixed independently
- * by `β = 1` rather than by coincidence of notation.
+ * size: `coefficient × bodyArea`. The three diffusibles' coefficients come
+ * from `K_CAP`'s own per-resource table, spread in whole rather than listed
+ * again here, so a diffusible added later cannot be given a cap in one
+ * place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
+ * outside that table, because its unit is fixed independently by `β = 1`
+ * rather than by coincidence of notation.
  */
 const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
   energy: K_CAP_ENERGY,
-  oxygen: K_CAP,
-  carbonDioxide: K_CAP,
-  food: K_CAP,
+  ...K_CAP,
 };
 
 /**
@@ -148,11 +159,11 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
  *
  * `x`/`y` and `rng` are the state a tick advances. `genome` is fixed for a
  * life: it changes only at birth, through `mutateGenome`, where the child
- * gets its own record — never in place on a living organism. `bodyRadius`
- * and `lineageHue` stay readable as getters over it, so every existing read
- * of either — in `grid.ts`, `motion.ts`, `metabolism.ts`, `separation.ts`,
- * `render.ts` and the test fixtures — keeps working untouched, and
- * `OrganismView` stays exactly what it was.
+ * gets its own record — never in place on a living organism. All four genes
+ * are readable as getters over it, so every existing read of `bodyRadius`
+ * or `lineageHue` — in `grid.ts`, `motion.ts`, `metabolism.ts`,
+ * `separation.ts`, `render.ts` and the test fixtures — keeps working
+ * untouched, and `OrganismView` is widened rather than reshaped.
  *
  * No rotation and no angular velocity: a circle with no organelles has no
  * visible orientation, and rotation arrives in v0.2 with the organelles whose
@@ -192,6 +203,14 @@ export class Organism {
 
   get lineageHue(): number {
     return this.genome.lineageHue;
+  }
+
+  get mitosisEnergyThreshold(): number {
+    return this.genome.mitosisEnergyThreshold;
+  }
+
+  get childAllocationRatio(): number {
+    return this.genome.childAllocationRatio;
   }
 }
 
@@ -263,10 +282,19 @@ export interface PopulationDraw {
 
 /**
  * Places generation 0 from the global stream. Each founder is
- * `BASELINE_GENOME` put through the same mutation operator every later
+ * `baselineGenome` put through the same mutation operator every later
  * birth uses, with its probability forced to 1 and every δ scaled by
  * `GENERATION_0_MUTATION_SCALE` — so no two founders are identical, and the
- * spread lands in the range M1 already calibrated.
+ * spread lands in the range M1 already calibrated, around whichever genome
+ * it was handed.
+ *
+ * The baseline is an argument rather than the module constant from M5,
+ * because ADR-0011's done criterion asks gene means to converge "from
+ * different seeds **and** different baseline genomes": a run that can only
+ * vary its seed has no way to start above the target and come down, and
+ * drift keeps a downhill excuse for landing where selection would
+ * (ADR-0025). It defaults to `BASELINE_GENOME`, so an omitted argument is
+ * the world M4 shipped.
  *
  * `lineageHue` is the one gene generation 0 does not inherit: it is drawn
  * uniformly over `[0, 1)` here, overwriting whatever the operator drifted
@@ -278,7 +306,10 @@ export interface PopulationDraw {
  * Bodies land entirely inside the aquarium; overlaps between them are
  * expected and are the separation ticket's problem, not this one's.
  */
-export function createPopulation(globalRng: RngStream): PopulationDraw {
+export function createPopulation(
+  globalRng: RngStream,
+  baselineGenome: Genome = BASELINE_GENOME,
+): PopulationDraw {
   const draws = openDraws(globalRng);
   const population: Organism[] = [];
 
@@ -286,7 +317,7 @@ export function createPopulation(globalRng: RngStream): PopulationDraw {
     // Derived before the placement draws, so an organism's own stream is
     // fixed by its position in the placement order and by nothing else.
     const rng = draws.child();
-    const mutated = draws.mutate(BASELINE_GENOME, {
+    const mutated = draws.mutate(baselineGenome, {
       probability: 1,
       scale: GENERATION_0_MUTATION_SCALE,
     });
@@ -301,6 +332,63 @@ export function createPopulation(globalRng: RngStream): PopulationDraw {
       }),
     );
   }
+
+  return {population, stream: draws.stream()};
+}
+
+/**
+ * One organism of an explicitly placed generation 0: a position and a whole
+ * genome, with nothing drawn and nothing mutated.
+ *
+ * A position as well as a genome, because the two measurements the
+ * calibration harness cannot take from a placed population need both. The
+ * income exponent `n` in `income ∝ r^n` is fitted across a ladder of radii,
+ * and generation 0's natural spread is `[1/1.4, 1.4]` — far too narrow to
+ * tell `r¹` from `r^1.3` (ADR-0025). Depth matters for the same reason: `α`
+ * is a field over the aquarium (ADR-0015), so a ladder measured at one
+ * depth and a ladder measured across them are different measurements.
+ */
+export interface Founder {
+  readonly x: number;
+  readonly y: number;
+  readonly genome: Genome;
+}
+
+/**
+ * Places generation 0 exactly as given: `createPopulation`'s sibling for
+ * the world the harness builds rather than the world the app runs.
+ *
+ * Nothing here draws a position, a genome or a hue. The one thing it does
+ * take from the global stream is each founder's own stream, derived in
+ * placement order the same way `createPopulation` derives it, so an
+ * explicitly placed organism's random sequence still depends on its own
+ * lineage and on nothing else (ADR-0007).
+ *
+ * Positions are taken at their word and not clamped. A founder placed
+ * outside the walls is pulled in by step 10's wall constraint on the first
+ * tick, visibly, which is a better answer than silently moving a body the
+ * caller chose the coordinates of — an instrument that quietly corrects its
+ * own inputs is an instrument that measures something other than what was
+ * asked for.
+ *
+ * The four internal stores are left at zero, exactly as `createPopulation`
+ * leaves them: `initializeMetabolism` is what brings any generation 0 to
+ * diffusive equilibrium, and it does not care how the bodies got there.
+ */
+export function placeFounders(
+  globalRng: RngStream,
+  founders: readonly Founder[],
+): PopulationDraw {
+  const draws = openDraws(globalRng);
+  const population = founders.map(
+    (founder) =>
+      new Organism({
+        x: founder.x,
+        y: founder.y,
+        genome: founder.genome,
+        rng: draws.child(),
+      }),
+  );
 
   return {population, stream: draws.stream()};
 }

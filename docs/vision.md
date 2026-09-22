@@ -161,7 +161,7 @@ I(y) = I₀ · e^(−k·y)
 
 Organisms nearer the surface receive more of it. In v0.1 attenuation is precomputed into a lookup table indexed by depth, so no transcendental function is evaluated in the simulation loop.
 
-`I₀ = 1`, defining the light unit the same way `kCap = 1` defines the concentration unit. `k = ln(10)/10`, so light falls to a tenth of its surface value at a depth of ten baseline radii: the photic zone is the aquarium's top quarter, which makes the founder effect below a real spatial split rather than a gradient washing over everything equally.
+`I₀ = 1`, defining the light unit the same way `ρ = 1` defines the carbon unit. `k = ln(10)/10`, so light falls to a tenth of its surface value at a depth of ten baseline radii: the photic zone is the aquarium's top quarter, which makes the founder effect below a real spatial split rather than a gradient washing over everything equally.
 
 The table samples every `0.1` baseline radii over the aquarium's height and is read with **linear interpolation**. Interpolating costs `+ − × ÷` only, so the arithmetic-only property is kept; reading the nearest entry instead would quantise the gradient into steps wide enough for a lineage to settle on one.
 

@@ -9,26 +9,50 @@
  */
 
 /**
- * The concentration unit for the three diffusibles: fixed by construction,
- * the calibration method's choice of unit rather than a tuned value. A
- * cap of `K_CAP × bodyArea` is then a maximum internal *concentration* of
- * exactly 1.
+ * Each diffusible's cap coefficient: a cap of `K_CAP[resource] × bodyArea`
+ * is a maximum internal *concentration*, not a bucket size (ADR-0003).
+ *
+ * Per-resource rather than a single scalar, because `kCap` was never a unit
+ * (ADR-0022). It carries `ρ`'s own dimension — carbon per area — so fixing
+ * both at 1 was one unit choice *plus* one silent physical assertion: that
+ * an organism can hold exactly its own body's worth of a diffusible. That
+ * assertion is load-bearing at mitosis, where it forces a parent to sit at
+ * exactly 100% of its food store to afford a same-sized child, and it
+ * collides with the throttle-never-spill rule at precisely the tick it
+ * matters. Only the ratio `kCap/ρ` is physical, and `RHO` alone carries the
+ * carbon unit from here on.
+ *
+ * Every entry is still 1: food's headroom above `ρ` is the calibration's
+ * change, not this one's. Widening the shape first is what keeps the value's
+ * change attributable to the ticket that makes it.
+ *
+ * Deliberately not annotated `Record<Diffusible, number>`, which would cost
+ * this module the one property it has always had: it imports nothing, so
+ * nothing it holds can depend on anything that reads it. The table's
+ * completeness is checked where it is consumed instead — `organism.ts`
+ * spreads it into a `Record<Resource, number>`, so a diffusible missing an
+ * entry here is a compile error there.
  */
-export const K_CAP = 1;
+export const K_CAP = {
+  oxygen: 1,
+  carbonDioxide: 1,
+  food: 1,
+};
 
 /**
- * Body density. `ρ = 1` collapses body mass onto body area, fixed by
- * construction alongside `K_CAP` so the mass unit and the concentration
- * unit agree by the same move.
+ * Body density, and the constant that fixes the carbon unit on its own
+ * (ADR-0022). `ρ = 1` collapses body mass onto body area; `K_CAP` used to
+ * be described as making the same move for concentration, and does not —
+ * see its comment above.
  */
 export const RHO = 1;
 
 /**
- * Energy's own cap coefficient, independent of `K_CAP` because energy's
- * unit is fixed separately — by `β = 1`, M2's maintenance ticket — rather
- * than by coincidence of notation. About 240 ticks of autonomy for a
- * baseline body at the respiration rate M2's later slices land. Open for
- * M5 to move.
+ * Energy's own cap coefficient, outside `K_CAP`'s table because energy is
+ * neither a carbon nor an oxygen quantity: its unit is fixed separately, by
+ * `β = 1`, rather than by coincidence of notation. About 240 ticks of
+ * autonomy for a baseline body at the respiration rate M2's later slices
+ * land. Open for M5 to move.
  */
 export const K_CAP_ENERGY = 400;
 
@@ -67,8 +91,8 @@ export const AMBIENT_OXYGEN_CONCENTRATION = 0.5;
 export const K_DIFFUSION = 0.005;
 
 /**
- * The light unit: fixed by construction, the same move `K_CAP` makes for
- * concentration. Surface light is exactly 1.
+ * The light unit: fixed by construction, the same move `RHO` makes for
+ * carbon. Surface light is exactly 1.
  */
 export const LIGHT_SURFACE_INTENSITY = 1;
 

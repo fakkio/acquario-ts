@@ -70,6 +70,14 @@ _Avoid_: colour gene, tag, marker (alone)
 The single minimal genome the generation-0 population is independently mutated from; a _baseline organism_ is one carrying it. It fixes the three functional genes only: `lineageHue` is drawn rather than inherited at generation 0. Its body radius is the baseline radius, and it sits deliberately below the optimal radius, so a run's first visible story is the population climbing toward one.
 _Avoid_: seed genome, ancestor, template
 
+**Generation 0**:
+The population a world is created with: placed, never bred. It comes from one of two places, and which one is a construction option like mortality and fertility — a baseline genome every founder is independently mutated from, or an explicit list of founders. The first is the world the app runs and the done-criteria runs vary; the second is the world the calibration harness builds.
+_Avoid_: gen zero, first generation, seed population, initial population (fine in prose)
+
+**Founder**:
+A generation-0 organism. Named as a record — a position and a whole genome, nothing drawn and nothing mutated — it is what the calibration harness places when it needs a ladder of radii wider than one generation of mutation would ever give it.
+_Avoid_: ancestor, progenitor, seed organism, parent (that is a role in one birth)
+
 **Baseline Radius**:
 The simulation's length unit, and the body radius the baseline genome carries. It is 1 by definition rather than by tuning: every other length — the aquarium's dimensions, the generation-0 radius spread, the optimal radius — is written as a multiple of it (ADR-0009).
 _Avoid_: unit radius, reference radius, default size, r₀, pixel

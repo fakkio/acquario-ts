@@ -1,5 +1,6 @@
 import {depositRemains, evaluateDeaths, type Remains} from "./death";
 import {ExchangeSettlement} from "./environment";
+import {type Genome} from "./genome";
 import {buildUniformGrid, type GridOccupancy} from "./grid";
 import {EMPTY_HASH, foldString, toHashString} from "./hash";
 import {
@@ -21,8 +22,11 @@ import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
   foldPopulation,
+  placeFounders,
+  type Founder,
   type Organism,
   type OrganismView,
+  type PopulationDraw,
 } from "./organism";
 import {createRngStream, type RngStream} from "./rng";
 import {separateOverlaps, worstPenetration} from "./separation";
@@ -87,9 +91,32 @@ export type MortalityMode = "on" | "off";
  */
 export type FertilityMode = "on" | "off";
 
+/**
+ * Where a world's generation 0 comes from, in the two forms M5 needs.
+ *
+ * `{baselineGenome}` is the world the app runs: `STARTING_POPULATION`
+ * founders independently mutated from one genome, exactly as M4 placed
+ * them, but with the genome as an argument — the done-criteria runs vary
+ * the starting point as well as the seed, one of them starting *above* the
+ * target so drift has no downhill excuse for landing where selection would
+ * (ADR-0025).
+ *
+ * `{founders}` is the world the calibration harness builds: every body
+ * placed by hand. It exists because generation 0's natural spread of radii
+ * is `[1/1.4, 1.4]`, which is far too narrow to fit an income exponent
+ * against.
+ *
+ * One field rather than two options, because both are answers to the same
+ * question, and the question has exactly one answer per world. Omitting it
+ * keeps `BASELINE_GENOME` and the behaviour M4 shipped.
+ */
+export type Generation0 =
+  {readonly baselineGenome: Genome} | {readonly founders: readonly Founder[]};
+
 export interface WorldOptions {
   readonly mortality?: MortalityMode;
   readonly fertility?: FertilityMode;
+  readonly generation0?: Generation0;
 }
 
 declare const worldBrand: unique symbol;
@@ -193,7 +220,10 @@ export interface AdvanceResult {
 }
 
 export function createWorld(seed: number, options: WorldOptions = {}): World {
-  const {population, stream} = createPopulation(createRngStream(seed));
+  const {population, stream} = placeGeneration0(
+    createRngStream(seed),
+    options.generation0,
+  );
   // The carbon ledger's one-time construction: generation 0 starts at
   // diffusive equilibrium, and every later tick's conservation check reads
   // its drift from the totals struck right here.
@@ -216,6 +246,25 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     cumulativeDeaths: 0,
     cumulativeBirths: 0,
   });
+}
+
+/**
+ * `WorldOptions.generation0`, resolved to the population it names. The
+ * default arm calls `createPopulation` with no genome argument rather than
+ * with `BASELINE_GENOME` spelled out: one default, held where the placement
+ * rule lives, so the two cannot drift apart.
+ */
+function placeGeneration0(
+  stream: RngStream,
+  generation0: Generation0 | undefined,
+): PopulationDraw {
+  if (generation0 === undefined) {
+    return createPopulation(stream);
+  }
+
+  return "founders" in generation0
+    ? placeFounders(stream, generation0.founders)
+    : createPopulation(stream, generation0.baselineGenome);
 }
 
 /**

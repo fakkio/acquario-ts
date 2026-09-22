@@ -1,7 +1,8 @@
 import {describe, expect, it} from "vitest";
 
-import {AQUARIUM_HEIGHT} from "./aquarium";
+import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
+import {BASELINE_GENOME} from "./genome";
 import {buildUniformGrid} from "./grid";
 import {
   initializeMetabolism,
@@ -18,10 +19,12 @@ import {
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
+  DIFFUSIBLES,
   STARTING_POPULATION,
   bodyArea,
   capFor,
   createPopulation,
+  type Founder,
   type Organism,
 } from "./organism";
 import {createRngStream} from "./rng";
@@ -1052,5 +1055,138 @@ describe("fertility mode (M4)", () => {
     const grown = getPopulation(world).length - initialCount;
     expect(grown).toBeGreaterThan(0);
     expect(getCumulativeBirths(world)).toBe(grown);
+  });
+});
+
+describe("generation 0 (M5)", () => {
+  const LADDER: readonly Founder[] = [0.8, 1.2, 1.8, 2.6].map(
+    (bodyRadius, i) => ({
+      x: 10 + 10 * i,
+      y: 4 + 8 * i,
+      genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.2 * i},
+    }),
+  );
+
+  const hashAfter = (world: World, ticks: number) => {
+    let ticked = world;
+    for (let tick = 0; tick < ticks; tick++) {
+      ({world: ticked} = advance(ticked, FIXED_DT_MS));
+    }
+    return hashState(ticked);
+  };
+
+  // The whole ticket's verification, in one line: additive means additive.
+  // Pinned against a hash literal it would only restate whatever the
+  // constants happen to be; stated as "the explicit default is the
+  // default" it survives M5 moving them, which is what the next two
+  // tickets do.
+  it("reaches the same hash at tick N whether the default baseline is omitted or spelled out", () => {
+    expect(hashAfter(createWorld(1234), 60)).toBe(
+      hashAfter(
+        createWorld(1234, {generation0: {baselineGenome: BASELINE_GENOME}}),
+        60,
+      ),
+    );
+  });
+
+  it("mutates founders from the baseline genome it was given", () => {
+    const population = getPopulation(
+      createWorld(1234, {
+        generation0: {baselineGenome: {...BASELINE_GENOME, bodyRadius: 2.5}},
+      }),
+    );
+
+    const mean =
+      population.reduce((sum, organism) => sum + organism.bodyRadius, 0) /
+      population.length;
+    expect(mean).toBeGreaterThan(2);
+    expect(mean).toBeLessThan(3);
+  });
+
+  it("diverges from the default world once the baseline genome differs", () => {
+    expect(
+      hashAfter(
+        createWorld(1234, {
+          generation0: {baselineGenome: {...BASELINE_GENOME, bodyRadius: 2.5}},
+        }),
+        60,
+      ),
+    ).not.toBe(hashAfter(createWorld(1234), 60));
+  });
+
+  it("places an explicit ladder of founders exactly as given", () => {
+    const population = getPopulation(
+      createWorld(1234, {generation0: {founders: LADDER}}),
+    );
+
+    expect(population).toHaveLength(LADDER.length);
+    for (const [i, organism] of population.entries()) {
+      expect(organism.bodyRadius).toBe(LADDER[i].genome.bodyRadius);
+      expect(organism.x).toBe(LADDER[i].x);
+      expect(organism.y).toBe(LADDER[i].y);
+      expect(organism.lineageHue).toBe(LADDER[i].genome.lineageHue);
+    }
+  });
+
+  // An explicit generation 0 goes through exactly the same ledger
+  // construction the placed one does, or the harness would be measuring a
+  // world that opens on a filling transient instead of at equilibrium.
+  it("brings an explicit generation 0 to diffusive equilibrium like any other", () => {
+    const world = createWorld(1234, {generation0: {founders: LADDER}});
+    const pools = getPoolLevels(world);
+
+    for (const organism of getPopulation(world)) {
+      const area = bodyArea(organism);
+      for (const resource of DIFFUSIBLES) {
+        expect(organism[resource] / area).toBeCloseTo(
+          pools[resource] / AQUARIUM_AREA,
+          12,
+        );
+      }
+    }
+  });
+
+  it("reaches the same hash at tick N in two runs from the same seed and the same ladder", () => {
+    const of = () =>
+      hashAfter(createWorld(1234, {generation0: {founders: LADDER}}), 60);
+
+    expect(of()).toBe(of());
+  });
+
+  it("holds carbon and oxygen within tolerance over a run from an explicit generation 0", () => {
+    let world = createWorld(1234, {generation0: {founders: LADDER}});
+    for (let tick = 0; tick < 500; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    expect(Math.abs(getCarbonDrift(world))).toBeLessThan(1e-9);
+    expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
+  });
+
+  // An empty ladder is a world with nothing in it, not a crash and not a
+  // silently refilled default: the harness is what chooses a generation 0,
+  // and a world that quietly placed forty founders behind its back would
+  // be measuring something other than what was asked for.
+  it("builds an empty world from an empty founder list, and ticks it", () => {
+    let world = createWorld(1234, {generation0: {founders: []}});
+    expect(getPopulation(world)).toHaveLength(0);
+
+    for (let tick = 0; tick < 10; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+
+    expect(getPopulation(world)).toHaveLength(0);
+    expect(getTick(world)).toBe(10);
+    expect(Math.abs(getCarbonDrift(world))).toBeLessThan(1e-9);
+    expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
+  });
+
+  it("exposes all four genes on every organism the world hands out", () => {
+    for (const organism of getPopulation(createWorld(1234))) {
+      expect(organism.bodyRadius).toBeGreaterThan(0);
+      expect(organism.lineageHue).toBeGreaterThanOrEqual(0);
+      expect(organism.mitosisEnergyThreshold).toBeGreaterThanOrEqual(0);
+      expect(organism.childAllocationRatio).toBeGreaterThanOrEqual(0);
+    }
   });
 });

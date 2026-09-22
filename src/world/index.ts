@@ -1,8 +1,9 @@
 export {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
+export {BASELINE_GENOME, type Genome} from "./genome";
 export {type GridOccupancy} from "./grid";
 export {type Pools} from "./ledger";
 export {lightAt} from "./light";
-export {capFor, type OrganismView} from "./organism";
+export {capFor, type Founder, type OrganismView} from "./organism";
 export {createRngStream, deriveChildStream, type RngStream} from "./rng";
 export {
   advance,
@@ -22,6 +23,7 @@ export {
   getZeroEnergyCount,
   hashState,
   type FertilityMode,
+  type Generation0,
   type MortalityMode,
   type World,
   type WorldOptions,
