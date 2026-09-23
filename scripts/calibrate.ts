@@ -96,9 +96,13 @@ function reportTheWorldMeasured(): void {
     `${num(ambient / constants.RHO)}  (ADR-0022: a same-sized child needs ≥ 1)`,
   );
   // ADR-0022's closed-form ceiling, run forwards from the budget in force.
-  const carbonBudget = constants.CARBON_BUDGET_BASELINE_ORGANISMS * Math.PI;
+  // `K` here is `CARBON_BUDGET_BASELINE_ORGANISMS` itself, not `K·π`: the
+  // `·π` in vision.md's `s = (K·π − A)/(A + aquariumArea)` is what turns the
+  // "K baseline organisms" count into an amount of carbon, and it appears
+  // nowhere in the N_max formula that inverts it.
   const rOptCeiling =
-    carbonBudget / (2 * 1.5 ** 2) - AQUARIUM_AREA / (2 * Math.PI * 1.5 ** 2);
+    constants.CARBON_BUDGET_BASELINE_ORGANISMS / (2 * 1.5 ** 2) -
+    AQUARIUM_AREA / (2 * Math.PI * 1.5 ** 2);
   row(
     "N_max at r = 1.5",
     `${num(rOptCeiling)}  (ADR-0022: K/(2r²) − aquariumArea/(2π r²))`,

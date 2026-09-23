@@ -282,12 +282,22 @@ describe("collisions", () => {
   const TICKS = 600;
 
   /**
-   * The ceiling M1's invariant is stated against, in baseline body radii, and
-   * the same one `separation.test.ts` pins for a crowd four times this dense.
-   * Read here on the population the app actually runs, through the accessor
-   * the HUD actually reads.
+   * The ceiling M1's invariant is stated against, in baseline body radii,
+   * read here on the population the app actually runs, through the
+   * accessor the HUD actually reads.
+   *
+   * Raised from M1's `0.5` at #35: that value was pinned before this world
+   * could reproduce, and every M1–M4 run of this test span 600 ticks with
+   * generation 0 alone. #35 is what makes tangent births land inside this
+   * window for the first time — seed 8 alone produces 26 of them here — and
+   * each one can arrive already overlapping a third body the parent itself
+   * did not, which the collision pass then has a tick per newborn to
+   * resolve rather than the whole run to settle into (ADR-0008's own
+   * "climbs for a tick here and there on the way down"). `1.5` keeps
+   * headroom above the `0.98` seed 8 reaches without hiding a pass that
+   * stopped converging.
    */
-  const PENETRATION_CEILING = 0.5;
+  const PENETRATION_CEILING = 1.5;
 
   // Placement scatters generation 0 without looking at who is already there,
   // so a fresh world starts with bodies inside one another. This is the one
@@ -336,13 +346,16 @@ describe("collisions", () => {
    * motion, then the wall constraint. Any tick that ran them twice, in the
    * other order, or against a grid built before motion, lands somewhere else.
    *
-   * Run infertile (M4): the hand-rolled pipeline below replicates steps 2
-   * through 6 and step 10 only, never step 7 or step 12, so a world left at
-   * the default fertility could legitimately diverge from it the moment one
-   * organism crosses its mitosis threshold — a real birth, not a bug, but
-   * one this equality has no way to replicate. Mortality is left at its
-   * default deliberately: no organism starves in 60 ticks from a standing
-   * start either, so there is nothing here for it to diverge on.
+   * Run infertile and immortal: the hand-rolled pipeline below replicates
+   * steps 2 through 6 and step 10 only, never step 7, step 8 or step 12, so
+   * a world left at either default could legitimately diverge from it —
+   * fertility the moment one organism crosses its mitosis threshold, a real
+   * birth and not a bug; mortality the moment one organism's energy passes
+   * zero, a real death and not a bug — and this equality has no way to
+   * replicate either. Both were left at their defaults before #35 solved a
+   * `c₀` an organism can actually afford to starve against in 60 ticks from
+   * a standing start; turning mortality off here changes nothing about the
+   * steps under test, which never touch death either.
    */
   it("runs motion, one separation pass and the wall constraint, once each per tick", () => {
     const SEED = 8;
@@ -359,6 +372,14 @@ describe("collisions", () => {
 
     for (let tick = 0; tick < PIPELINE_TICKS; tick++) {
       pools = runMetabolism(byHand, pools);
+      // The immortal floor (ADR-0017): a world constructed with
+      // `mortality: "off"` clamps energy at zero inside `runTick`, outside
+      // `runMetabolism`'s own steps, so it has to be replicated here too —
+      // #35's `c₀` makes several founders reach zero well inside 60 ticks,
+      // where the milestones before it never did.
+      for (const organism of byHand) {
+        organism.energy = Math.max(0, organism.energy);
+      }
 
       for (const organism of byHand) {
         applyBrownianMotion(organism);
@@ -370,7 +391,7 @@ describe("collisions", () => {
     }
 
     const {world, ticksRun} = advance(
-      createWorld(SEED, {fertility: "off"}),
+      createWorld(SEED, {fertility: "off", mortality: "off"}),
       PIPELINE_TICKS * FIXED_DT_MS,
     );
 
@@ -654,14 +675,20 @@ describe("respiration and maintenance (M2)", () => {
     const population = radii.map((r, i) => organismAt(i * 3, 5, r, 900 + i));
     let pools = initializeMetabolism(population);
 
-    // Warm up past the startup transient, short of the point any of them
-    // would saturate its energy cap and be excluded as throttled.
-    const WARMUP_TICKS = 30;
-    let outcomes: readonly {
-      energyProduced: number;
-      throttledByFullEnergyStore: boolean;
-    }[] = [];
-    for (let tick = 0; tick < WARMUP_TICKS; tick++) {
+    // #35 raised the carbon budget enough that every founder's internal CO₂
+    // starts above `K_CAP.carbonDioxide`, throttling respiration until
+    // photosynthesis draws it back down — around 100 ticks at this depth,
+    // where a 30-tick warmup used to be enough. Once each body clears that,
+    // its own income still swings tick to tick as it drifts in and out of
+    // the throttle, so a single tick's snapshot is noisy; the calibration
+    // harness's own `α` reading (`scripts/calibration/alpha.ts`) handles
+    // this the same way, by time-averaging over a window instead of reading
+    // one tick.
+    const SETTLE_TICKS = 300;
+    const WINDOW_TICKS = 200;
+    const alphaSums = radii.map(() => 0);
+    const alphaCounts = radii.map(() => 0);
+    for (let tick = 0; tick < SETTLE_TICKS + WINDOW_TICKS; tick++) {
       const settlement = new ExchangeSettlement(pools);
       const request = settlement.requestPass();
       for (const organism of population) {
@@ -675,22 +702,29 @@ describe("respiration and maintenance (M2)", () => {
       for (const organism of population) {
         applyPhotosynthesis(organism, grant);
       }
-      outcomes = population.map((organism) => applyRespiration(organism));
+      const outcomes = population.map((organism) => applyRespiration(organism));
       for (const organism of population) {
         applyMaintenance(organism);
       }
       pools = settlement.commit();
+
+      if (tick >= SETTLE_TICKS) {
+        outcomes.forEach((outcome, i) => {
+          if (!outcome.throttledByFullEnergyStore) {
+            alphaSums[i] += outcome.energyProduced / radii[i];
+            alphaCounts[i]++;
+          }
+        });
+      }
     }
 
-    const alphas = outcomes
-      .filter((outcome) => !outcome.throttledByFullEnergyStore)
-      .map((outcome, i) => outcome.energyProduced / radii[i]);
+    const alphas = alphaSums.map((sum, i) => sum / alphaCounts[i]);
     const mean = alphas.reduce((a, b) => a + b, 0) / alphas.length;
     const variance =
       alphas.reduce((a, b) => a + (b - mean) ** 2, 0) / alphas.length;
     const coefficientOfVariation = Math.sqrt(variance) / mean;
 
-    expect(alphas).toHaveLength(radii.length);
+    expect(alphaCounts.every((count) => count > 0)).toBe(true);
     expect(coefficientOfVariation).toBeLessThan(0.1);
   });
 
@@ -745,9 +779,19 @@ describe("respiration and maintenance (M2)", () => {
     });
 
     it("reads zero when every body sits below the band", () => {
+      // Not asserting a positive whole-population mean here any more: #35's
+      // carbon budget starts every founder's internal CO₂ above
+      // `K_CAP.carbonDioxide`, and clearing it needs photosynthesis, whose
+      // rate this far below the band is slow enough that "50 ticks" and
+      // "never" are hard to tell apart (clearing at the band's own floor,
+      // `y = PHOTIC_BAND_DEPTH`, already measures in the thousands). The
+      // property this test exists for — a population with nobody in the
+      // band reads zero on the photic side — still holds and is what it
+      // checks; `getMeasuredAlpha` reading positive once real substrate
+      // exists is `describe("respiration and maintenance (M2)")`'s own
+      // test, on the default, depth-scattered population.
       const world = fixedWorldOf(ladderAt(AQUARIUM_HEIGHT - 2), 50);
 
-      expect(getMeasuredAlpha(world)).toBeGreaterThan(0);
       expect(getPhoticAlpha(world)).toBe(0);
     });
 
@@ -768,6 +812,14 @@ describe("respiration and maintenance (M2)", () => {
     });
 
     it("counts a body exactly on the band's floor as inside it", () => {
+      // Not asserting a positive reading at tick 1 any more: #35's carbon
+      // budget starts internal CO₂ above `K_CAP.carbonDioxide`, and this
+      // depth is dim enough (10% of surface) that clearing it takes
+      // thousands of ticks, not one — see the below-band test's comment.
+      // What this test is actually about is the `≤` in `isPhotic`, which a
+      // lone organism's equal reading on both sides proves regardless of
+      // the reading's sign; a body strictly inside the band earning
+      // something is `"agrees with the whole-population mean..."`'s job.
       const world = fixedWorldOf(
         [
           {
@@ -780,7 +832,6 @@ describe("respiration and maintenance (M2)", () => {
       );
 
       expect(getPhoticAlpha(world)).toBe(getMeasuredAlpha(world));
-      expect(getPhoticAlpha(world)).toBeGreaterThan(0);
     });
   });
 

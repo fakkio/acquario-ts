@@ -91,12 +91,19 @@ import {
  * ticket's scope owns, so #31 stays open against this finding instead of
  * being closed on a weakened test.
  */
-// Roughly 3.9s for this file's whole suite — two full 100k-tick runs, the
-// primed run above plus the determinism repeat below — measured on this
-// ticket's own machine, the one place that number is written down (as #20
-// records its own run cost in `conservation.long.test.ts`).
+// Roughly 3.9s for this file's whole suite when this comment was written —
+// two full 100k-tick runs, the primed run above plus the determinism repeat
+// below — measured on this ticket's own machine, the one place that number
+// is written down (as #20 records its own run cost in
+// `conservation.long.test.ts`). #35 moved it: a world that can actually
+// afford a child now booms to a peak population an order of magnitude
+// above `STARTING_POPULATION` before the same collapse this comment
+// already documented, and each of those ticks costs more, so one run now
+// takes closer to a minute — hence the explicit timeouts below, well past
+// the 30s the file's two runs used to share comfortably.
 const TICKS = 100_000;
 const SEED = 7;
+const RUN_TIMEOUT_MS = 120_000;
 
 function primePopulation(world: World): void {
   for (const organism of getPopulation(world) as unknown as Organism[]) {
@@ -169,7 +176,7 @@ describe("conservation survives birth: the 100k gate (#29)", () => {
 
   beforeAll(() => {
     run = runLong(SEED);
-  });
+  }, RUN_TIMEOUT_MS);
 
   it("conserves total carbon within 1e-9 relative drift", () => {
     expect(Math.abs(run.carbonDrift)).toBeLessThan(1e-9);
@@ -196,8 +203,12 @@ describe("conservation survives birth: the 100k gate (#29)", () => {
     expect(run.cumulativeDeaths).toBeGreaterThan(0);
   });
 
-  it("reaches the same hash at tick 100k for the same seed", () => {
-    const repeat = runLong(SEED);
-    expect(repeat.hash).toBe(run.hash);
-  }, 30_000);
+  it(
+    "reaches the same hash at tick 100k for the same seed",
+    () => {
+      const repeat = runLong(SEED);
+      expect(repeat.hash).toBe(run.hash);
+    },
+    RUN_TIMEOUT_MS,
+  );
 });

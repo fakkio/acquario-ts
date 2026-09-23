@@ -511,7 +511,7 @@ describe("applyRespiration", () => {
 describe("applyMaintenance", () => {
   it("charges the flat existence cost plus the area-scaled body cost", () => {
     const organism = organismAt(0, 0, 1.3);
-    organism.energy = 10_000; // comfortably above the cost
+    organism.energy = 100; // comfortably above the cost, without swamping it in float cancellation
 
     const before = organism.energy;
     applyMaintenance(organism);

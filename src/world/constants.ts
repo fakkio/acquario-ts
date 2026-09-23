@@ -120,14 +120,35 @@ export const K_CAP_ENERGY = tunable("K_CAP_ENERGY", 400);
 
 /**
  * The carbon budget, phrased as "enough carbon for K baseline organisms" —
- * ADR-0001's ecological knob. Chosen well above `STARTING_POPULATION`
- * (40) so generation 0 begins comfortably under the carbon ceiling, with
- * headroom for M4's mitosis to grow the population before M5 tunes this
- * for real. Open for M5 to move.
+ * ADR-0001's ecological knob, solved for rather than chosen by eye (#35).
+ *
+ * `vision.md`'s calibration method runs the ceiling backwards: reproduction
+ * halts once the ambient concentration `s` falls to `ρ`, which happens in
+ * closed form once the population's summed body area reaches `N_max`
+ * baseline-sized bodies at the target `r_opt`,
+ *
+ *     N_max = K/(2·r²) − aquariumArea/(2π·r²)      →      K = 2·r²·N_max + aquariumArea/π
+ *
+ * with `K` this same constant throughout — the `·π` that turns a count of
+ * baseline organisms into an amount of carbon belongs to the *other*
+ * closed form, `s = (K·π − A)/(A + aquariumArea)`, and appears nowhere
+ * here. The chosen ceiling is `N_max = 150`, roughly four times
+ * `STARTING_POPULATION` (40) and well clear of the ~340 bodies the
+ * aquarium would physically pack at `r_opt`. `AQUARIUM_AREA` (2400, i.e.
+ * 60 × 40 baseline radii) is written as a literal rather than imported,
+ * for the same reason `LIGHT_ATTENUATION_K` computes its own value below
+ * instead of importing one: this module holds nothing that depends on
+ * anything that reads it.
+ *
+ * `npm run calibrate` reads this same K back out as "N_max at r = 1.5" —
+ * 150.0 at this value — and as `s / ρ` at tick 0, which is 1.74 for
+ * generation 0's actual founders (well above ADR-0022's ≥ 1, since 40
+ * founders near `bodyRadius = 1` are far short of `N_max` bodies at
+ * `r_opt = 1.5`).
  */
 export const CARBON_BUDGET_BASELINE_ORGANISMS = tunable(
   "CARBON_BUDGET_BASELINE_ORGANISMS",
-  200,
+  2 * 1.5 ** 2 * 150 + (60 * 40) / Math.PI,
 );
 
 /**
@@ -247,15 +268,30 @@ export const RESPIRATION_ENERGY_YIELD = tunable(
  * The flat existence cost `c₀` (ADR-0009): the size-independent half of
  * maintenance, and the term that creates a minimum viable body size.
  *
- * The milestone's paper table put this at 2.2, from `c₀ = α·r_opt/2` with
- * a hand-computed `α ≈ 2.95` and a target `r_opt` of 1.5 — arithmetic that
- * predates a working respiration reaction to measure `α` against. Lowered
- * here alongside `RESPIRATION_ENERGY_YIELD` for the same reason: measured
- * against a real run rather than trusted on paper (ADR-0015). Still open
- * for M5 to re-derive properly against the *measured* `α`, which this
- * milestone's HUD now exposes.
+ * Solved as `c₀ = α_photic · r_opt / 2` (#35), against `α` measured over
+ * the **photic band** in a **fixed population** — mortality and fertility
+ * both off, nothing able to select (ADR-0015, ADR-0023). `α` depends on
+ * the ambient environment respiration draws from, which is what
+ * `CARBON_BUDGET_BASELINE_ORGANISMS` sets — so it is measured with `npm
+ * run calibrate` **after** that constant's new value lands, never before,
+ * or the two would be calibrated against different worlds. Seeds 7–11,
+ * 5,000 settling ticks then a 10,000-tick window: `α_photic = 6.067 ±
+ * 0.40` across the five seeds — noisier than a settled measurement should
+ * be, because the richer ambient carbon this budget implies starts every
+ * founder's internal CO₂ above `K_CAP.carbonDioxide`'s own ceiling of 1,
+ * throttling respiration until photosynthesis draws it back down. That
+ * `AMBIENT_CO2_SHARE`/`K_CAP.food` retuning is explicitly #36's, not this
+ * one's — "whether the measurement that follows is trustworthy is the
+ * next ticket's problem". The target is `r_opt = 1.5` (ADR-0025), fixed
+ * here, before any fertile world is run to judge it against —
+ * `6.067 × 1.5 / 2 = 4.550`.
+ *
+ * The milestone's paper table put this at 2.2, from a hand-computed
+ * `α ≈ 2.95` that predates a working respiration reaction to measure `α`
+ * against; the committed value below replaces that estimate with the
+ * harness's own reading rather than adjusting it.
  */
-export const EXISTENCE_COST = tunable("EXISTENCE_COST", 1.0);
+export const EXISTENCE_COST = tunable("EXISTENCE_COST", 4.55);
 
 /**
  * The body-cost coefficient `β` in maintenance's area-scaled half, `β ×
