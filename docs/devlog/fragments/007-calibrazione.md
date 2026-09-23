@@ -234,3 +234,29 @@ Nessuna delle cinque è la risposta a una domanda. Sono tutte cose dette lavoran
 Le domande producono l'analisi che l'agente fa del proprio codice, che è esattamente la cosa che dal diff si ricostruisce benissimo.
 
 E c'è il rovescio, che è la parte che non mi aspettavo: siccome l'articolo lo faccio scrivere a lui, il mucchio conta di più, non di meno. Se lo scrivessi io, le mie notazioni ce le avrei in testa e il file sarebbe una comodità. Così è l'unico canale che hanno.
+
+---
+
+Anche lo strumento può mentire, non solo le costanti che misura. La riga "N_max at r = 1.5" di `calibrate.ts` moltiplicava il budget per π prima di dividerlo, mentre la formula di `vision.md` vuole la costante grezza — quel `·π` appartiene a un'altra forma chiusa, quella che trasforma "K organismi" in un ammontare di carbonio, e non compare qui. Non stampava un numero assurdo. Stampava un numero plausibile, sbagliato nello stesso modo silenzioso dei tre ritrovamenti di prima. Si è visto solo mettendo due righe dello stesso report una contro l'altra — "ambient carbon s", vera, contro "N_max at r = 1.5", finta — e trovando che implicavano due budget diversi per lo stesso input.
+
+---
+
+Alzare il budget di carbonio abbastanza da ottenere `N_max = 150` fa partire la CO₂ interna della generazione 0 sopra la propria cap. La cap resta ferma a 1 per scelta esplicita del ticket, e la quota ambientale di CO₂ ne prende 1.30. La respirazione resta bloccata finché la photosynthesis non la riporta sotto, e vicino al bordo della banda fotica quello richiede migliaia di tick. Nessuno l'aveva mai visto perché il vecchio budget, troppo piccolo, non si era mai avvicinato a quella soglia.
+
+Tiene il carbonio giusto, nella cap sbagliata — la stessa frase di prima, spostata di un piano.
+
+---
+
+Per la prima volta in questo progetto un mondo mortale e fertile fa nascere qualcuno da solo. Prima: quaranta fondatori, trentanove cadaveri entro il tick 11k, zero nascite mai. Dopo: la prima nascita al tick 100, poi trentatremila nascite in cinquantamila tick. Ma la popolazione sale oltre i mille corpi e poi collassa a zero entro il tick 30k — un boom e un crollo veri, non nascosti sotto una soglia più larga, perché addomesticarli è dichiaratamente il lavoro del ticket dopo.
+
+---
+
+Ho misurato α prima di spostare il budget di carbonio, e poi ho usato quella misura per risolvere la costante che dipende dal budget nuovo. Sbagliato: α dipende dall'ambiente che il budget stesso fissa, quindi misurarla prima vuol dire misurarla nel mondo sbagliato. Me ne sono accorto solo perché il numero è cambiato troppo per essere rumore — da 2.7 a 6.1 — rilanciando l'harness dopo aver spostato il budget. Lo stesso ordine che `vision.md` mette per iscritto in prosa, il budget prima e la misura dopo, e che avevo comunque invertito senza accorgermene.
+
+---
+
+Una manciata di test più vecchi davano per scontato che niente nascesse o morisse in fretta, e lo davano per scontato senza saperlo: erano rimasti verdi per quattro milestone non perché l'invariante fosse vera, ma perché non era mai stata messa alla prova. Il primo mondo che riproduce per davvero li ha messi alla prova tutti insieme lo stesso giorno — un soffitto di collisione tarato quando nessuno nasceva mai in seicento tick, una pipeline di riferimento che non replicava il pavimento d'energia perché nessuno l'aveva mai toccato, due letture di α tarate su un mondo dove la respirazione partiva subito. Nessuno di questi era un errore quando è stato scritto.
+
+---
+
+Il costo di una run da centomila tick non è fisso: dipende da quanti corpi il mondo tiene in vita nel frattempo. Lo stesso file di test, stessa struttura, stesso seed, è passato da quattro secondi a due minuti e mezzo, solo perché adesso la popolazione sale di un ordine di grandezza prima di ricollassare. Il timeout di trenta secondi che bastava fino a ieri era una misura del vecchio mondo travestita da parametro del test runner.
