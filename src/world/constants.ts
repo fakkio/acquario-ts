@@ -85,9 +85,9 @@ function tunable(name: string, committed: number): number {
  * only ever checks a pool's own non-negativity (`environment.ts`), so raising
  * a body's cap does not by itself pull ambient carbon in any faster, and it
  * does not by itself move `r_max` either: measured directly, `1` and `1.5`
- * give the identical peak affordable mass (1.192, seed 7) once
- * `AMBIENT_CO2_SHARE`'s own move (below) is in place, because a body's food
- * concentration settles below even the old cap of 1 well before diffusion or
+ * give the identical peak `C_food/ρ` (1.19, seed 7) at `AMBIENT_CO2_SHARE`'s
+ * own committed value (below), because a body's food concentration settles
+ * below even the old cap of 1 well before diffusion or
  * `applyPhotosynthesis`'s own headroom throttle would bind. What this move
  * buys instead is ADR-0022's own promise, independent of `r_max`: a store
  * that can hold more than a same-sized child needs without every future
@@ -139,10 +139,11 @@ export const RHO = 1;
  * respiration's. Raising this cap to chase that richness back out of
  * pathology was the next thing tried, and it broke `BASELINE_GENOME`'s
  * `mitosisEnergyThreshold` gate — a fraction of this same cap — badly enough
- * to collapse tenancy instead. Left at 400: the mass gate is closed a
- * different way instead (ADR-0025's pre-authorised fallback, fired in
- * `mitosis.ts`, together with a milder move of `AMBIENT_CO2_SHARE` — see its
- * own comment), and this constant never had to move at all.
+ * to collapse tenancy instead. Left at 400: `AMBIENT_CO2_SHARE`'s own move
+ * (see its comment) stays mild enough not to need this cap raised at all —
+ * the trade that made the mass gate reachable this way was declined for a
+ * different reason than this one, but this cap would have had to move again
+ * if it had been taken.
  */
 export const K_CAP_ENERGY = tunable("K_CAP_ENERGY", 400);
 
@@ -183,26 +184,36 @@ export const CARBON_BUDGET_BASELINE_ORGANISMS = tunable(
  * How initial ambient carbon splits between CO₂ and food. M2 put this in
  * favour of CO₂ at 0.75, so the world opens carbon-rich and food-poor.
  *
- * **#36 moves it to 0.6, the mild end of two paths tried.** ADR-0025's
- * `r_max` gate needs an organism's affordable mass — food plus whatever CO₂
- * the fallback in `mitosis.ts` can convert — to reach `ρ` somewhere on the
- * income ladder. Pushing this down to 0.2 got there too, but it also raised
- * a tick's uncapped respiration output far enough past `K_CAP_ENERGY` that
- * `getMeasuredAlpha`'s "energy store always full" exclusion swallowed the
- * whole population from tick 0 onward (see `K_CAP_ENERGY`'s own comment for
- * the finding). 0.6 is the mildest split tested that still clears `ρ`: peak
- * affordable mass reads 1.19 at 0.6, against 0.93 at 0.75, where it never
- * reaches `ρ` at all. Every radius on the income ladder clears it at 0.6 —
- * `r_max` reads above the ladder's own top of 4 baseline radii, comfortably
- * past ADR-0025's `≥ 2 · r_opt = 3` — and 0.6 delays capacity-pegging to a
- * few hundred ticks per radius instead of removing it outright, which
- * `scripts/calibration/settings.ts`'s `SETTLE_TICKS` is retuned around. It
- * never turns the fallback into the *only* thing the gate depends on either
- * — food alone still carries most of the margin.
+ * **#36 moves it to 0.6 — better than M2's value, but not enough to clear
+ * `r_max` or `tenancy`, by decision rather than by a gap left unnoticed.**
+ * ADR-0025's fallback (mitosis draws a child's mass from CO₂ once food runs
+ * short) would close `r_max` outright — measured with it in place, every
+ * radius on the ladder clears `ρ`, `r_max` reads above the ladder's own top
+ * of 4 baseline radii. It was tried, it worked, and it was declined anyway:
+ * a parent hands its child the *same* resource it gives up everywhere else
+ * in mitosis (`childAllocationRatio`'s split is food-for-food, oxygen-for-
+ * oxygen, CO₂-for-CO₂), and converting CO₂ into mass at the exact moment of
+ * birth is a cross-type exception to that rule, for food alone. See
+ * `mitosis.ts`'s own comment and ADR-0019's amendment history for the
+ * reasoning.
  *
- * The cost this still trades away — vision.md's "opens on fixation, not an
- * already-full pool" — is smaller at 0.6 than it would have been at 0.2:
- * the world starts closer to a food/CO₂ balance than to either extreme.
+ * Without the fallback, food alone has to reach `ρ` on its own, and no
+ * combination found clears every gate at once: `AMBIENT_CO2_SHARE` pulls
+ * `n` and `r_max` in opposite directions (0.6 keeps `n` mid-window at 1.07;
+ * 0.5 pushes `r_max` to a barely-passing 3.12 but `n` to 1.15, the gate's
+ * own ceiling), and `tenancy` stayed under 5 in every combination tried —
+ * `AMBIENT_CO2_SHARE` from 0.4 to 0.6, `MITOSIS_ENERGY_COST` from 10 to 100,
+ * `RESPIRATION_ENERGY_YIELD` up to 900 (which broke `n` outright once
+ * paired with a lower share) — topping out at 4.25, short of the gate.
+ *
+ * 0.6 is committed as the better-than-default value it measurably is, not
+ * as a value that clears the gates: at 0.6, `n = 1.07` (inside the window),
+ * but `r_max = 2.59 ± 0.63` and `tenancy = 3.06`, both short of ADR-0025's
+ * `≥ 3` and `≥ 5`. This is recorded as a finding on #36 rather than forced
+ * into a passing number — the population trending toward small bodies that
+ * a live run shows is consistent with `tenancy` failing (small bodies leave
+ * the photic band before proving their fitness through several
+ * reproductions), not necessarily with genuine convergence on `r_opt`.
  */
 export const AMBIENT_CO2_SHARE = tunable("AMBIENT_CO2_SHARE", 0.6);
 
@@ -211,10 +222,11 @@ export const AMBIENT_CO2_SHARE = tunable("AMBIENT_CO2_SHARE", 0.6);
  * CO₂ term already carries oxygen of its own (ADR-0001), so oxygen needs
  * no closed-form tie to the carbon budget.
  *
- * Swept at #36 and left unmoved: `AMBIENT_CO2_SHARE`'s move to 0.6 alone
- * already clears all three ADR-0025 gates, and raising this too was part of
- * a more aggressive path the milestone tried and rejected (see
- * `AMBIENT_CO2_SHARE`'s and `K_CAP_ENERGY`'s own comments).
+ * Swept at #36 and left unmoved. Raising it was part of a more aggressive
+ * ambient-enrichment path the milestone tried and rejected (see
+ * `AMBIENT_CO2_SHARE`'s and `K_CAP_ENERGY`'s own comments); on its own, at
+ * `AMBIENT_CO2_SHARE`'s committed value, it did not move `tenancy` enough to
+ * matter against `r_max`'s own shortfall.
  */
 export const AMBIENT_OXYGEN_CONCENTRATION = tunable(
   "AMBIENT_OXYGEN_CONCENTRATION",
@@ -272,14 +284,15 @@ export const LIGHT_ATTENUATION_K = Math.log(10) / 10;
  * exists to read.
  *
  * Swept at #36 — ADR-0025 calls this one "the lever" for `n` and `r_max`
- * specifically — and left unmoved, against the same calibrated world this
- * file's other constants were measured in. `0.02` reads `n = 0.858`,
- * already below ADR-0025's `0.9` floor, and collapses tenancy to `2.83`;
- * `0.04` swings the other way, `n = 1.238`, above the `1.15` ceiling, with
- * tenancy comfortably clear at `9.26`. `0.03` sits inside the narrow window
- * both gates need at once; the lever this sweep actually pulled was
- * `AMBIENT_CO2_SHARE`, and this one moves `n` too sharply in either
- * direction to also be a lever for tenancy alone.
+ * specifically — and left unmoved. `n` is measured in the fixed, infertile
+ * population the income ladder places (ADR-0015), so this reading does not
+ * depend on how mitosis pays for a birth: `0.02` reads `n = 0.858`, already
+ * below ADR-0025's `0.9` floor; `0.04` swings the other way, `n = 1.238`,
+ * above the `1.15` ceiling. `0.03` sits inside the narrow window `n` needs;
+ * the lever this sweep actually pulled for `r_max` and `tenancy` was
+ * `AMBIENT_CO2_SHARE` (see its own comment for where that landed), and this
+ * one moves `n` too sharply in either direction to also serve as a lever
+ * for them.
  */
 export const K_PHOTO = tunable("K_PHOTO", 0.03);
 
@@ -321,11 +334,14 @@ export const K_RESP = tunable("K_RESP", 1.0);
  * `createWorld` out to 100k ticks and reading where the population
  * settles rather than by solving for it on paper.
  *
- * Swept at #36 (tried up to 900, against tenancy) and left unmoved: once the
- * mass gate closed through ADR-0025's fallback instead of through the more
- * aggressive ambient enrichment that was tried first (see
- * `AMBIENT_CO2_SHARE`'s and `K_CAP_ENERGY`'s own comments), `AMBIENT_CO2_SHARE`'s
- * own move to 0.6 already cleared tenancy's gate without this one moving too.
+ * Swept at #36, against tenancy, and left unmoved. `900` alone (paired with
+ * `AMBIENT_CO2_SHARE` at 0.6) was part of the more aggressive path the
+ * milestone tried and rejected (`K_CAP_ENERGY`'s own comment). Paired
+ * instead with a lower `AMBIENT_CO2_SHARE` (0.5) to help `tenancy` without
+ * that path, `900` broke `n` outright — `0.34`, far below ADR-0025's `0.9`
+ * floor, on only 3 settled rungs. `tenancy` stayed short of `5` in every
+ * combination tried regardless (`AMBIENT_CO2_SHARE`'s own comment records
+ * the sweep); this constant was not the lever that closed the gap.
  */
 export const RESPIRATION_ENERGY_YIELD = tunable(
   "RESPIRATION_ENERGY_YIELD",
@@ -458,9 +474,16 @@ export const GENERATION_0_MUTATION_SCALE = tunable(
  * baseline parent's energy cap (`K_CAP_ENERGY × π ≈ 1257`), affordable at
  * `BASELINE_GENOME`'s `mitosisEnergyThreshold` without being free.
  *
- * Left unmoved at #36, though it is the constant ADR-0025 names as free to
- * tune for tenancy: `AMBIENT_CO2_SHARE`'s move to 0.6 alone already clears
- * tenancy's `≥ 5` gate (5.71, seed 7) without this one moving too.
+ * Swept at #36, though it is the constant ADR-0025 names as free to tune for
+ * tenancy: tried from 10 to 100 alongside `AMBIENT_CO2_SHARE` at 0.5, with
+ * `30` the best of that search (tenancy `4.25`, the closest any combination
+ * found came to the `≥ 5` gate — see `AMBIENT_CO2_SHARE`'s own comment for
+ * the fuller sweep). Not a clean lever, though: at the *committed*
+ * `AMBIENT_CO2_SHARE` of 0.6, `30` reads `2.98` — worse than `100`'s `3.06`
+ * — so the improvement found at 0.5 does not carry over. Left at its M2
+ * value for that reason; the ADR-0025 proof that this constant cancels out
+ * of `r_opt`'s own maximisation still makes it free to revisit without
+ * touching where `bodyRadius` is predicted to converge.
  */
 export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
 

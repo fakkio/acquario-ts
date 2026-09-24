@@ -114,18 +114,12 @@ interface Rung {
   readonly settled: boolean;
   /** Why the rung yielded no usable window, or null when it did. */
   readonly excluded: Exclusion | null;
-  /**
-   * The highest `(food + min(CO₂, O₂ headroom)) / ρ` this body reached
-   * during the window — the mass a same-sized child actually costs, read
-   * against everything ADR-0025's fallback can draw it from (`mitosis.ts`),
-   * not against food alone. At 1 it can afford a same-sized child; below
-   * it, never (ADR-0022).
-   */
-  readonly peakMassOverRho: number;
-  /** The highest `(food + min(CO₂, O₂ headroom)) / s` it reached — the same
-   * peak, read against what the world had dissolved rather than against
-   * body density. */
-  readonly peakMassOverAmbient: number;
+  /** The highest `C_food / ρ` this body reached during the window. At 1 it
+   * can afford a same-sized child; below it, never (ADR-0022). */
+  readonly peakFoodOverRho: number;
+  /** The highest `C_food / s` it reached — the same peak, read against what
+   * the world had dissolved rather than against body density. */
+  readonly peakFoodOverAmbient: number;
   readonly meanDepth: number;
   readonly leftTheBand: boolean;
 }
@@ -233,8 +227,8 @@ function measureLadder(
 
   const spans = radii.map(() => openSpan());
   const lastExclusion: (Exclusion | null)[] = radii.map(() => null);
-  const peakMass = radii.map(() => 0);
-  const peakMassOverAmbient = radii.map(() => 0);
+  const peakFood = radii.map(() => 0);
+  const peakFoodOverAmbient = radii.map(() => 0);
   const depthSum = radii.map(() => 0);
   const leftTheBand = radii.map(() => false);
   const totalTicks = SETTLE_TICKS + WINDOW_TICKS;
@@ -242,20 +236,11 @@ function measureLadder(
   const finished = runTicksWatching(world, totalTicks, (current, tick) => {
     const ambient = ambientCarbon(getPoolLevels(current));
     getPopulation(current).forEach((organism, rung) => {
-      // ADR-0025's fallback (`mitosis.ts`) draws a child's mass from food
-      // first and then CO₂, up to whatever O₂ headroom lets it convert — so
-      // the mass a rung can actually afford is this sum, not food alone.
-      const oxygenHeadroom = Math.max(
-        0,
-        capForRadius(organism.bodyRadius, "oxygen") - organism.oxygen,
-      );
-      const affordableMass =
-        organism.food + Math.min(organism.carbonDioxide, oxygenHeadroom);
       const concentration =
-        affordableMass / bodyAreaOfRadius(organism.bodyRadius);
-      peakMass[rung] = Math.max(peakMass[rung], concentration);
-      peakMassOverAmbient[rung] = Math.max(
-        peakMassOverAmbient[rung],
+        organism.food / bodyAreaOfRadius(organism.bodyRadius);
+      peakFood[rung] = Math.max(peakFood[rung], concentration);
+      peakFoodOverAmbient[rung] = Math.max(
+        peakFoodOverAmbient[rung],
         concentration / ambient,
       );
       depthSum[rung] += organism.y;
@@ -282,8 +267,8 @@ function measureLadder(
         ? null
         : (lastExclusion[rung] ?? "no window long enough"),
       income: usable ? best.delta / stretchTicks(best) + maintenance : null,
-      peakMassOverRho: peakMass[rung] / RHO,
-      peakMassOverAmbient: peakMassOverAmbient[rung],
+      peakFoodOverRho: peakFood[rung] / RHO,
+      peakFoodOverAmbient: peakFoodOverAmbient[rung],
       meanDepth: depthSum[rung] / totalTicks,
       leftTheBand: leftTheBand[rung],
     };
@@ -347,11 +332,11 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
   readonly radius: number | null;
   readonly reason: string;
 } {
-  const reaching = rungs.filter((rung) => rung.peakMassOverRho >= 1);
+  const reaching = rungs.filter((rung) => rung.peakFoodOverRho >= 1);
   if (reaching.length === 0) {
     return {
       radius: null,
-      reason: `no rung reached affordable mass = ρ — nothing on this ladder can afford a child`,
+      reason: `no rung reached C_food = ρ — nothing on this ladder can afford a child`,
     };
   }
 
@@ -359,15 +344,15 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
   if (lastIndex === rungs.length - 1) {
     return {
       radius: null,
-      reason: `every rung reached affordable mass = ρ — r_max is above the ladder's top`,
+      reason: `every rung reached C_food = ρ — r_max is above the ladder's top`,
     };
   }
 
   const below = rungs[lastIndex];
   const above = rungs[lastIndex + 1];
   const fraction =
-    (below.peakMassOverRho - 1) /
-    (below.peakMassOverRho - above.peakMassOverRho);
+    (below.peakFoodOverRho - 1) /
+    (below.peakFoodOverRho - above.peakFoodOverRho);
   const logRadius =
     Math.log(below.radius) +
     fraction * (Math.log(above.radius) - Math.log(below.radius));
@@ -419,10 +404,6 @@ export function reportIncome(): IncomeReport {
     `  (transient) sank to the immortal floor before tick ${integer(SETTLE_TICKS)} and has no steady`,
   );
   note(`  state to measure — its income is real, its regime is not settled.`);
-  note(
-    `  "mass" below is food + CO₂ drawn up to O₂ headroom (ADR-0025's fallback,`,
-  );
-  note(`  fired in mitosis.ts), not food alone.`);
   note(`  Rungs below are seed ${String(first.seed)}.`);
   table(
     [
@@ -430,8 +411,8 @@ export function reportIncome(): IncomeReport {
       "income",
       "income/r",
       "measured over",
-      "peak mass/ρ",
-      "peak mass/s",
+      "peak C_food/ρ",
+      "peak C_food/s",
       "mean depth",
       "left band",
     ],
@@ -442,8 +423,8 @@ export function reportIncome(): IncomeReport {
       rung.stretch === null
         ? "—"
         : `${integer(rung.stretch.fromTick)}–${integer(rung.stretch.toTick)}${rung.settled ? "" : " (transient)"}`,
-      num(rung.peakMassOverRho, 3),
-      num(rung.peakMassOverAmbient, 3),
+      num(rung.peakFoodOverRho, 3),
+      num(rung.peakFoodOverAmbient, 3),
       num(rung.meanDepth, 3),
       rung.leftTheBand ? "yes" : "no",
     ]),
@@ -495,14 +476,17 @@ export function reportIncome(): IncomeReport {
   row("ADR-0025 gate", "r_max ≥ 2 · r_opt");
 
   const peak = Math.max(
-    ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakMassOverAmbient)),
+    ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakFoodOverAmbient)),
   );
-  row("peak mass / s, any rung", `${num(peak)}  (${percent(peak)} of ambient)`);
   row(
-    "peak mass / ρ, any rung",
+    "peak C_food / s, any rung",
+    `${num(peak)}  (${percent(peak)} of ambient)`,
+  );
+  row(
+    "peak C_food / ρ, any rung",
     num(
       Math.max(
-        ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakMassOverRho)),
+        ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakFoodOverRho)),
       ),
     ),
   );

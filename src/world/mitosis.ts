@@ -85,47 +85,24 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   const childArea = bodyAreaOfRadius(childGenome.bodyRadius);
   // `mitosisMassCost` is forced, not chosen (ADR-0019): `bodyMass` is
   // `ρ × area`, and death returns exactly that amount, so any other number
-  // breaks the ledger the moment this child is born.
+  // breaks the ledger the moment this child is born. Paid from food alone —
+  // ADR-0025's fallback of drawing the remainder from CO₂ was considered at
+  // #36 and rejected: a parent hands its child the same resource it gives
+  // up, food for food, oxygen for oxygen, CO₂ for CO₂, and a cross-type
+  // conversion at the exact moment of birth broke that symmetry for food
+  // alone. See `AMBIENT_CO2_SHARE`'s own comment for how the ambient split
+  // covers the mass gate without it.
   const massCost = RHO * childArea;
   // `mitosisEnergyCost` is strictly proportional, with no flat term — see
   // `MITOSIS_ENERGY_COST`'s own comment for why that asymmetry with
   // maintenance is load-bearing.
   const energyCost = MITOSIS_ENERGY_COST * childArea;
 
-  // ADR-0025's pre-authorised fallback, fired by #36: `massCost` is drawn
-  // from internal carbon, food first and then CO₂, rather than from food
-  // alone. `r_max` — the largest radius whose food concentration alone ever
-  // reaches `ρ` — turned out to bind well inside ADR-0025's `≥ 2·r_opt`
-  // gate for every ambient split that did not also break the energy-store
-  // exclusion `getMeasuredAlpha` relies on (see `K_CAP_ENERGY`'s own comment
-  // in `constants.ts`), so the fallback fires rather than that trade.
-  //
-  // Stoichiometrically sound rather than a fudge (ADR-0025): food is pure
-  // carbon and CO₂ carries oxygen, so converting CO₂ to mass must release
-  // the O₂ it carried — photosynthesis's own `CO₂ → food + O₂` balance, run
-  // here without light. The conversion is throttled by the same oxygen
-  // headroom photosynthesis itself throttles on (ADR-0003's throttle-never-
-  // spill rule, reused rather than re-derived): a parent whose O₂ store is
-  // already full cannot convert CO₂ into mass this tick, and the birth
-  // waits. `bodyMass` and death's payout are untouched — a child still costs
-  // `ρ × childArea` and a corpse still returns exactly that much food
-  // (ADR-0017) — because this amends ADR-0019 on the *store* the amount
-  // comes out of, never on the amount itself.
-  const fromFood = Math.min(organism.food, massCost);
-  const oxygenHeadroom = capFor(organism, "oxygen") - organism.oxygen;
-  const fromCarbonDioxide = Math.min(
-    organism.carbonDioxide,
-    massCost - fromFood,
-    Math.max(0, oxygenHeadroom),
-  );
-
-  if (fromFood + fromCarbonDioxide < massCost || organism.energy < energyCost) {
+  if (organism.food < massCost || organism.energy < energyCost) {
     return null;
   }
 
-  organism.food -= fromFood;
-  organism.carbonDioxide -= fromCarbonDioxide;
-  organism.oxygen += fromCarbonDioxide;
+  organism.food -= massCost;
   organism.energy -= energyCost;
 
   // `childAllocationRatio` splits what remains after both costs, across

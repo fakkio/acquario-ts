@@ -295,15 +295,15 @@ describe("collisions", () => {
    * settle into (ADR-0008's own "climbs for a tick here and there on the way
    * down").
    *
-   * Raised again at #36, to `2.5`: #36's own retuning is what closes
-   * ADR-0022's mass gate at all (see `AMBIENT_CO2_SHARE`'s and
-   * `mitosis.ts`'s own comments), so seed 8 now breeds enough inside these
-   * 600 ticks to reach `2.31` rather than `0.98` — more newborns arriving
-   * mid-run, not a pass that stopped converging. `2.5` keeps the same kind
-   * of headroom above the newly observed peak that `1.5` kept above the old
-   * one.
+   * Raised again at #36, to `2.0`: `AMBIENT_CO2_SHARE`'s own move to 0.6
+   * (see its comment in `constants.ts`) makes reproduction easier even
+   * without ADR-0025's declined fallback, so seed 8 now breeds enough
+   * inside these 600 ticks to reach `1.60` rather than `0.98` — more
+   * newborns arriving mid-run, not a pass that stopped converging. `2.0`
+   * keeps the same kind of headroom above the newly observed peak that
+   * `1.5` kept above the old one.
    */
-  const PENETRATION_CEILING = 2.5;
+  const PENETRATION_CEILING = 2.0;
 
   // Placement scatters generation 0 without looking at who is already there,
   // so a fresh world starts with bodies inside one another. This is the one
