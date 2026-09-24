@@ -7,9 +7,11 @@ export interface Controls {
   /** Constructs a new world on demand (ADR-0018), at any time, not only at
    * extinction — debugging tooling for sampling seeds quickly. */
   readonly newWorldButton: HTMLButtonElement;
-  /** Toggles automatic restart on extinction, off by default: M3 has death
-   * and no birth, so every mortal world shrinks to zero, and its story
-   * deserves to be watchable to its end rather than cut off. */
+  /** Toggles automatic restart on extinction, on by default from M5
+   * (ADR-0018): a fertile world is worth watching as a sequence rather than
+   * one dead aquarium. Toggle it off to watch a single world's story play
+   * out to its end uninterrupted, M3's own reason for having shipped it
+   * off. */
   readonly autoRestartButton: HTMLButtonElement;
 }
 
@@ -45,7 +47,7 @@ export function mountControls(): Controls {
 
   const autoRestartButton = document.createElement("button");
   autoRestartButton.type = "button";
-  autoRestartButton.textContent = "Auto-restart: off";
+  autoRestartButton.textContent = "Auto-restart: on";
 
   container.append(
     playPauseButton,

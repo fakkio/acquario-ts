@@ -2,6 +2,7 @@ import {mountCamera} from "./app/camera";
 import {mountCanvas} from "./app/canvas";
 import {mountControls} from "./app/controls";
 import {createDeathEffects} from "./app/deathEffects";
+import {foldGeneStatistics, type GeneStat} from "./app/geneStatistics";
 import {mountHud} from "./app/hud";
 import {frameAquarium, renderWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
@@ -13,6 +14,7 @@ import {
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
+  getPhoticAlpha,
   getPoolLevels,
   getPopulation,
   getSeed,
@@ -34,10 +36,16 @@ const formatDrift = (drift: number): string => drift.toExponential(3);
  * running average (ADR-0015): low, because the raw reading is a per-tick
  * mean over a whole population and jitters tick to tick even at a real
  * steady state — the row is worth having only once it has settled into
- * something legible to read at a glance.
+ * something legible to read at a glance. The photic-band reading (ADR-0023)
+ * gets its own running average, smoothed the same way and reset alongside
+ * it, so the two rows stay comparable.
  */
 const ALPHA_SMOOTHING = 0.02;
 let smoothedAlpha = 0;
+let smoothedPhoticAlpha = 0;
+
+const formatStat = (value: GeneStat): string =>
+  `${value.mean.toFixed(3)} ± ${value.sigma.toFixed(3)}`;
 
 const canvas = mountCanvas();
 const ctx = canvas.getContext("2d");
@@ -53,7 +61,10 @@ const session = createSession(masterSeed);
 const world = createWorld(masterSeed);
 let latestWorld = world;
 let showGrid = false;
-let autoRestart = false;
+// On by default from M5 (ADR-0018): M4's worlds could never breed, so a
+// restart showed nothing; M5's calibrated constants are what makes leaving
+// the tab open show a sequence of worlds rather than one dead aquarium.
+let autoRestart = true;
 
 const hud = mountHud();
 const updateHud = (currentWorld: World, fps: number): void => {
@@ -104,9 +115,43 @@ const updateHud = (currentWorld: World, fps: number): void => {
   // Smoothed here, in the App layer, per ADR-0015: a moving average kept in
   // the world would be state crossing tick boundaries with no reader inside
   // a tick, so it would only enter `hashState` for the sake of this row.
+  // Shown beside the photic-band reading (ADR-0023) so the gap between the
+  // two ecologies — everyone, versus only who can actually breed — is
+  // visible while the run is happening rather than only in a report.
   smoothedAlpha +=
     (getMeasuredAlpha(currentWorld) - smoothedAlpha) * ALPHA_SMOOTHING;
-  hud.setField("alpha", "α (energy/r)", smoothedAlpha.toFixed(2));
+  hud.setField("alpha", "α whole (energy/r)", smoothedAlpha.toFixed(2));
+  smoothedPhoticAlpha +=
+    (getPhoticAlpha(currentWorld) - smoothedPhoticAlpha) * ALPHA_SMOOTHING;
+  hud.setField(
+    "alphaPhotic",
+    "α photic (energy/r)",
+    smoothedPhoticAlpha.toFixed(2),
+  );
+
+  // Gene mean ± σ (ADR-0011), folded here rather than read off a world
+  // reader — the same call ADR-0015 made for `α` smoothing above.
+  const geneStats = foldGeneStatistics(getPopulation(currentWorld));
+  hud.setField(
+    "geneBodyRadius",
+    "Body radius (μ±σ)",
+    formatStat(geneStats.bodyRadius),
+  );
+  hud.setField(
+    "geneMitosisThreshold",
+    "Mitosis threshold (μ±σ)",
+    formatStat(geneStats.mitosisEnergyThreshold),
+  );
+  hud.setField(
+    "geneChildAllocation",
+    "Child allocation (μ±σ)",
+    formatStat(geneStats.childAllocationRatio),
+  );
+  hud.setField(
+    "geneLineageHue",
+    "Lineage hue (μ±σ)",
+    formatStat(geneStats.lineageHue),
+  );
 };
 
 const deathEffects = createDeathEffects();
@@ -137,6 +182,7 @@ const restart = (): void => {
   // A fresh world's own α has produced nothing yet; carrying the last
   // world's smoothed reading across the restart would flash a stale number.
   smoothedAlpha = 0;
+  smoothedPhoticAlpha = 0;
   updateHud(newWorld, 0);
   repaint();
 };

@@ -24,6 +24,8 @@ The session PRNG is derived from the master seed either way, so one number repro
 
 Auto-restart ships **off** by default in M3, alongside a manual "new world" control. M3 has death and no birth, so every mortal world shrinks monotonically from tick 0 and the milestone's own story — the dark ones starve, the lit ones live forever — deserves to be watchable to its end rather than cut off at an arbitrary cadence. The manual control is debugging tooling of the same kind M0 front-loaded pan, zoom, pause and step for. Flip the default at M4, when a restart is showing something.
 
+**It did not flip at M4.** M4 shipped mitosis's mechanism, but no world built on it bred past its first handful of founders — #31 was filed against exactly that, forty founders, thirty-nine corpses, one survivor, zero further births. A restart there would still have shown nothing worth watching. The flip waited for M5 (#37), whose calibrated constants are what finally makes an unprimed world reproduce on its own.
+
 ## Considered options
 
 **A world that reseeds itself** on empty population: `WorldState.seed` becomes mutable, `hashState` folds a changing seed, the ledger baselines are re-struck inside a tick, and `CONTEXT.md`'s definition of a world is rewritten. Rejected for everything above.
