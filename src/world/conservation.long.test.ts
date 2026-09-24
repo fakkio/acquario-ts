@@ -138,10 +138,12 @@ describe("conservation over 100k ticks (#20)", () => {
   // — thousands of ticks at some of generation 0's depths — that most of
   // this immortal population is still climbing off that transient at tick
   // 100k rather than sitting in a settled state; the observed drift is
-  // `~0.42`, real rather than sampling noise. `AMBIENT_CO2_SHARE` is
-  // explicitly #36's to retune against, not this ticket's — this bound
-  // stays a real check against something going unboundedly wrong, not a
-  // claim that the current constants have actually settled by 100k ticks.
+  // `~0.42`, real rather than sampling noise. #36 considered, and rejected,
+  // retuning `AMBIENT_CO2_SHARE` to remove this transient outright — see its
+  // own comment in `constants.ts` for why that path was closed instead —
+  // so this bound stays a real check against something going unboundedly
+  // wrong, not a claim that the current constants have actually settled by
+  // 100k ticks.
   it("settles the measured alpha rather than trending it", () => {
     const mid = Math.floor(run.alphaSamples.length / 2);
     const firstHalf = meanAlpha(run.alphaSamples.slice(0, mid));

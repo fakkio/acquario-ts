@@ -1,11 +1,6 @@
 import {describe, expect, it} from "vitest";
 
-import {
-  BODY_COST_COEFFICIENT,
-  EXISTENCE_COST,
-  MITOSIS_ENERGY_COST,
-  RHO,
-} from "./constants";
+import {MITOSIS_ENERGY_COST, RHO} from "./constants";
 import {evaluateDeaths} from "./death";
 import {BASELINE_GENOME, mutateGenome, type Genome} from "./genome";
 import {totalCarbon, totalOxygen, type Pools} from "./ledger";
@@ -240,16 +235,12 @@ describe("evaluateMitosis", () => {
     const genome = eagerGenome(bodyRadius);
 
     // Predict the child's mutated area deterministically, from the same
-    // stream state `evaluateMitosis` will consume, so the parent's starting
-    // energy can be tuned to land at exactly zero after maintenance and the
-    // mitosis energy cost — the scenario ADR-0019 names: reproducing can
-    // starve you.
+    // stream state `evaluateMitosis` will consume, so the exact energy cost
+    // it will charge is known up front.
     const derivation = deriveChildStream(createRngStream(seed));
     const mutation = mutateGenome(genome, derivation.parentStream);
     const childArea = bodyAreaOfRadius(mutation.genome.bodyRadius);
     const energyCost = MITOSIS_ENERGY_COST * childArea;
-    const maintenanceCost =
-      EXISTENCE_COST + BODY_COST_COEFFICIENT * bodyAreaOfRadius(bodyRadius);
 
     const organism = new Organism({
       x: 5,
@@ -257,14 +248,23 @@ describe("evaluateMitosis", () => {
       genome,
       rng: createRngStream(seed),
     });
-    organism.energy = maintenanceCost + energyCost;
+    organism.energy = 1000;
     organism.food = 1000;
 
     const carbonBefore = totalCarbon([organism], EMPTY_POOLS);
     const oxygenBefore = totalOxygen([organism], EMPTY_POOLS);
 
-    // Step 5, then step 7, then step 8 — the tick's own order.
+    // Step 5, then step 7, then step 8 — the tick's own order. Maintenance
+    // runs for real, for coverage and realism, but the scenario this test is
+    // about — a parent with *exactly* enough energy to afford mitosis, so
+    // paying for it lands at precisely zero — is set up by assignment rather
+    // than by predicting maintenance's exact float output and hoping an
+    // addition and a subtraction round-trip back to it: `(a + b) - a` is not
+    // guaranteed bit-identical to `b` in IEEE 754, and this landed off by
+    // about `1e-15` the last time a constant moved. Assigning `energyCost`
+    // directly is exact by construction, for any constants.
     applyMaintenance(organism);
+    organism.energy = energyCost;
     const birth = evaluateMitosis(organism);
     const {survivors, remains} = evaluateDeaths([organism]);
 

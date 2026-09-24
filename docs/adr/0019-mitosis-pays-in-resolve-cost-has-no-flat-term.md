@@ -23,11 +23,13 @@ The energy cost is charged before step 8 reads `energy <= 0`. An organism that b
 ## The cost shape: `mitosisMassCost` is forced, `mitosisEnergyCost` has no flat term
 
 ```text
-mitosisMassCost   = ρ × childArea            (paid from food)
+mitosisMassCost   = ρ × childArea                     (paid from food, then CO₂ — see the amendment below)
 mitosisEnergyCost = MITOSIS_ENERGY_COST × childArea   (paid from energy)
 ```
 
 `mitosisMassCost` is not a choice. `bodyMass(organism) = ρ × bodyArea(organism)`, and death returns exactly that amount to the pool (ADR-0017); any other number for the mass a child costs its parent breaks the ledger the moment the first child is born. Matter, not fuel — the distinction the two currencies exist to make (`docs/vision.md`).
+
+**Amended by ADR-0025, on the store rather than the amount (#36).** `mitosisMassCost` is still exactly `ρ × childArea`, and death still returns exactly that much food — but a parent no longer has to hold it as food alone. `evaluateMitosis` draws from food first, then from CO₂ for the remainder, releasing the O₂ the CO₂ carried (photosynthesis's own `CO₂ → food + O₂` balance, run without light) and throttled by the same O₂-headroom rule photosynthesis itself throttles on. This ADR's own text above said "is not a choice" about the **amount**, which remains true; it did not distinguish the amount from the **store** the amount comes out of, and that distinction is what ADR-0025 turns on. See ADR-0025 for why: the mass gate, read on food concentration alone, produces a maximum reproductive radius that has no closed-form place in `r_opt = 2·c₀/α`, and reaching a radius where it doesn't bind turned out to cost the energy-store measurement `getMeasuredAlpha` depends on (`K_CAP_ENERGY`'s own comment in `constants.ts`) — a worse trade than amending this ADR.
 
 `mitosisEnergyCost` is a genuine design choice, and the choice made is **strictly proportional to area, with no flat term**. Maintenance (`c₀ + β·area`, ADR-0009) has a flat term on purpose — it is what creates a minimum viable body size. Mitosis deliberately does not, and the asymmetry is load-bearing rather than an oversight: `r_opt = 2·c₀/α` is derived from `reproductiveRate(r) ∝ (α·r − c₀ − β·r²) / r²`, and the `/ r²` _is_ the assumption that a child costs in proportion to its area. A flat term in the mitosis cost would put a second knee in that curve, `r_opt` would stop being a closed form, and M5 would lose its entire done-criterion over a cost this ticket controls.
 

@@ -80,9 +80,17 @@ function tunable(name: string, committed: number): number {
  * matters. Only the ratio `kCap/ρ` is physical, and `RHO` alone carries the
  * carbon unit from here on.
  *
- * Every entry is still 1: food's headroom above `ρ` is the calibration's
- * change, not this one's. Widening the shape first is what keeps the value's
- * change attributable to the ticket that makes it.
+ * Food is the one entry #36 moves, to 1.5: the headroom this comment always
+ * promised. Diffusion itself never consults this table — `ExchangeSettlement`
+ * only ever checks a pool's own non-negativity (`environment.ts`), so raising
+ * a body's cap does not by itself pull ambient carbon in any faster. What it
+ * buys is headroom for the *reaction* that does: `applyPhotosynthesis`
+ * throttles on `capFor(food) − food`, and at the old cap of 1 that headroom
+ * went negative — and the reaction shut itself off — the instant diffusion
+ * alone carried a body's food close to `ρ`. `AMBIENT_CO2_SHARE`'s move to 0.6
+ * (below) is most of what lifts a body's *affordable mass* — food plus
+ * whatever CO₂ ADR-0025's fallback in `mitosis.ts` can convert — past `ρ`;
+ * 1.5 is what stops this cap from clawing back the food half of that margin.
  *
  * Deliberately not annotated `Record<Diffusible, number>`, which would cost
  * this module the one property it has always had: it imports nothing, so
@@ -94,7 +102,7 @@ function tunable(name: string, committed: number): number {
 export const K_CAP = {
   oxygen: tunable("K_CAP_OXYGEN", 1),
   carbonDioxide: tunable("K_CAP_CARBON_DIOXIDE", 1),
-  food: tunable("K_CAP_FOOD", 1),
+  food: tunable("K_CAP_FOOD", 1.5),
 };
 
 /**
@@ -114,7 +122,26 @@ export const RHO = 1;
  * neither a carbon nor an oxygen quantity: its unit is fixed separately, by
  * `β = 1`, rather than by coincidence of notation. About 240 ticks of
  * autonomy for a baseline body at the respiration rate M2's later slices
- * land. Open for M5 to move.
+ * land.
+ *
+ * **A trap #36 found and steered around, worth recording here.** Reaching
+ * `C_food = ρ` by enriching the ambient split (lower `AMBIENT_CO2_SHARE`,
+ * higher `AMBIENT_OXYGEN_CONCENTRATION`, higher `RESPIRATION_ENERGY_YIELD`)
+ * was tried first, and it worked for `r_max` — every radius on the ladder
+ * cleared `ρ` — but it also raised a tick's uncapped respiration output far
+ * enough past this cap that `throttledByFullEnergyStore` fired from tick 0
+ * onward, at every radius, forever: the reaction was left refilling exactly
+ * what maintenance drains, never more. `getMeasuredAlpha` excludes exactly
+ * that case for exactly this reason, and a population capacity-pegged from
+ * tick 0 has zero ticks left outside the exclusion to measure — `n`'s
+ * reported value would have been `(c₀ + β·area)/r`'s own shape, not
+ * respiration's. Raising this cap to chase that richness back out of
+ * pathology was the next thing tried, and it broke `BASELINE_GENOME`'s
+ * `mitosisEnergyThreshold` gate — a fraction of this same cap — badly enough
+ * to collapse tenancy instead. Left at 400: the mass gate is closed a
+ * different way instead (ADR-0025's pre-authorised fallback, fired in
+ * `mitosis.ts`, together with a milder move of `AMBIENT_CO2_SHARE` — see its
+ * own comment), and this constant never had to move at all.
  */
 export const K_CAP_ENERGY = tunable("K_CAP_ENERGY", 400);
 
@@ -152,17 +179,38 @@ export const CARBON_BUDGET_BASELINE_ORGANISMS = tunable(
 );
 
 /**
- * How initial ambient carbon splits between CO₂ and food: in favour of
- * CO₂, so the world starts carbon-rich and food-poor and a run's first
- * story, once M2's later slices land, is fixation in the photic zone
- * rather than an already-full food pool. Open for M5 to move.
+ * How initial ambient carbon splits between CO₂ and food. M2 put this in
+ * favour of CO₂ at 0.75, so the world opens carbon-rich and food-poor.
+ *
+ * **#36 moves it to 0.6, the mild end of two paths tried.** ADR-0025's
+ * `r_max` gate needs an organism's affordable mass — food plus whatever CO₂
+ * the fallback in `mitosis.ts` can convert — to reach `ρ` somewhere on the
+ * income ladder. Pushing this down to 0.2 got there too, but it also raised
+ * a tick's uncapped respiration output far enough past `K_CAP_ENERGY` that
+ * `getMeasuredAlpha`'s "energy store always full" exclusion swallowed the
+ * whole population from tick 0 onward (see `K_CAP_ENERGY`'s own comment for
+ * the finding). 0.6 is the mildest split tested that still clears `ρ` (peak
+ * affordable mass reads 1.19, against 0.93 at 0.75 and unreachable): it
+ * delays capacity-pegging to a few hundred ticks per radius instead of
+ * removing it, which `scripts/calibration/settings.ts`'s `SETTLE_TICKS` is
+ * retuned around, and it never turns the fallback into the *only* thing the
+ * gate depends on — food alone still carries most of the margin.
+ *
+ * The cost this still trades away — vision.md's "opens on fixation, not an
+ * already-full pool" — is smaller at 0.6 than it would have been at 0.2:
+ * the world starts closer to a food/CO₂ balance than to either extreme.
  */
-export const AMBIENT_CO2_SHARE = tunable("AMBIENT_CO2_SHARE", 0.75);
+export const AMBIENT_CO2_SHARE = tunable("AMBIENT_CO2_SHARE", 0.6);
 
 /**
  * Oxygen's ambient concentration, chosen directly rather than derived: the
  * CO₂ term already carries oxygen of its own (ADR-0001), so oxygen needs
- * no closed-form tie to the carbon budget. Open for M5 to move.
+ * no closed-form tie to the carbon budget.
+ *
+ * Swept at #36 and left unmoved: `AMBIENT_CO2_SHARE`'s move to 0.6 alone
+ * already clears all three ADR-0025 gates, and raising this too was part of
+ * a more aggressive path the milestone tried and rejected (see
+ * `AMBIENT_CO2_SHARE`'s and `K_CAP_ENERGY`'s own comments).
  */
 export const AMBIENT_OXYGEN_CONCENTRATION = tunable(
   "AMBIENT_OXYGEN_CONCENTRATION",
@@ -258,6 +306,12 @@ export const K_RESP = tunable("K_RESP", 1.0);
  * starves — the legible gradient the milestone is after — found by running
  * `createWorld` out to 100k ticks and reading where the population
  * settles rather than by solving for it on paper.
+ *
+ * Swept at #36 (tried up to 900, against tenancy) and left unmoved: once the
+ * mass gate closed through ADR-0025's fallback instead of through the more
+ * aggressive ambient enrichment that was tried first (see
+ * `AMBIENT_CO2_SHARE`'s and `K_CAP_ENERGY`'s own comments), `AMBIENT_CO2_SHARE`'s
+ * own move to 0.6 already cleared tenancy's gate without this one moving too.
  */
 export const RESPIRATION_ENERGY_YIELD = tunable(
   "RESPIRATION_ENERGY_YIELD",
@@ -274,24 +328,35 @@ export const RESPIRATION_ENERGY_YIELD = tunable(
  * the ambient environment respiration draws from, which is what
  * `CARBON_BUDGET_BASELINE_ORGANISMS` sets — so it is measured with `npm
  * run calibrate` **after** that constant's new value lands, never before,
- * or the two would be calibrated against different worlds. Seeds 7–11,
- * 5,000 settling ticks then a 10,000-tick window: `α_photic = 6.067 ±
- * 0.40` across the five seeds — noisier than a settled measurement should
- * be, because the richer ambient carbon this budget implies starts every
- * founder's internal CO₂ above `K_CAP.carbonDioxide`'s own ceiling of 1,
- * throttling respiration until photosynthesis draws it back down. That
- * `AMBIENT_CO2_SHARE`/`K_CAP.food` retuning is explicitly #36's, not this
- * one's — "whether the measurement that follows is trustworthy is the
- * next ticket's problem". The target is `r_opt = 1.5` (ADR-0025), fixed
- * here, before any fertile world is run to judge it against —
- * `6.067 × 1.5 / 2 = 4.550`.
+ * or the two would be calibrated against different worlds. The target is
+ * `r_opt = 1.5` (ADR-0025), fixed before any fertile world is run to judge
+ * it against.
+ *
+ * #35's own reading — seeds 7–11, `α_photic = 6.067 ± 0.40`, giving 4.55 —
+ * was measured before `AMBIENT_CO2_SHARE` moved, and it said so at the
+ * time: that noise came from every founder's internal CO₂ starting above
+ * `K_CAP.carbonDioxide`'s ceiling of 1, throttling respiration until
+ * photosynthesis drew it back down, and retuning `AMBIENT_CO2_SHARE` was
+ * explicitly left to #36. #36's own retuning — `AMBIENT_CO2_SHARE` to 0.6,
+ * `K_CAP.food` to 1.5, everything else unmoved (see their own comments) —
+ * changes the ambient environment `α` is measured against, so it is
+ * re-measured against that calibrated world: same seeds, `SETTLE_TICKS`
+ * shortened for the same reason its own comment records,
+ * `α_photic = 8.320 ± 0.25`, giving `8.320 × 1.5 / 2 = 6.24`.
+ *
+ * Not chased to the fixed point exactly, on the same grounds #35 already
+ * measured once and moved on: re-measuring `α` against a world built with
+ * `EXISTENCE_COST = 6.24` reads 8.228 and would suggest 6.17, close enough
+ * (`n` and tenancy both moved by less than their own gate's margin across
+ * that step) that a second iteration bought no finding worth the extra
+ * calibration run.
  *
  * The milestone's paper table put this at 2.2, from a hand-computed
  * `α ≈ 2.95` that predates a working respiration reaction to measure `α`
  * against; the committed value below replaces that estimate with the
  * harness's own reading rather than adjusting it.
  */
-export const EXISTENCE_COST = tunable("EXISTENCE_COST", 4.55);
+export const EXISTENCE_COST = tunable("EXISTENCE_COST", 6.24);
 
 /**
  * The body-cost coefficient `β` in maintenance's area-scaled half, `β ×
@@ -378,6 +443,10 @@ export const GENERATION_0_MUTATION_SCALE = tunable(
  * baseline-sized child (area ≈ π) costs on the order of a quarter of a
  * baseline parent's energy cap (`K_CAP_ENERGY × π ≈ 1257`), affordable at
  * `BASELINE_GENOME`'s `mitosisEnergyThreshold` without being free.
+ *
+ * Left unmoved at #36, though it is the constant ADR-0025 names as free to
+ * tune for tenancy: `AMBIENT_CO2_SHARE`'s move to 0.6 alone already clears
+ * tenancy's `≥ 5` gate (5.71, seed 7) without this one moving too.
  */
 export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
 

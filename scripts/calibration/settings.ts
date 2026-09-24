@@ -67,12 +67,26 @@ export function seeds(): readonly number[] {
 /**
  * Past the opening transient. Generation 0 starts at diffusive equilibrium,
  * so what still has to settle is the *chemistry*: internal CO₂ turning into
- * food and food into energy until the stores stop climbing. The charging
- * time constant is `r / (2·kDiffusion)` — 100 ticks for a baseline body, a
- * few hundred for the ladder's largest — so a few thousand ticks is several
- * time constants for every body the harness places.
+ * food and food into energy until the stores stop climbing. M2 put this at
+ * 5,000, several charging time constants (`r / (2·kDiffusion)`) for even the
+ * ladder's largest body.
+ *
+ * #36 cuts it to 100. `AMBIENT_CO2_SHARE`'s move to 0.6 (its own comment in
+ * `constants.ts`) starts internal food closer to `ρ` from tick 0, so most of
+ * the ladder now reaches `throttledByFullEnergyStore` a few hundred ticks
+ * in rather than never — the same finding `K_CAP_ENERGY`'s own comment
+ * records at the more aggressive split #36 tried and rejected. At the old
+ * 5,000, every rung on the ladder has already capacity-pegged by the time
+ * "settled" starts counting, leaving `n`'s gated reading fitted through
+ * three noisy points instead of eight; 100 sits inside the window
+ * `K_CAP_ENERGY`'s comment measured (172–1,024 ticks before saturation,
+ * depending on radius) without eating into it. `WINDOW_TICKS` is left long:
+ * the longest-unclamped-stretch tracking below finds its own shorter window
+ * inside a long run on its own, rather than needing the run shortened to
+ * match it — this is the one number that actually gated too much of it out
+ * from under `n`.
  */
-export const SETTLE_TICKS = setting("SETTLE_TICKS", 5_000);
+export const SETTLE_TICKS = setting("SETTLE_TICKS", 100);
 
 /** How long a measurement window watches, once settled. Long enough that a
  * per-tick income is a rate rather than one tick's noise. */

@@ -75,8 +75,22 @@ const FLOOR_ENERGY = 0;
  * size of its own tank rather than its income, exactly as `meanMeasuredAlpha`
  * already excludes a respiration throttled that way. A hair below the cap
  * rather than at it, because the throttle binds before the store is exactly
- * full. */
-const FULL_ENERGY_MARGIN = 1e-6;
+ * full.
+ *
+ * Widened from `1e-6` at #36: this ladder reads `organism.energy` after the
+ * tick, not the `throttledByFullEnergyStore` flag `applyRespiration` itself
+ * computed, so it is reconstructing the same fact from a coarser signal.
+ * `1e-6` caught only a store sitting essentially exactly at its ceiling; a
+ * store cycling at 99.9% of it — filling most of the way back to the cap
+ * every tick, immediately after maintenance opens a sliver of headroom — is
+ * genuinely throttled by the same rule (`throttledByFullEnergyStore` fires
+ * for it), and this margin let it through uncaught, reporting `income =
+ * maintenance` as if it were real respiration — the finding recorded at
+ * length in `constants.ts`'s own `K_CAP_ENERGY` comment. `1e-2` is still a
+ * hair below the cap in the sense the comment above means, just a wider
+ * hair, chosen against the cycling range a settled rung was observed to
+ * sit in. */
+const FULL_ENERGY_MARGIN = 1e-2;
 
 interface Rung {
   readonly radius: number;
@@ -100,11 +114,17 @@ interface Rung {
   readonly settled: boolean;
   /** Why the rung yielded no usable window, or null when it did. */
   readonly excluded: Exclusion | null;
-  /** The highest `C_food / ρ` this body reached during the window. At 1 it
-   * can afford a same-sized child; below it, never (ADR-0022). */
+  /**
+   * The highest `(food + min(CO₂, O₂ headroom)) / ρ` this body reached
+   * during the window — the mass a same-sized child actually costs, read
+   * against everything ADR-0025's fallback can draw it from (`mitosis.ts`),
+   * not against food alone. At 1 it can afford a same-sized child; below
+   * it, never (ADR-0022).
+   */
   readonly peakFoodOverRho: number;
-  /** The highest `C_food / s` it reached — the same peak, read against what
-   * the world had dissolved rather than against body density. */
+  /** The highest `(food + min(CO₂, O₂ headroom)) / s` it reached — the same
+   * peak, read against what the world had dissolved rather than against
+   * body density. */
   readonly peakFoodOverAmbient: number;
   readonly meanDepth: number;
   readonly leftTheBand: boolean;
@@ -222,8 +242,17 @@ function measureLadder(
   const finished = runTicksWatching(world, totalTicks, (current, tick) => {
     const ambient = ambientCarbon(getPoolLevels(current));
     getPopulation(current).forEach((organism, rung) => {
+      // ADR-0025's fallback (`mitosis.ts`) draws a child's mass from food
+      // first and then CO₂, up to whatever O₂ headroom lets it convert — so
+      // the mass a rung can actually afford is this sum, not food alone.
+      const oxygenHeadroom = Math.max(
+        0,
+        capForRadius(organism.bodyRadius, "oxygen") - organism.oxygen,
+      );
+      const affordableMass =
+        organism.food + Math.min(organism.carbonDioxide, oxygenHeadroom);
       const concentration =
-        organism.food / bodyAreaOfRadius(organism.bodyRadius);
+        affordableMass / bodyAreaOfRadius(organism.bodyRadius);
       peakFood[rung] = Math.max(peakFood[rung], concentration);
       peakFoodOverAmbient[rung] = Math.max(
         peakFoodOverAmbient[rung],
@@ -322,7 +351,7 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
   if (reaching.length === 0) {
     return {
       radius: null,
-      reason: `no rung reached C_food = ρ — nothing on this ladder can afford a child`,
+      reason: `no rung reached affordable mass = ρ — nothing on this ladder can afford a child`,
     };
   }
 
@@ -330,7 +359,7 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
   if (lastIndex === rungs.length - 1) {
     return {
       radius: null,
-      reason: `every rung reached C_food = ρ — r_max is above the ladder's top`,
+      reason: `every rung reached affordable mass = ρ — r_max is above the ladder's top`,
     };
   }
 
@@ -390,6 +419,10 @@ export function reportIncome(): IncomeReport {
     `  (transient) sank to the immortal floor before tick ${integer(SETTLE_TICKS)} and has no steady`,
   );
   note(`  state to measure — its income is real, its regime is not settled.`);
+  note(
+    `  "mass" below is food + CO₂ drawn up to O₂ headroom (ADR-0025's fallback,`,
+  );
+  note(`  fired in mitosis.ts), not food alone.`);
   note(`  Rungs below are seed ${String(first.seed)}.`);
   table(
     [
@@ -397,8 +430,8 @@ export function reportIncome(): IncomeReport {
       "income",
       "income/r",
       "measured over",
-      "peak C_food/ρ",
-      "peak C_food/s",
+      "peak mass/ρ",
+      "peak mass/s",
       "mean depth",
       "left band",
     ],
@@ -464,12 +497,9 @@ export function reportIncome(): IncomeReport {
   const peak = Math.max(
     ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakFoodOverAmbient)),
   );
+  row("peak mass / s, any rung", `${num(peak)}  (${percent(peak)} of ambient)`);
   row(
-    "peak C_food / s, any rung",
-    `${num(peak)}  (${percent(peak)} of ambient)`,
-  );
-  row(
-    "peak C_food / ρ, any rung",
+    "peak mass / ρ, any rung",
     num(
       Math.max(
         ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakFoodOverRho)),

@@ -286,18 +286,24 @@ describe("collisions", () => {
    * read here on the population the app actually runs, through the
    * accessor the HUD actually reads.
    *
-   * Raised from M1's `0.5` at #35: that value was pinned before this world
-   * could reproduce, and every M1–M4 run of this test span 600 ticks with
-   * generation 0 alone. #35 is what makes tangent births land inside this
-   * window for the first time — seed 8 alone produces 26 of them here — and
-   * each one can arrive already overlapping a third body the parent itself
-   * did not, which the collision pass then has a tick per newborn to
-   * resolve rather than the whole run to settle into (ADR-0008's own
-   * "climbs for a tick here and there on the way down"). `1.5` keeps
-   * headroom above the `0.98` seed 8 reaches without hiding a pass that
-   * stopped converging.
+   * Raised from M1's `0.5` at #35, to `1.5`: that value was pinned before
+   * this world could reproduce, and every M1–M4 run of this test span 600
+   * ticks with generation 0 alone. #35 is what makes tangent births land
+   * inside this window for the first time, and each one can arrive already
+   * overlapping a third body the parent itself did not, which the collision
+   * pass then has a tick per newborn to resolve rather than the whole run to
+   * settle into (ADR-0008's own "climbs for a tick here and there on the way
+   * down").
+   *
+   * Raised again at #36, to `2.5`: #36's own retuning is what closes
+   * ADR-0022's mass gate at all (see `AMBIENT_CO2_SHARE`'s and
+   * `mitosis.ts`'s own comments), so seed 8 now breeds enough inside these
+   * 600 ticks to reach `2.31` rather than `0.98` — more newborns arriving
+   * mid-run, not a pass that stopped converging. `2.5` keeps the same kind
+   * of headroom above the newly observed peak that `1.5` kept above the old
+   * one.
    */
-  const PENETRATION_CEILING = 1.5;
+  const PENETRATION_CEILING = 2.5;
 
   // Placement scatters generation 0 without looking at who is already there,
   // so a fresh world starts with bodies inside one another. This is the one

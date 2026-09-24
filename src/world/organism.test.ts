@@ -360,13 +360,12 @@ describe("internal resource stores", () => {
     }
   });
 
-  // The table is per-resource from M5 (ADR-0022), but every entry is still
-  // 1 in this ticket: food's headroom above ρ is a later ticket's change,
-  // and expanding the shape first is what keeps that change attributable.
-  it("holds every diffusible's cap coefficient at 1 for now", () => {
-    for (const resource of DIFFUSIBLES) {
-      expect(K_CAP[resource]).toBe(1);
-    }
+  // The table is per-resource from M5 (ADR-0022). #36 gives food the
+  // headroom above ρ that ADR-0022 promised; oxygen and CO₂ stay at 1.
+  it("gives food headroom above ρ while oxygen and CO2 stay at 1", () => {
+    expect(K_CAP.oxygen).toBe(1);
+    expect(K_CAP.carbonDioxide).toBe(1);
+    expect(K_CAP.food).toBeGreaterThan(1);
   });
 
   it("caps energy at its own coefficient rather than sharing K_CAP", () => {
