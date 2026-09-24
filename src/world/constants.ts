@@ -83,14 +83,15 @@ function tunable(name: string, committed: number): number {
  * Food is the one entry #36 moves, to 1.5: the headroom this comment always
  * promised. Diffusion itself never consults this table — `ExchangeSettlement`
  * only ever checks a pool's own non-negativity (`environment.ts`), so raising
- * a body's cap does not by itself pull ambient carbon in any faster. What it
- * buys is headroom for the *reaction* that does: `applyPhotosynthesis`
- * throttles on `capFor(food) − food`, and at the old cap of 1 that headroom
- * went negative — and the reaction shut itself off — the instant diffusion
- * alone carried a body's food close to `ρ`. `AMBIENT_CO2_SHARE`'s move to 0.6
- * (below) is most of what lifts a body's *affordable mass* — food plus
- * whatever CO₂ ADR-0025's fallback in `mitosis.ts` can convert — past `ρ`;
- * 1.5 is what stops this cap from clawing back the food half of that margin.
+ * a body's cap does not by itself pull ambient carbon in any faster, and it
+ * does not by itself move `r_max` either: measured directly, `1` and `1.5`
+ * give the identical peak affordable mass (1.192, seed 7) once
+ * `AMBIENT_CO2_SHARE`'s own move (below) is in place, because a body's food
+ * concentration settles below even the old cap of 1 well before diffusion or
+ * `applyPhotosynthesis`'s own headroom throttle would bind. What this move
+ * buys instead is ADR-0022's own promise, independent of `r_max`: a store
+ * that can hold more than a same-sized child needs without every future
+ * ambient split having to stay just under 1 to avoid clipping it.
  *
  * Deliberately not annotated `Record<Diffusible, number>`, which would cost
  * this module the one property it has always had: it imports nothing, so
@@ -189,12 +190,15 @@ export const CARBON_BUDGET_BASELINE_ORGANISMS = tunable(
  * a tick's uncapped respiration output far enough past `K_CAP_ENERGY` that
  * `getMeasuredAlpha`'s "energy store always full" exclusion swallowed the
  * whole population from tick 0 onward (see `K_CAP_ENERGY`'s own comment for
- * the finding). 0.6 is the mildest split tested that still clears `ρ` (peak
- * affordable mass reads 1.19, against 0.93 at 0.75 and unreachable): it
- * delays capacity-pegging to a few hundred ticks per radius instead of
- * removing it, which `scripts/calibration/settings.ts`'s `SETTLE_TICKS` is
- * retuned around, and it never turns the fallback into the *only* thing the
- * gate depends on — food alone still carries most of the margin.
+ * the finding). 0.6 is the mildest split tested that still clears `ρ`: peak
+ * affordable mass reads 1.19 at 0.6, against 0.93 at 0.75, where it never
+ * reaches `ρ` at all. Every radius on the income ladder clears it at 0.6 —
+ * `r_max` reads above the ladder's own top of 4 baseline radii, comfortably
+ * past ADR-0025's `≥ 2 · r_opt = 3` — and 0.6 delays capacity-pegging to a
+ * few hundred ticks per radius instead of removing it outright, which
+ * `scripts/calibration/settings.ts`'s `SETTLE_TICKS` is retuned around. It
+ * never turns the fallback into the *only* thing the gate depends on either
+ * — food alone still carries most of the margin.
  *
  * The cost this still trades away — vision.md's "opens on fixation, not an
  * already-full pool" — is smaller at 0.6 than it would have been at 0.2:
@@ -266,6 +270,16 @@ export const LIGHT_ATTENUATION_K = Math.log(10) / 10;
  * computed rather than measured, like every constant in this table; the
  * next M2 slice re-derives it once respiration closes the cycle and a run
  * exists to read.
+ *
+ * Swept at #36 — ADR-0025 calls this one "the lever" for `n` and `r_max`
+ * specifically — and left unmoved, against the same calibrated world this
+ * file's other constants were measured in. `0.02` reads `n = 0.858`,
+ * already below ADR-0025's `0.9` floor, and collapses tenancy to `2.83`;
+ * `0.04` swings the other way, `n = 1.238`, above the `1.15` ceiling, with
+ * tenancy comfortably clear at `9.26`. `0.03` sits inside the narrow window
+ * both gates need at once; the lever this sweep actually pulled was
+ * `AMBIENT_CO2_SHARE`, and this one moves `n` too sharply in either
+ * direction to also be a lever for tenancy alone.
  */
 export const K_PHOTO = tunable("K_PHOTO", 0.03);
 

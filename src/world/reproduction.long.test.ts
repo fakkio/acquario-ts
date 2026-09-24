@@ -21,8 +21,10 @@ import {
 /**
  * Ticket #29, M4's acceptance gate — the reproduction counterpart of
  * `conservation.long.test.ts`'s #20: the full tick pipeline, mitosis
- * included, run for the length `docs/vision.md`'s M2 gate already
- * established as the milestone's own long-run measure.
+ * included, run for the length `docs/vision.md`'s M2 gate originally
+ * established as the milestone's own long-run measure. #36 shortens the
+ * run to 30,000 ticks — see the `TICKS` comment below for why; this file no
+ * longer runs the full 100k.
  *
  * **Primed, not placed.** Every founder starts at its own energy and food
  * cap rather than at `createWorld`'s usual diffusive equilibrium. This is

@@ -121,11 +121,11 @@ interface Rung {
    * not against food alone. At 1 it can afford a same-sized child; below
    * it, never (ADR-0022).
    */
-  readonly peakFoodOverRho: number;
+  readonly peakMassOverRho: number;
   /** The highest `(food + min(CO₂, O₂ headroom)) / s` it reached — the same
    * peak, read against what the world had dissolved rather than against
    * body density. */
-  readonly peakFoodOverAmbient: number;
+  readonly peakMassOverAmbient: number;
   readonly meanDepth: number;
   readonly leftTheBand: boolean;
 }
@@ -233,8 +233,8 @@ function measureLadder(
 
   const spans = radii.map(() => openSpan());
   const lastExclusion: (Exclusion | null)[] = radii.map(() => null);
-  const peakFood = radii.map(() => 0);
-  const peakFoodOverAmbient = radii.map(() => 0);
+  const peakMass = radii.map(() => 0);
+  const peakMassOverAmbient = radii.map(() => 0);
   const depthSum = radii.map(() => 0);
   const leftTheBand = radii.map(() => false);
   const totalTicks = SETTLE_TICKS + WINDOW_TICKS;
@@ -253,9 +253,9 @@ function measureLadder(
         organism.food + Math.min(organism.carbonDioxide, oxygenHeadroom);
       const concentration =
         affordableMass / bodyAreaOfRadius(organism.bodyRadius);
-      peakFood[rung] = Math.max(peakFood[rung], concentration);
-      peakFoodOverAmbient[rung] = Math.max(
-        peakFoodOverAmbient[rung],
+      peakMass[rung] = Math.max(peakMass[rung], concentration);
+      peakMassOverAmbient[rung] = Math.max(
+        peakMassOverAmbient[rung],
         concentration / ambient,
       );
       depthSum[rung] += organism.y;
@@ -282,8 +282,8 @@ function measureLadder(
         ? null
         : (lastExclusion[rung] ?? "no window long enough"),
       income: usable ? best.delta / stretchTicks(best) + maintenance : null,
-      peakFoodOverRho: peakFood[rung] / RHO,
-      peakFoodOverAmbient: peakFoodOverAmbient[rung],
+      peakMassOverRho: peakMass[rung] / RHO,
+      peakMassOverAmbient: peakMassOverAmbient[rung],
       meanDepth: depthSum[rung] / totalTicks,
       leftTheBand: leftTheBand[rung],
     };
@@ -347,7 +347,7 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
   readonly radius: number | null;
   readonly reason: string;
 } {
-  const reaching = rungs.filter((rung) => rung.peakFoodOverRho >= 1);
+  const reaching = rungs.filter((rung) => rung.peakMassOverRho >= 1);
   if (reaching.length === 0) {
     return {
       radius: null,
@@ -366,8 +366,8 @@ function interpolateMaxReproductiveRadius(rungs: readonly Rung[]): {
   const below = rungs[lastIndex];
   const above = rungs[lastIndex + 1];
   const fraction =
-    (below.peakFoodOverRho - 1) /
-    (below.peakFoodOverRho - above.peakFoodOverRho);
+    (below.peakMassOverRho - 1) /
+    (below.peakMassOverRho - above.peakMassOverRho);
   const logRadius =
     Math.log(below.radius) +
     fraction * (Math.log(above.radius) - Math.log(below.radius));
@@ -442,8 +442,8 @@ export function reportIncome(): IncomeReport {
       rung.stretch === null
         ? "—"
         : `${integer(rung.stretch.fromTick)}–${integer(rung.stretch.toTick)}${rung.settled ? "" : " (transient)"}`,
-      num(rung.peakFoodOverRho, 3),
-      num(rung.peakFoodOverAmbient, 3),
+      num(rung.peakMassOverRho, 3),
+      num(rung.peakMassOverAmbient, 3),
       num(rung.meanDepth, 3),
       rung.leftTheBand ? "yes" : "no",
     ]),
@@ -495,14 +495,14 @@ export function reportIncome(): IncomeReport {
   row("ADR-0025 gate", "r_max ≥ 2 · r_opt");
 
   const peak = Math.max(
-    ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakFoodOverAmbient)),
+    ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakMassOverAmbient)),
   );
   row("peak mass / s, any rung", `${num(peak)}  (${percent(peak)} of ambient)`);
   row(
     "peak mass / ρ, any rung",
     num(
       Math.max(
-        ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakFoodOverRho)),
+        ...runs.flatMap(({rungs}) => rungs.map((rung) => rung.peakMassOverRho)),
       ),
     ),
   );
