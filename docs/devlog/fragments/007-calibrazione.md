@@ -260,3 +260,73 @@ Una manciata di test più vecchi davano per scontato che niente nascesse o moris
 ---
 
 Il costo di una run da centomila tick non è fisso: dipende da quanti corpi il mondo tiene in vita nel frattempo. Lo stesso file di test, stessa struttura, stesso seed, è passato da quattro secondi a due minuti e mezzo, solo perché adesso la popolazione sale di un ordine di grandezza prima di ricollassare. Il timeout di trenta secondi che bastava fino a ieri era una misura del vecchio mondo travestita da parametro del test runner.
+
+---
+
+Il ticket #36 doveva solo spostare qualche costante contro tre soglie già scritte. Ha finito per farmi rifiutare una legge, scoprire un bug di prestazioni per puro caso, e chiudere accettando che due delle tre soglie restino non superate. Nessuna delle tre cose era nel piano, e nessuna delle tre è uscita da un test rosso: sono uscite tutte da una domanda fatta a voce, in un punto in cui il codice già "funzionava".
+
+---
+
+Il primo modo per far tornare `r_max` funzionava: se il cibo non basta, il figlio prende il resto dalla CO₂ del genitore, rilasciando l'ossigeno che portava con sé. Chimicamente pulito — è la fotosintesi stessa, girata al contrario, senza luce. Ho detto no lo stesso.
+
+> non mi piace che il figlio si prenda la co2 come cibo
+
+Non sapevo ancora perché non mi piacesse. L'ho trovato dopo, mettendolo a confronto con il resto del meccanismo: ovunque nella mitosi, quello che il genitore cede è quello che il figlio riceve, stesso tipo. Cibo per cibo, ossigeno per ossigeno, CO₂ per CO₂. Il fallback rompeva quella regola in un punto solo — cibo che diventa massa passando per la CO₂ — e bastava vederla scritta per sapere che non la volevo, anche prima di saperne il motivo.
+
+---
+
+Ho provato a scollegare il costo di massa dalla taglia del figlio — dare al genitore la libertà di cedere "un tot", non necessariamente quanto pesa il figlio. Sembrava la stessa idea del fallback, spostata di un passo. Non lo era: l'avevo già scartata io stesso, mesi prima, in ADR-0022, con la stessa identica motivazione che avrei riscoperto adesso — se la taglia del figlio smette di dipendere solo dalla mutazione, `bodyRadius` smette di essere un tratto sotto selezione, e la popolazione collassa verso il corpo più piccolo che sopravvive. Non un problema di conservazione del carbonio, questa volta: un problema di cosa significa "ottimo" quando l'ottimo può essere aggirato barando sulla taglia.
+
+---
+
+Ho ricostruito da solo, con un esempio numerico, il meccanismo che il codice già implementava — genitore paga la massa strutturale del figlio, poi gli regala un extra deciso da un gene. Non l'avevo letto da nessuna parte prima di scriverlo. Coincideva a cifra.
+
+Non è la scoperta che conta. È che la parte del meccanismo che non mi piaceva non era quella che pensavo. Il fallback non introduceva "un genitore che dà al figlio più di quanto serve" — quello c'era già, si chiama `childAllocationRatio`. Introduceva un genitore che paga in una moneta e il figlio riceve in un'altra. Ci sono voluti tre giri di conversazione per separare le due cose.
+
+---
+
+> visto che le risorse del figlio arrivano dal genitore e al genitore vengono tolte, non dovrebbe aumentare
+
+Avevo scritto che la nascita di un figlio "aumenta istantaneamente" il carbonio totale, come se fosse un problema da correggere con un debito compensativo. Non aumenta: il codice attuale bilancia tutto nello stesso istante, ed è stato lui a fermarmi prima che continuassi a spiegare un bug che non c'era, invece del vincolo che c'era davvero — non "la nascita crea carbonio", ma "due quantità calcolate in modo indipendente devono coincidere per caso, e oggi coincidono perché il codice le forza a farlo".
+
+Un'altra voce nel mucchio delle correzioni che non sono arrivate da un test.
+
+---
+
+Senza il fallback, nessuna combinazione di costanti provata fa passare tutti e tre i gate insieme. `AMBIENT_CO2_SHARE` tira `n` e `r_max` in direzioni opposte — abbassarlo aiuta l'uno e rovina l'altro. `tenancy` è rimasta sotto la soglia richiesta in ogni combinazione, mai sopra 4.25 nel punto migliore trovato. Il ticket stesso prevedeva questo esito: _"if the world cannot be made to satisfy them, that is a finding."_ L'ho lasciato così. Non un gate allargato per far passare una run — un gate che resta chiuso, scritto dove si vede.
+
+---
+
+Guardando la simulazione girare: tante nascite, e una deriva verso corpi sempre più piccoli, non verso il raggio ottimo previsto sulla carta. Sembrava un segno che "il mondo funziona". Era il sintomo esatto che il gate `tenancy` esiste per scoprire.
+
+I corpi piccoli si muovono più in fretta per moto browniano — entrano ed escono dalla luce prima di poter dimostrare, con più di una nascita, se il loro raggio fosse davvero quello giusto. Tanta attività, ma è più probabile che sia geografia — chi capita a passare nella zona giusta — che vera selezione energetica.
+
+È la stessa parola di mesi fa, tirata fuori da un'altra porta. ADR-0018 l'aveva scritta parlando del ritorno dal buio: _"an early result may be reporting geography rather than genetics"_. Il progetto continua ad avvertirsi da solo sulla stessa cosa, e io continuo a riconoscerla solo dopo averla vista girare.
+
+---
+
+Un bug di prestazioni trovato per puro caso, cercando tutt'altro: `buildUniformGrid` dimensiona ogni cella al doppio del raggio corporeo più grande nella popolazione — corretto, finché tutti i corpi sono di taglia simile. `bodyRadius` muta senza un tetto. Bastano abbastanza nascite perché una mutazione rara produca un corpo enorme, e nel momento in cui esiste, migliaia di corpi minuscoli finiscono ammassati nella stessa manciata di celle giganti — un tick che dovrebbe costare `n` ne costa `n²`, per tutti i tick finché quel corpo non muore.
+
+Una run da un minuto ne ha impiegati ottanta. Il timeout di vitest lo ha segnalato fallito al secondo 120, ma il ciclo sincrono di JavaScript non si può interrompere a metà — ha continuato a girare in background, invisibile, per un'ora e diciotto in più, prima che qualcuno potesse leggere l'esito vero.
+
+Due scelte, prese in momenti diversi e per motivi entrambi ragionevoli — la cella dimensionata sul corpo più grande, la mutazione senza tetto — si sono incontrate una volta sola, per caso, dentro una popolazione abbastanza fertile da produrre l'incontro. Non l'ho cercato. Stavo solo aspettando che finisse una run che pensavo durasse un minuto.
+
+---
+
+> ma secondo me è un bug non pericoloso, cmq ho già in mente un algoritmo diverso
+
+Ottanta minuti invece di uno mi era sembrato abbastanza per chiamarlo pericoloso. A lui no — e ha già in testa l'algoritmo che lo sostituisce, prima ancora che qualcuno gli chiedesse di scriverlo.
+
+---
+
+> griglia di dimensione fissa, da trovare con un benchmark. ogni organismo si registra in tutte le celle che tocca. creiamo una mappa fissa di celle a distanza <1, <2, <3 ecc. per fare la ricerca parto dalle coordinate x e y, e cerco solo nelle celle a distanza < distance utilizzando la mappa di celle a distanza fisse
+
+La griglia attuale risolve "nessun corpo scappa al controllo" dimensionando la cella sul corpo più grande — una taglia sola, decisa dal caso peggiore di tutta la popolazione. La sua fa la stessa promessa al contrario: la cella resta piccola e fissa, e chi è più grande di una cella si registra in più celle. Il corpo enorme paga il proprio costo — comparire in più bucket — invece di farlo pagare a tutti gli altri alzando la taglia della cella per l'intera popolazione.
+
+La mappa delle distanze precalcolata è la seconda metà dell'idea, e sposta lo stesso principio dalla scrittura alla lettura: invece di ricalcolare ogni volta quali colonne e righe coprire a partire da un raggio di ricerca, la forma dell'anello a distanza 1, 2, 3 è fissa e la si guarda in una tabella. Il costo di una query smette di dipendere da quanto è grande il corpo più grande nel mondo, e dipende solo da quanto lontano deve guardare _quella_ query.
+
+---
+
+> pensavo di provare varie dimensioni e vedere in tot secondi quanti tick riesce ad eseguire
+
+Nessuna formula per la dimensione giusta della cella — un benchmark, si prova e si guarda quanti tick gira in un tempo fisso. La stessa mossa dell'harness di calibrazione, spostata dalle costanti del mondo a quelle del motore che lo fa girare: quando non sai derivarlo, non lo stimi, lo fai correre e leggi il numero.
