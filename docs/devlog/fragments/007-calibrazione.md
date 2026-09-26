@@ -394,3 +394,9 @@ Detto en passant, dentro una domanda di design, come se fosse un dettaglio. Non 
 La parola che chiude il capitolo, ed è quasi un'eco: `vision.md` ne aveva già scritta una versione, in inglese, mesi prima che succedesse davvero — "a race to zero: without a flat cost, smaller is always fitter without bound." Il progetto si era già premunito contro esattamente questa corsa, con quel nome preciso, e ci aveva messo un pavimento apposta.
 
 Il pavimento ha retto contro il pericolo che il testo immaginava — un corpo piccolo che guadagna di più in proporzione — e ha ceduto a un altro, da una porta che il testo non stava guardando: un corpo piccolo che non guadagna di più, ma fa in tempo. La corsa al piccolo è successa lo stesso.
+
+---
+
+> vincoli già bruciati
+
+La parola del capitolo dopo. Tre proposte per far sopravvivere il mondo — più energia dalla respirazione, una banda luminosa più larga, un generation-0 innescato — e tutte e tre erano già state accese e spente prima ancora di essere riproposte: la prima rompeva `n`, la seconda smontava lo strumento di misura, la terza collassava lo stesso, solo più tardi. Non vicoli ciechi da scoprire — vincoli già bruciati da qualcun altro, in un giro precedente dello stesso capitolo.
