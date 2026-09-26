@@ -85,7 +85,13 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   const childArea = bodyAreaOfRadius(childGenome.bodyRadius);
   // `mitosisMassCost` is forced, not chosen (ADR-0019): `bodyMass` is
   // `ρ × area`, and death returns exactly that amount, so any other number
-  // breaks the ledger the moment this child is born.
+  // breaks the ledger the moment this child is born. Paid from food alone —
+  // ADR-0025's fallback of drawing the remainder from CO₂ was considered at
+  // #36 and rejected: a parent hands its child the same resource it gives
+  // up, food for food, oxygen for oxygen, CO₂ for CO₂, and a cross-type
+  // conversion at the exact moment of birth broke that symmetry for food
+  // alone. See `AMBIENT_CO2_SHARE`'s own comment for how the ambient split
+  // covers the mass gate without it.
   const massCost = RHO * childArea;
   // `mitosisEnergyCost` is strictly proportional, with no flat term — see
   // `MITOSIS_ENERGY_COST`'s own comment for why that asymmetry with

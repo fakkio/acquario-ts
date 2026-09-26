@@ -264,15 +264,21 @@ describe("constrainToAquarium", () => {
     }
   });
 
-  // The largest body the carbon ledger permits, `r = √K` (ADR-0012's
-  // amendment): a single body cannot exceed the whole carbon budget, so this
-  // is the real ceiling `bodyRadius` faces now that no constant imposes one.
-  // `clamp`'s `min` is `bodyRadius` and its `max` is `AQUARIUM_HEIGHT −
-  // bodyRadius`; the two would cross and the clamp would invert once
-  // `bodyRadius` passed `AQUARIUM_HEIGHT / 2 = 20`, and `√K ≈ 14.14` stays
-  // comfortably under that.
-  it("still holds a body against the wall at the largest radius the carbon budget permits", () => {
-    const largestPermittedRadius = Math.sqrt(CARBON_BUDGET_BASELINE_ORGANISMS);
+  // The largest body that can be wholly inside the aquarium at all: the
+  // tighter of two ceilings. `r = √K` (ADR-0012's amendment) is the carbon
+  // ledger's own bound — a single body cannot exceed the whole carbon
+  // budget — but #35 raised `K` past the point where that bound is the
+  // binding one. `clamp`'s `min` is `bodyRadius` and its `max` is
+  // `AQUARIUM_HEIGHT − bodyRadius`; the two cross once `bodyRadius` passes
+  // `AQUARIUM_HEIGHT / 2 = 20`, and a circle wider than the aquarium's
+  // shorter side cannot be wholly contained regardless of clamping, so
+  // `min(AQUARIUM_WIDTH, AQUARIUM_HEIGHT) / 2` is the geometry's own
+  // ceiling on top of the ledger's.
+  it("still holds a body against the wall at the largest radius that can fit it", () => {
+    const largestPermittedRadius = Math.min(
+      Math.sqrt(CARBON_BUDGET_BASELINE_ORGANISMS),
+      Math.min(AQUARIUM_WIDTH, AQUARIUM_HEIGHT) / 2,
+    );
     const organism = organismAt(-5, CENTRE_Y, largestPermittedRadius);
 
     constrainToAquarium(organism);

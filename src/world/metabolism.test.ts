@@ -222,7 +222,7 @@ describe("applyPhotosynthesis", () => {
     expect(organism.oxygen).toBe(0);
   });
 
-  it("fixes carbon measurably faster in the photic zone than near the floor, all else equal", () => {
+  it("fixes carbon measurably faster in the bright zone than near the floor, all else equal", () => {
     const bright = organismAt(0, 0, 1);
     const dim = organismAt(0, 0, 1);
     bright.carbonDioxide = 0.5 * bodyArea(bright);
@@ -511,7 +511,7 @@ describe("applyRespiration", () => {
 describe("applyMaintenance", () => {
   it("charges the flat existence cost plus the area-scaled body cost", () => {
     const organism = organismAt(0, 0, 1.3);
-    organism.energy = 10_000; // comfortably above the cost
+    organism.energy = 100; // comfortably above the cost, without swamping it in float cancellation
 
     const before = organism.energy;
     applyMaintenance(organism);

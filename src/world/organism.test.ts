@@ -13,12 +13,16 @@ import {
   MIN_RADIUS_FACTOR,
   Organism,
   type OrganismInit,
+  type OrganismView,
   STARTING_POPULATION,
   bodyArea,
   bodyMass,
   capFor,
   createPopulation,
+  DIFFUSIBLES,
   foldPopulation,
+  placeFounders,
+  type Founder,
 } from "./organism";
 import {createRngStream} from "./rng";
 
@@ -112,6 +116,138 @@ describe("createPopulation", () => {
 
   it("produces a different population for a different seed", () => {
     expect(populationFor(7)).not.toEqual(populationFor(8));
+  });
+});
+
+describe("createPopulation from an explicit baseline genome", () => {
+  // The done-criteria runs vary the starting point as well as the seed
+  // (ADR-0025), so the genome founders are mutated from has to be an
+  // argument rather than a module-level constant.
+  const LARGE_BASELINE: Genome = {...BASELINE_GENOME, bodyRadius: 2.5};
+
+  it("defaults to BASELINE_GENOME, so an omitted argument changes nothing", () => {
+    expect(createPopulation(createRngStream(7)).population).toEqual(
+      createPopulation(createRngStream(7), BASELINE_GENOME).population,
+    );
+  });
+
+  it("spreads founders around the genome it was handed rather than around the default", () => {
+    const radii = createPopulation(
+      createRngStream(7),
+      LARGE_BASELINE,
+    ).population.map((organism) => organism.bodyRadius);
+
+    for (const radius of radii) {
+      expect(radius).toBeGreaterThan(
+        MIN_RADIUS_FACTOR * LARGE_BASELINE.bodyRadius * 0.99,
+      );
+      expect(radius).toBeLessThan(
+        MAX_RADIUS_FACTOR * LARGE_BASELINE.bodyRadius * 1.01,
+      );
+    }
+  });
+
+  // lineageHue is the one gene generation 0 does not inherit, whichever
+  // baseline it is mutated from: forty founders a hair apart in hue are
+  // forty founders a marker locus cannot tell apart.
+  it("still draws lineageHue uniformly rather than from the given baseline", () => {
+    const hues = createPopulation(createRngStream(7), {
+      ...BASELINE_GENOME,
+      lineageHue: 0.25,
+    }).population.map((organism) => organism.lineageHue);
+
+    expect(Math.max(...hues) - Math.min(...hues)).toBeGreaterThan(0.5);
+  });
+});
+
+describe("placeFounders", () => {
+  const ladder: readonly Founder[] = [1, 1.5, 2, 2.5].map((bodyRadius, i) => ({
+    x: 10 + 5 * i,
+    y: 3 + 2 * i,
+    genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.1 * i},
+  }));
+
+  it("places exactly the bodies it was handed, in order", () => {
+    const {population} = placeFounders(createRngStream(7), ladder);
+
+    expect(population).toHaveLength(ladder.length);
+    for (const [i, organism] of population.entries()) {
+      const founder = ladder[i];
+      expect(organism.x).toBe(founder.x);
+      expect(organism.y).toBe(founder.y);
+      expect(organism.genome).toEqual(founder.genome);
+    }
+  });
+
+  it("gives every founder its own stream, distinct from every other one's", () => {
+    const streams = placeFounders(createRngStream(7), ladder).population.map(
+      (organism) => organism.rng.state,
+    );
+
+    expect(new Set(streams).size).toBe(ladder.length);
+  });
+
+  it("advances the global stream it was handed rather than reusing its state", () => {
+    const globalRng = createRngStream(7);
+    const {stream} = placeFounders(globalRng, ladder);
+
+    expect(stream.state).not.toBe(globalRng.state);
+  });
+
+  it("leaves the four internal stores at zero, for initializeMetabolism to fill", () => {
+    for (const organism of placeFounders(createRngStream(7), ladder)
+      .population) {
+      expect(organism.energy).toBe(0);
+      expect(organism.oxygen).toBe(0);
+      expect(organism.carbonDioxide).toBe(0);
+      expect(organism.food).toBe(0);
+    }
+  });
+
+  it("produces identical populations for the same seed and the same ladder", () => {
+    expect(placeFounders(createRngStream(7), ladder).population).toEqual(
+      placeFounders(createRngStream(7), ladder).population,
+    );
+  });
+
+  it("places nothing when handed nothing", () => {
+    expect(placeFounders(createRngStream(7), []).population).toHaveLength(0);
+  });
+});
+
+describe("the reproduction genes on the view", () => {
+  const organism = new Organism({
+    x: 1,
+    y: 2,
+    genome: {
+      ...BASELINE_GENOME,
+      mitosisEnergyThreshold: 0.42,
+      childAllocationRatio: 0.17,
+    },
+    rng: createRngStream(11),
+  });
+
+  // Gene statistics live in the App layer and in the harness rather than
+  // behind a reader of their own, so all four genes have to be readable
+  // off the view — bodyRadius and lineageHue already were.
+  it("reads both reproduction genes off the genome, with no field of their own", () => {
+    const view: OrganismView = organism;
+
+    expect(view.mitosisEnergyThreshold).toBe(0.42);
+    expect(view.childAllocationRatio).toBe(0.17);
+  });
+
+  it("exposes all four genes through the view", () => {
+    const view: OrganismView = organism;
+
+    expect(view.bodyRadius).toBe(organism.genome.bodyRadius);
+    expect(view.lineageHue).toBe(organism.genome.lineageHue);
+    expect(view.mitosisEnergyThreshold).toBe(
+      organism.genome.mitosisEnergyThreshold,
+    );
+    expect(view.childAllocationRatio).toBe(
+      organism.genome.childAllocationRatio,
+    );
   });
 });
 
@@ -213,13 +349,23 @@ describe("internal resource stores", () => {
     ).toBeUndefined();
   });
 
-  it("caps the three diffusibles at K_CAP times body area", () => {
+  it("caps each diffusible at its own K_CAP entry times body area", () => {
     const organism = organismWith();
-    const expectedCap = K_CAP * bodyArea(organism);
 
-    expect(capFor(organism, "oxygen")).toBeCloseTo(expectedCap, 12);
-    expect(capFor(organism, "carbonDioxide")).toBeCloseTo(expectedCap, 12);
-    expect(capFor(organism, "food")).toBeCloseTo(expectedCap, 12);
+    for (const resource of DIFFUSIBLES) {
+      expect(capFor(organism, resource)).toBeCloseTo(
+        K_CAP[resource] * bodyArea(organism),
+        12,
+      );
+    }
+  });
+
+  // The table is per-resource from M5 (ADR-0022). #36 gives food the
+  // headroom above ρ that ADR-0022 promised; oxygen and CO₂ stay at 1.
+  it("gives food headroom above ρ while oxygen and CO2 stay at 1", () => {
+    expect(K_CAP.oxygen).toBe(1);
+    expect(K_CAP.carbonDioxide).toBe(1);
+    expect(K_CAP.food).toBeGreaterThan(1);
   });
 
   it("caps energy at its own coefficient rather than sharing K_CAP", () => {
@@ -229,7 +375,7 @@ describe("internal resource stores", () => {
       K_CAP_ENERGY * bodyArea(organism),
       12,
     );
-    expect(K_CAP_ENERGY).not.toBe(K_CAP);
+    expect(K_CAP_ENERGY).not.toBe(K_CAP.food);
   });
 
   it("scales every cap with the organism's own body area", () => {
