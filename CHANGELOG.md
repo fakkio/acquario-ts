@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-26
+
+### Added
+
+- Death by starvation: energy reaching zero kills an organism. Its position, diffusible stores and body mass are frozen as remains at step 8 and returned to the pools at step 11. Mortality is a world mode (`"on"`/`"off"`), independent of the milestone that introduced it (ADR-0017).
+- Session restart: on population extinction, a new world seeds itself from the last, with an auto-restart toggle and a cumulative-deaths HUD row (ADR-0018).
+- A four-gene genome (`bodyRadius`, `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue`), mutated independently per gene at birth, and a generation-0 population independently mutated from a common baseline genome (ADR-0021).
+- Mitosis: a parent pays energy and food-mass at resolve time with no flat term (ADR-0019), splits its remaining resources with a child by `childAllocationRatio`, and the child is born tangent to it. Fertility is a world mode independent of mortality (ADR-0020). A child costs the world carbon at body density (ADR-0022).
+- Cumulative births HUD row, beside cumulative deaths.
+- The calibration harness: a headless script that constructs worlds, runs them and reports the numbers M5's constants are chosen against — an instrument, never a gate (ADR-0024).
+- `α`, the energy income coefficient, measured rather than declared over a fixed, selection-free population (ADR-0015), narrowed to the **Bright Band** once reproduction only happens there (ADR-0023); `r_opt` gated on a measured income exponent, on the maximum reproductive radius and on tenancy (ADR-0025).
+- HUD rows for gene mean ± σ, and `α` reported over both the bright band and the whole population.
+- Fifteen done-criteria runs — five seeds across three baseline genomes — as v0.1's verdict on the "selection, not drift" criterion (ADR-0026).
+
+### Changed
+
+- The uniform grid's cell size tracks the population's largest body radius each tick, instead of a fixed constant.
+- "Photic" renamed to "bright" throughout (**Bright Zone**, **Bright Band**).
+
+### Fixed
+
+- Exchange settlement no longer lets a pool's grants push its balance below zero under contended demand.
+
+This closes **v0.1** (M3 — Death, M4 — Reproduction, M5 — Calibration). Conservation and determinism both hold across the milestone. The third criterion does not: all fifteen done-criteria runs went extinct before ever reaching a living population inside the measurement window, so there is no `bodyRadius` mean to check against the predicted `r_opt`. Accepted as v0.1's final, published result (ADR-0026) rather than chased further inside v0.1's own constants; survivability work resumes, if at all, in v0.2.
+
 ## [0.0.4] - 2026-09-17
 
 ### Added

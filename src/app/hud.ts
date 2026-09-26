@@ -8,8 +8,8 @@ interface HudField {
 
 /**
  * Structure only: fields are keyed rows appended in first-set order, so M2
- * (pool levels, live carbon) and M5 (gene mean ± σ, CSV export) can call
- * `setField` with new keys without touching the rows already here.
+ * (pool levels, live carbon) and M5 (gene mean ± σ, α bright beside whole)
+ * can call `setField` with new keys without touching the rows already here.
  */
 export function mountHud(): Hud {
   const container = document.createElement("div");

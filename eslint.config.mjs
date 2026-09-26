@@ -7,6 +7,15 @@ export default tseslint.config(
   },
   js.configs.recommended,
   {
+    // The harness's resolver hook runs under plain `node`, outside the
+    // bundler that would otherwise supply these. Listed by hand rather than
+    // pulling in `globals` for three names.
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {URL: "readonly", console: "readonly", process: "readonly"},
+    },
+  },
+  {
     files: ["**/*.ts", "**/*.tsx"],
     extends: [
       ...tseslint.configs.strictTypeChecked,

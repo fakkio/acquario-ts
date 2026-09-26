@@ -5,6 +5,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
+import {CARBON_BUDGET_BASELINE_ORGANISMS} from "./constants";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import type {Organism} from "./organism";
 import {createRngStream} from "./rng";
@@ -261,5 +262,28 @@ describe("constrainToAquarium", () => {
 
       expectWhollyInsideAquarium(organism);
     }
+  });
+
+  // The largest body that can be wholly inside the aquarium at all: the
+  // tighter of two ceilings. `r = √K` (ADR-0012's amendment) is the carbon
+  // ledger's own bound — a single body cannot exceed the whole carbon
+  // budget — but #35 raised `K` past the point where that bound is the
+  // binding one. `clamp`'s `min` is `bodyRadius` and its `max` is
+  // `AQUARIUM_HEIGHT − bodyRadius`; the two cross once `bodyRadius` passes
+  // `AQUARIUM_HEIGHT / 2 = 20`, and a circle wider than the aquarium's
+  // shorter side cannot be wholly contained regardless of clamping, so
+  // `min(AQUARIUM_WIDTH, AQUARIUM_HEIGHT) / 2` is the geometry's own
+  // ceiling on top of the ledger's.
+  it("still holds a body against the wall at the largest radius that can fit it", () => {
+    const largestPermittedRadius = Math.min(
+      Math.sqrt(CARBON_BUDGET_BASELINE_ORGANISMS),
+      Math.min(AQUARIUM_WIDTH, AQUARIUM_HEIGHT) / 2,
+    );
+    const organism = organismAt(-5, CENTRE_Y, largestPermittedRadius);
+
+    constrainToAquarium(organism);
+
+    expectWhollyInsideAquarium(organism);
+    expect(organism.x).toBe(organism.bodyRadius);
   });
 });

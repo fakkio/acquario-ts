@@ -9,8 +9,14 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
+    // Keeps every source file strippable by deleting types alone — no
+    // enums, no namespaces, no constructor parameter properties. That is
+    // what lets `npm run calibrate` run the simulation under plain `node`
+    // (ADR-0024), and a compile error is a better way to find out the
+    // property has lapsed than the harness failing to start.
+    "erasableSyntaxOnly": true,
     "moduleDetection": "force",
     "noEmit": true
   },
-  "include": ["src", "vite.config.ts", "vitest.long.config.ts"]
+  "include": ["src", "scripts", "vite.config.ts", "vitest.long.config.ts"]
 }

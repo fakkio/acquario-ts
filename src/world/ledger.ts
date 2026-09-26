@@ -46,8 +46,9 @@ export function initializeMetabolism(population: readonly Organism[]): Pools {
   );
 
   // "Enough carbon for K baseline organisms": a baseline body has area π
-  // (bodyRadius = 1), so K of them are worth K·π of carbon in the
-  // concentration unit K_CAP = 1 fixes.
+  // (bodyRadius = 1), so K of them are worth K·π of carbon in the unit
+  // `ρ = 1` fixes — `RHO`, not `K_CAP`, which carries the same dimension
+  // but is a free ratio rather than a unit (ADR-0022).
   const carbonBudget = CARBON_BUDGET_BASELINE_ORGANISMS * Math.PI;
   const ambientConcentration =
     (carbonBudget - totalBodyArea) / (totalBodyArea + AQUARIUM_AREA);

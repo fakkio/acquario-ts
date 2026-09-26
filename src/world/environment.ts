@@ -51,8 +51,12 @@ function emptyPerDiffusible(): Record<Diffusible, number[]> {
  * pool level, bit-identical: the set of amounts requested by a population
  * does not change when the population is only reordered, and this is the
  * one place that set turns into a single number.
+ *
+ * Exported for `death.ts`'s deposit, which needs the same guarantee for the
+ * same reason (ADR-0017): summed in population order, it would break
+ * ADR-0005's reorder guarantee the day two organisms die on one tick.
  */
-function sumAscending(values: readonly number[]): number {
+export function sumAscending(values: readonly number[]): number {
   return [...values]
     .sort((a, b) => a - b)
     .reduce((sum, value) => sum + value, 0);
@@ -88,7 +92,20 @@ export class ExchangeSettlement {
   // `commit`.
   private readonly granted = emptyPerDiffusible();
 
-  constructor(private readonly pools: Pools) {}
+  /**
+   * Spelled out as a field and an assignment rather than as a constructor
+   * parameter property, which is the one piece of TypeScript syntax that
+   * cannot be erased by deleting types alone. `erasableSyntaxOnly` in
+   * `tsconfig.json` keeps the whole of `src/` that way on purpose: it is
+   * what lets the calibration harness (ADR-0024) run the simulation under
+   * plain `node` with nothing but a resolver hook, instead of the repo
+   * taking on a TypeScript runtime for the sake of one instrument.
+   */
+  private readonly pools: Pools;
+
+  constructor(pools: Pools) {
+    this.pools = pools;
+  }
 
   /** What `requestPass` and `grantPass` share: reading a pool's
    * concentration and the light at a depth are the same lookup regardless

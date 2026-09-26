@@ -3,8 +3,17 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
+import {ExchangeSettlement} from "./environment";
+import {BASELINE_GENOME} from "./genome";
+import type {Pools} from "./ledger";
 import {
-  MAX_BODY_RADIUS,
+  applyMaintenance,
+  applyPassiveExchange,
+  applyPhotosynthesis,
+  applyRespiration,
+} from "./metabolism";
+import {
+  GENERATION_0_MAX_BODY_RADIUS,
   MIN_RADIUS_FACTOR,
   Organism,
   type OrganismView,
@@ -22,7 +31,8 @@ import {createRngStream, nextRng, type RngStream} from "./rng";
 /**
  * An organism placed by hand. `seed` picks its stream, so a test that cares
  * which numbers a body draws can pin one and a test that only needs a body
- * somewhere can ignore it.
+ * somewhere can ignore it. The two reproduction genes ride along at
+ * `BASELINE_GENOME`'s values; no test in this suite yet cares which.
  */
 export function organismAt(
   x: number,
@@ -33,8 +43,7 @@ export function organismAt(
   return new Organism({
     x,
     y,
-    bodyRadius,
-    lineageHue: 200,
+    genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.5},
     rng: createRngStream(seed),
   });
 }
@@ -57,10 +66,11 @@ export function shuffle(items: Organism[], stream: RngStream): Organism[] {
 }
 
 /**
- * The smallest body the world allows, the counterpart of `MAX_BODY_RADIUS`.
- * It lives here rather than beside its opposite in `organism.ts` because
- * nothing the simulation does needs it: the grid derives its cell size from
- * the largest body, and only tests ever ask how small a body can be.
+ * The smallest body generation 0 places, the counterpart of
+ * `GENERATION_0_MAX_BODY_RADIUS`. It lives here rather than beside its
+ * opposite in `organism.ts` because nothing the simulation does needs it: the
+ * grid derives its cell size from whichever body is largest at build time,
+ * and only tests ever ask how small a body can be.
  */
 export const MIN_BODY_RADIUS = MIN_RADIUS_FACTOR * BASELINE_BODY_RADIUS;
 
@@ -90,7 +100,7 @@ export function randomPopulation(
   seed: number,
   size: number,
   minRadius = MIN_BODY_RADIUS,
-  maxRadius = MAX_BODY_RADIUS,
+  maxRadius = GENERATION_0_MAX_BODY_RADIUS,
 ): Organism[] {
   const draw = openDraws(seed);
   const population: Organism[] = [];
@@ -131,4 +141,37 @@ export function worstExcursion(population: readonly OrganismView[]): number {
       ),
     Number.NEGATIVE_INFINITY,
   );
+}
+
+/**
+ * `runTick`'s steps 2a through 5 — the exchange settlement's two sub-passes,
+ * then photosynthesis, respiration and maintenance — replicated by hand for
+ * whichever test needs to seed a population and read pools without running
+ * a whole world. Shared across this module's test files rather than
+ * redefined in each, since every caller wants the exact same sequence.
+ */
+export function runMetabolism(
+  population: readonly Organism[],
+  pools: Pools,
+): Pools {
+  const settlement = new ExchangeSettlement(pools);
+  const request = settlement.requestPass();
+  for (const organism of population) {
+    applyPassiveExchange(organism, request);
+  }
+  settlement.settle();
+  const grant = settlement.grantPass();
+  for (const organism of population) {
+    applyPassiveExchange(organism, grant);
+  }
+  for (const organism of population) {
+    applyPhotosynthesis(organism, grant);
+  }
+  for (const organism of population) {
+    applyRespiration(organism);
+  }
+  for (const organism of population) {
+    applyMaintenance(organism);
+  }
+  return settlement.commit();
 }

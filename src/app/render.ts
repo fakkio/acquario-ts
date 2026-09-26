@@ -1,4 +1,5 @@
 import type {Camera} from "./camera";
+import type {DeathEffects} from "./deathEffects";
 import {
   AQUARIUM_HEIGHT,
   AQUARIUM_WIDTH,
@@ -53,6 +54,12 @@ const GRID_WIDTH_PX = 1;
 export interface RenderOptions {
   /** Whether the uniform grid's debug overlay is drawn over the water. */
   readonly showGrid: boolean;
+  /** The death-effect layer (ticket #24): recorded and drawn against this
+   * frame's population and wall-clock time, so it animates independently of
+   * whether this repaint was triggered by a tick. */
+  readonly deathEffects: DeathEffects;
+  /** Wall-clock time this frame is drawn at — `deathEffects`' only clock. */
+  readonly nowMs: number;
 }
 
 /**
@@ -111,28 +118,37 @@ export function renderWorld(
     drawGrid(ctx, world, worldScale);
   }
 
-  for (const organism of getPopulation(world)) {
+  const population = getPopulation(world);
+  for (const organism of population) {
     ctx.fillStyle = bodyFillFor(organism);
     ctx.beginPath();
     ctx.arc(organism.x, organism.y, organism.bodyRadius, 0, 2 * Math.PI);
     ctx.fill();
   }
 
-  // Stroked last so bodies resting against a wall sit under it rather than
-  // over it, which is what makes the hard wall read as solid.
+  // Recorded and drawn last, over the bodies and the wall alike: the ring
+  // marks where an organism *was*, so it reads as an overlay on the whole
+  // scene rather than as part of it.
+  options.deathEffects.recordFrame(population, options.nowMs);
+
+  // Stroked before the death effect so a ring at a body resting against a
+  // wall reads over it, the same way a live body would.
   ctx.strokeStyle = WALL_STROKE;
   ctx.lineWidth = WALL_WIDTH_PX / worldScale;
   ctx.strokeRect(0, 0, AQUARIUM_WIDTH, AQUARIUM_HEIGHT);
+
+  options.deathEffects.draw(ctx, worldScale, options.nowMs);
 }
 
 /**
  * Untested per ADR-0013's TDD boundary, like everything else that draws.
  *
- * A body's fill colour: `lineageHue` unchanged, brightness carrying the
- * energy fraction linearly between `BODY_LIGHTNESS_FLOOR` and
- * `BODY_LIGHTNESS_FULL`. No perceptual compression the way
- * `waterFillAt` applies to light — the energy fraction is already linear
- * in `[0, 1]`, with no orders-of-magnitude spread to compress.
+ * A body's fill colour: `lineageHue` converted from the genome's `[0, 1)`
+ * unit to the degrees `hsl()` expects, brightness carrying the energy
+ * fraction linearly between `BODY_LIGHTNESS_FLOOR` and `BODY_LIGHTNESS_FULL`.
+ * No perceptual compression the way `waterFillAt` applies to light — the
+ * energy fraction is already linear in `[0, 1]`, with no orders-of-magnitude
+ * spread to compress.
  */
 function bodyFillFor(organism: OrganismView): string {
   const energyFraction = organism.energy / capFor(organism, "energy");
@@ -140,7 +156,7 @@ function bodyFillFor(organism: OrganismView): string {
     BODY_LIGHTNESS_FLOOR +
     (BODY_LIGHTNESS_FULL - BODY_LIGHTNESS_FLOOR) * energyFraction;
 
-  return `hsl(${String(organism.lineageHue)}, 70%, ${String(lightness)}%)`;
+  return `hsl(${String(organism.lineageHue * 360)}, 70%, ${String(lightness)}%)`;
 }
 
 /**
@@ -151,7 +167,7 @@ function bodyFillFor(organism: OrganismView): string {
  * under the same world-space transform as everything else so it sits still
  * while the camera pans and scales with it while the camera zooms. It costs
  * one fill and it is the only way the difference between two organisms'
- * fortunes — one in the photic zone, one in the dark — is legible on screen.
+ * fortunes — one in the bright zone, one in the dark — is legible on screen.
  *
  * Reads `lightAt` at `GRADIENT_STOPS` depths rather than the table's own
  * resolution — see that constant for why.
@@ -170,7 +186,7 @@ function drawLightGradient(ctx: CanvasRenderingContext2D): void {
 /**
  * Light intensity spans several orders of magnitude by the floor (ADR-0004's
  * whole point), so mapping it straight to lightness would read as fully dark
- * past the photic zone and waste the gradient's range on its top few units.
+ * past the bright zone and waste the gradient's range on its top few units.
  * The square root compresses that range perceptually, the way gamma does for
  * a display, while staying monotonic — the one property `lightAt` itself is
  * tested for and the only one this rendering decision has to preserve.

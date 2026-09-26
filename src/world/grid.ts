@@ -1,5 +1,5 @@
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
-import {MAX_BODY_RADIUS, type Organism} from "./organism";
+import {GENERATION_0_MAX_BODY_RADIUS, type Organism} from "./organism";
 
 /**
  * The neighbour query the collision pass runs on: a uniform grid over the
@@ -15,21 +15,30 @@ import {MAX_BODY_RADIUS, type Organism} from "./organism";
  */
 
 /**
- * One cell holds the largest body the world allows, whole. That is the one
- * thing cell size has to buy, and it is why it is derived from
- * `MAX_BODY_RADIUS` rather than picked: a body narrower than a cell extends
- * at most one cell past the cell its centre sits in, so the dilation `query`
- * applies below is exactly one cell wide and the cells a query touches stay
- * bounded — nine of them for a body-sized circle — however wide the radius
- * spread in the population gets.
+ * The largest `bodyRadius` in `population`, or generation 0's ceiling as a
+ * fallback for a population with no bodies to derive one from at all.
+ * `buildUniformGrid` is called on whatever population exists, including an
+ * extinct one (M3's worlds can and do go extinct, and the render layer reads
+ * `getGridOccupancy` regardless), so "no largest body" has to produce a valid
+ * grid rather than a division by zero — and generation 0's ceiling is as good
+ * a guess as any for a grid nobody is querying for real.
+ *
+ * One cell has to hold this body whole — the one thing cell size has to buy —
+ * which is why cell size is derived from it fresh every build rather than
+ * from a constant: from M4 on, `bodyRadius` mutates without an upper bound
+ * other than the carbon ledger, so there is no fixed largest radius left to
+ * derive a module-level cell size from (ADR-0012's amendment).
  */
-const CELL_SIZE = 2 * MAX_BODY_RADIUS;
+function largestBodyRadius(population: readonly Organism[]): number {
+  let largest = 0;
+  for (const organism of population) {
+    if (organism.bodyRadius > largest) {
+      largest = organism.bodyRadius;
+    }
+  }
 
-/** Sized to cover the aquarium, so the walls are the grid's edges too. The
- * last column and row hang over the far walls by up to a cell; nothing lives
- * out there, since the wall constraint keeps every body wholly inside. */
-const GRID_COLUMNS = Math.ceil(AQUARIUM_WIDTH / CELL_SIZE);
-const GRID_ROWS = Math.ceil(AQUARIUM_HEIGHT / CELL_SIZE);
+  return largest > 0 ? largest : GENERATION_0_MAX_BODY_RADIUS;
+}
 
 /**
  * A grid flattened to numbers. Deliberately holds no organisms: this is what
@@ -63,9 +72,9 @@ export interface UniformGrid {
    * centre sits one cell over can still reach into the circle; reading only
    * the cells the circle itself covers would miss it, and miss it *rarely* —
    * exactly the near-touching pairs the collision pass exists to find. The
-   * query therefore reads the cells covered by the circle grown by
-   * `MAX_BODY_RADIUS`, which is the furthest any centre outside it can be and
-   * still have its body inside.
+   * query therefore reads the cells covered by the circle grown by this
+   * build's largest body radius, which is the furthest any centre outside it
+   * can be and still have its body inside.
    */
   query(x: number, y: number, radius: number): readonly Organism[];
 
@@ -74,26 +83,62 @@ export interface UniformGrid {
 }
 
 export function buildUniformGrid(population: readonly Organism[]): UniformGrid {
+  const dilation = largestBodyRadius(population);
+  const cellSize = 2 * dilation;
+
+  // Sized to cover the aquarium, so the walls are the grid's edges too. The
+  // last column and row hang over the far walls by up to a cell; nothing
+  // lives out there, since the wall constraint keeps every body wholly
+  // inside. Derived per build, not module constants, because `cellSize`
+  // itself is now a property of this tick's population.
+  const columns = Math.ceil(AQUARIUM_WIDTH / cellSize);
+  const rows = Math.ceil(AQUARIUM_HEIGHT / cellSize);
+
+  const columnAt = (x: number): number => Math.floor(x / cellSize);
+  const rowAt = (y: number): number => Math.floor(y / cellSize);
+
+  /**
+   * Clamped rather than wrapped, and rather than skipped. Wrapping is what
+   * the aquarium's hard walls rule out: reading column −1 as the last column
+   * would make a body resting on the left wall a neighbour of one resting on
+   * the right. Clamping instead of dropping the out-of-range cells keeps a
+   * query against a wall reading the cells that *are* there, which is where
+   * its neighbours are.
+   */
+  const clampColumn = (column: number): number =>
+    Math.min(Math.max(column, 0), columns - 1);
+
+  const clampRow = (row: number): number =>
+    Math.min(Math.max(row, 0), rows - 1);
+
+  /**
+   * Bucketing clamps too, for the same reason `query` does: a body that
+   * somehow sits outside the aquarium still has to land in a bucket, and it
+   * lands in the nearest edge cell — the cell a query from inside would look
+   * in for it. The wall constraint means this should never fire; if it ever
+   * does, a misplaced body stays findable instead of silently vanishing from
+   * every neighbour query in the world.
+   */
+  const cellIndexAt = (x: number, y: number): number =>
+    clampRow(rowAt(y)) * columns + clampColumn(columnAt(x));
+
   // Flat buckets, indexed row-major — the cache-friendly layout ADR-0012
-  // prefers over tree pointers. The cell count is fixed by the aquarium and
-  // by `CELL_SIZE`, both constants, so allocating them all keeps the build
-  // O(n) in the population.
-  const cells: Organism[][] = Array.from(
-    {length: GRID_COLUMNS * GRID_ROWS},
-    () => [],
-  );
+  // prefers over tree pointers. The cell count is fixed once `cellSize` is
+  // known for this build, so allocating them all keeps the build O(n) in the
+  // population.
+  const cells: Organism[][] = Array.from({length: columns * rows}, () => []);
 
   for (const organism of population) {
     cells[cellIndexAt(organism.x, organism.y)].push(organism);
   }
 
   return {
-    cellSize: CELL_SIZE,
-    columns: GRID_COLUMNS,
-    rows: GRID_ROWS,
+    cellSize,
+    columns,
+    rows,
 
     query(x, y, radius) {
-      const reach = radius + MAX_BODY_RADIUS;
+      const reach = radius + dilation;
       const firstColumn = clampColumn(columnAt(x - reach));
       const lastColumn = clampColumn(columnAt(x + reach));
       const firstRow = clampRow(rowAt(y - reach));
@@ -102,7 +147,7 @@ export function buildUniformGrid(population: readonly Organism[]): UniformGrid {
       const candidates: Organism[] = [];
       for (let row = firstRow; row <= lastRow; row++) {
         for (let column = firstColumn; column <= lastColumn; column++) {
-          for (const organism of cells[row * GRID_COLUMNS + column]) {
+          for (const organism of cells[row * columns + column]) {
             candidates.push(organism);
           }
         }
@@ -113,39 +158,11 @@ export function buildUniformGrid(population: readonly Organism[]): UniformGrid {
 
     occupancy() {
       return {
-        cellSize: CELL_SIZE,
-        columns: GRID_COLUMNS,
-        rows: GRID_ROWS,
+        cellSize,
+        columns,
+        rows,
         counts: cells.map((cell) => cell.length),
       };
     },
   };
 }
-
-const columnAt = (x: number): number => Math.floor(x / CELL_SIZE);
-const rowAt = (y: number): number => Math.floor(y / CELL_SIZE);
-
-/**
- * Clamped rather than wrapped, and rather than skipped. Wrapping is what the
- * aquarium's hard walls rule out: reading column −1 as the last column would
- * make a body resting on the left wall a neighbour of one resting on the
- * right. Clamping instead of dropping the out-of-range cells keeps a query
- * against a wall reading the cells that *are* there, which is where its
- * neighbours are.
- */
-const clampColumn = (column: number): number =>
-  Math.min(Math.max(column, 0), GRID_COLUMNS - 1);
-
-const clampRow = (row: number): number =>
-  Math.min(Math.max(row, 0), GRID_ROWS - 1);
-
-/**
- * Bucketing clamps too, for the same reason `query` does: a body that somehow
- * sits outside the aquarium still has to land in a bucket, and it lands in
- * the nearest edge cell — the cell a query from inside would look in for it.
- * The wall constraint means this should never fire; if it ever does, a
- * misplaced body stays findable instead of silently vanishing from every
- * neighbour query in the world.
- */
-const cellIndexAt = (x: number, y: number): number =>
-  clampRow(rowAt(y)) * GRID_COLUMNS + clampColumn(columnAt(x));
