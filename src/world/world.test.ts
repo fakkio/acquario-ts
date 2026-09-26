@@ -10,7 +10,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {PHOTIC_BAND_DEPTH} from "./light";
+import {BRIGHT_BAND_DEPTH} from "./light";
 import {
   applyMaintenance,
   applyPassiveExchange,
@@ -46,7 +46,7 @@ import {
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
-  getPhoticAlpha,
+  getBrightAlpha,
   getPoolLevels,
   getPopulation,
   getTick,
@@ -760,7 +760,7 @@ describe("respiration and maintenance (M2)", () => {
    * founder list so the depth the reading is about is chosen rather than
    * drawn.
    */
-  describe("photic-band alpha", () => {
+  describe("bright-band alpha", () => {
     const ladderAt = (depth: number): Founder[] =>
       [6, 18, 30, 42, 54].map((x) => ({
         x,
@@ -781,7 +781,7 @@ describe("respiration and maintenance (M2)", () => {
     it("reads zero at tick 0, exactly as the whole-population mean does", () => {
       const world = createWorld(3);
 
-      expect(getPhoticAlpha(world)).toBe(0);
+      expect(getBrightAlpha(world)).toBe(0);
     });
 
     it("reads zero when every body sits below the band", () => {
@@ -790,22 +790,22 @@ describe("respiration and maintenance (M2)", () => {
       // `K_CAP.carbonDioxide`, and clearing it needs photosynthesis, whose
       // rate this far below the band is slow enough that "50 ticks" and
       // "never" are hard to tell apart (clearing at the band's own floor,
-      // `y = PHOTIC_BAND_DEPTH`, already measures in the thousands). The
+      // `y = BRIGHT_BAND_DEPTH`, already measures in the thousands). The
       // property this test exists for — a population with nobody in the
-      // band reads zero on the photic side — still holds and is what it
+      // band reads zero on the bright side — still holds and is what it
       // checks; `getMeasuredAlpha` reading positive once real substrate
       // exists is `describe("respiration and maintenance (M2)")`'s own
       // test, on the default, depth-scattered population.
       const world = fixedWorldOf(ladderAt(AQUARIUM_HEIGHT - 2), 50);
 
-      expect(getPhoticAlpha(world)).toBe(0);
+      expect(getBrightAlpha(world)).toBe(0);
     });
 
     it("agrees with the whole-population mean when every body is in the band", () => {
       const world = fixedWorldOf(ladderAt(2), 50);
 
-      expect(getPhoticAlpha(world)).toBeGreaterThan(0);
-      expect(getPhoticAlpha(world)).toBeCloseTo(getMeasuredAlpha(world), 12);
+      expect(getBrightAlpha(world)).toBeGreaterThan(0);
+      expect(getBrightAlpha(world)).toBeCloseTo(getMeasuredAlpha(world), 12);
     });
 
     it("reports the brighter of the two ecologies when the population straddles the band", () => {
@@ -814,7 +814,7 @@ describe("respiration and maintenance (M2)", () => {
         50,
       );
 
-      expect(getPhoticAlpha(world)).toBeGreaterThan(getMeasuredAlpha(world));
+      expect(getBrightAlpha(world)).toBeGreaterThan(getMeasuredAlpha(world));
     });
 
     it("counts a body exactly on the band's floor as inside it", () => {
@@ -822,7 +822,7 @@ describe("respiration and maintenance (M2)", () => {
       // budget starts internal CO₂ above `K_CAP.carbonDioxide`, and this
       // depth is dim enough (10% of surface) that clearing it takes
       // thousands of ticks, not one — see the below-band test's comment.
-      // What this test is actually about is the `≤` in `isPhotic`, which a
+      // What this test is actually about is the `≤` in `isBright`, which a
       // lone organism's equal reading on both sides proves regardless of
       // the reading's sign; a body strictly inside the band earning
       // something is `"agrees with the whole-population mean..."`'s job.
@@ -830,14 +830,14 @@ describe("respiration and maintenance (M2)", () => {
         [
           {
             x: 30,
-            y: PHOTIC_BAND_DEPTH,
+            y: BRIGHT_BAND_DEPTH,
             genome: {...BASELINE_GENOME, lineageHue: 0.5},
           },
         ],
         1,
       );
 
-      expect(getPhoticAlpha(world)).toBe(getMeasuredAlpha(world));
+      expect(getBrightAlpha(world)).toBe(getMeasuredAlpha(world));
     });
   });
 

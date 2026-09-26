@@ -77,12 +77,12 @@ export function lightAt(y: number): number {
 }
 
 /**
- * The **photic band**'s floor (glossary; ADR-0023): the depth at or above
+ * The **bright band**'s floor (glossary; ADR-0023): the depth at or above
  * which an organism counts as living in the light, in baseline radii.
  *
  * Ten radii down is where `LIGHT_ATTENUATION_K` was chosen to put a tenth
  * of the surface value, which is already what `docs/vision.md` calls the
- * photic zone — so this constant names a boundary the world already had
+ * bright zone — so this constant names a boundary the world already had
  * rather than drawing a new one. It is read in three places that must all
  * mean the same depth: the `α` fold in `world.ts`, the HUD, and the
  * calibration harness.
@@ -95,11 +95,11 @@ export function lightAt(y: number): number {
  * reintroduce exactly the circularity ADR-0015 spent a section removing,
  * so it is not in the table the harness is allowed to override.
  */
-export const PHOTIC_BAND_DEPTH = 10 * BASELINE_BODY_RADIUS;
+export const BRIGHT_BAND_DEPTH = 10 * BASELINE_BODY_RADIUS;
 
-/** Whether a body's centre sits inside the photic band. Sampled at the
+/** Whether a body's centre sits inside the bright band. Sampled at the
  * centre, never the upper edge, for the same reason `lightAt` is — see its
  * comment above. */
-export function isPhotic(y: number): boolean {
-  return y <= PHOTIC_BAND_DEPTH;
+export function isBright(y: number): boolean {
+  return y <= BRIGHT_BAND_DEPTH;
 }

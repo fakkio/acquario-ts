@@ -3,7 +3,7 @@ import {
   AQUARIUM_HEIGHT,
   AQUARIUM_WIDTH,
   BASELINE_GENOME,
-  PHOTIC_BAND_DEPTH,
+  BRIGHT_BAND_DEPTH,
   bodyArea,
   createWorld,
   getPoolLevels,
@@ -73,7 +73,7 @@ function reportTheWorldMeasured(): void {
     "aquarium",
     `${num(AQUARIUM_WIDTH)} × ${num(AQUARIUM_HEIGHT)} baseline radii`,
   );
-  row("photic band", `y ≤ ${num(PHOTIC_BAND_DEPTH)}`);
+  row("bright band", `y ≤ ${num(BRIGHT_BAND_DEPTH)}`);
   row(
     "baseline genome",
     `r=${num(BASELINE_GENOME.bodyRadius)}, threshold=${num(BASELINE_GENOME.mitosisEnergyThreshold)}, allocation=${num(BASELINE_GENOME.childAllocationRatio)}`,
@@ -138,18 +138,18 @@ function main(): void {
 
   // The one derived number the rest of the milestone hangs on, stated where
   // the measurements that produced it can be read beside it. `c₀` is solved
-  // against the *photic* mean (ADR-0023), because selection acts through
+  // against the *bright* mean (ADR-0023), because selection acts through
   // reproduction and in v0.1 reproduction happens only in the light.
   heading("What #35 would read off this run");
   const targetROpt = 1.5;
   row("target r_opt (ADR-0025)", num(targetROpt));
   row(
-    "c₀ = α_photic · r_opt / 2",
-    `${num((alpha.photic * targetROpt) / 2)}  (committed EXISTENCE_COST: ${num(constants.EXISTENCE_COST)})`,
+    "c₀ = α_bright · r_opt / 2",
+    `${num((alpha.bright * targetROpt) / 2)}  (committed EXISTENCE_COST: ${num(constants.EXISTENCE_COST)})`,
   );
   row(
-    "r_opt = 2·c₀/α_photic, as committed",
-    num((2 * constants.EXISTENCE_COST) / alpha.photic),
+    "r_opt = 2·c₀/α_bright, as committed",
+    num((2 * constants.EXISTENCE_COST) / alpha.bright),
   );
   // The settled fit first, and named as the gate's own number: it is what
   // ADR-0025 defines `n` over, and it is the less comfortable of the two.

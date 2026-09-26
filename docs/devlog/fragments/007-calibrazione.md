@@ -330,3 +330,67 @@ La mappa delle distanze precalcolata è la seconda metà dell'idea, e sposta lo 
 > pensavo di provare varie dimensioni e vedere in tot secondi quanti tick riesce ad eseguire
 
 Nessuna formula per la dimensione giusta della cella — un benchmark, si prova e si guarda quanti tick gira in un tempo fisso. La stessa mossa dell'harness di calibrazione, spostata dalle costanti del mondo a quelle del motore che lo fa girare: quando non sai derivarlo, non lo stimi, lo fai correre e leggi il numero.
+
+---
+
+Il ticket #37 prometteva un lavoro di HUD e invece era quasi tutto già pagato. #33 aveva allargato `OrganismView` con i due geni della riproduzione "so that all four genes can be read where the statistics over them are computed — the HUD and the calibration harness", parola per parola il ticket che sarebbe arrivato mesi dopo. Quando #37 è arrivato per davvero, non c'era niente da aggiungere al mondo: solo da leggere quello che il mondo esponeva già, e sommarlo in una riga di HUD.
+
+Un commento nel codice aveva nominato il proprio futuro prima che esistesse, e il futuro è arrivato a dargli ragione esattamente.
+
+---
+
+ADR-0018 si era scritta da sola una scadenza: "Flip the default at M4, when a restart is showing something." M4 non ha mai fatto nascere nessuno, quindi la scadenza è passata senza succedere niente, e il documento è rimasto un milestone indietro rispetto a se stesso finché #37 non ha chiuso il conto. Non dimenticato: rimandato esattamente per il motivo che la frase stessa prevedeva — quando un restart mostra qualcosa, e quel qualcosa non c'era ancora.
+
+---
+
+#36 non è chiuso, ma non è nemmeno aperto nel senso in cui lo è un ticket senza risposta. Il verdetto c'è già, scritto in un commento: due gate su tre restano sotto soglia, per una scelta di principio e non per un bug irrisolto. #38 e #31 aspettano comunque, perché "blocked by" non distingue fra un ticket a cui manca la risposta e un ticket la cui risposta non è quella che si voleva sentire.
+
+---
+
+#38 doveva rispondere a una domanda con due risposte possibili: converge o non converge. La risposta vera è stata una terza, più netta di entrambe: niente da misurare. Quindici mondi, cinque seed per tre genomi di partenza, e tutti e quindici si estinguono prima ancora di entrare nella finestra delle ultime diecimila tick. Il gate di accuratezza non ha un solo numero da giudicare. Il gate di convergenza non ha uno spread da confrontare: `NaN`, non un valore fuori banda.
+
+Non è la milestone che ha fallito una previsione. È la milestone in cui la domanda "converge?" si è scoperta prematura.
+
+---
+
+I test che dovevano solo "riportare, non giudicare" — media e σ degli altri due geni, la non-convergenza di `lineageHue` — avevano un `expect(survivors.length).toBeGreaterThan(0)` scritto dentro. Sembrava una guardia ragionevole. Era un gate travestito da report, ed è saltato fuori esattamente nel caso che contava di più: quando tutti i mondi si estinguono, un report che si rifiuta di girare non dice "niente da riportare", fallisce e basta — la stessa distinzione di prima, girata al contrario. Lì era una misura scritta in un commento che non aveva modo di fallire; qui era un report scritto come se non potesse mai fallire, e falliva comunque, proprio nel momento in cui contava di più guardare.
+
+L'ha trovato la revisione, non una run.
+
+---
+
+La stessa suite, lo stesso codice, gli stessi cinque seed: 888 secondi, poi 641, poi — senza che niente fosse cambiato nel frattempo — 29723. Otto ore e mezza, fermata solo dal timeout dell'hook. Ho controllato i processi node ancora vivi sulla macchina: nessuno riconducibile alla run, tutti server di sviluppo e language server aperti da giorni, estranei.
+
+Non ho trovato la causa. Ho rilanciato la stessa run isolata una terza volta — 659 secondi, stesso verdetto delle prime due — e ho scelto di fidarmi della maggioranza invece di inseguire l'anomalia. Tre misure su quattro concordano; la quarta resta senza spiegazione, e ci resta.
+
+---
+
+Il file di test che #38 doveva produrre finisce rosso, e lo dice di sé stesso nel proprio commento: non è lasciato rosso per errore, il rosso è il verdetto. In un progetto dove ogni altro gate lungo resta verde per definizione — conservazione, determinismo — questo è il primo che ha il permesso esplicito di fallire e restare così, perché fallire è esattamente cosa doveva scoprire.
+
+---
+
+Guardando l'acquario dal vivo si vede la stessa cosa che le quindici run avevano già misurato: i corpi si rimpiccioliscono e a un certo punto, tutti insieme, si estinguono. Ma vederlo girare aggiunge una domanda che un numero da solo non fa venire in mente: perché proprio il piccolo, e perché li uccide?
+
+La risposta non è mancanza di luce o di CO₂. È che il costo per riprodursi scala con l'area, quindi un corpo piccolo arriva alla soglia di mitosi con molto meno tempo — e il moto browniano, che va come `1/r`, porta un corpo piccolo fuori dalla luce molto più in fretta di uno grande. `tenancy` misura esattamente questo rapporto, ed è sotto soglia: quasi nessuno resta in luce abbastanza per completare un ciclo riproduttivo intero, a meno di essere abbastanza piccolo da farlo in fretta. La popolazione non sta selezionando chi guadagna di più, sta selezionando chi fa in tempo — ed è una pressione che scavalca il pavimento che il costo fisso d'esistenza avrebbe dovuto garantire, perché quel pavimento protegge da "diventare piccoli non conviene", non da "diventare piccoli funziona per un motivo completamente diverso".
+
+Non muoiono perché è mancata la luce. Muoiono perché sono diventati troppo piccoli per usarla.
+
+---
+
+La prima reazione, guardando la deriva verso il piccolo, è stata proporre una cura geometrica: allargare la zona di luce. Funzionerebbe pure — più spazio in verticale nella luce vuol dire più tempo prima che il moto browniano porti un corpo fuori, cioè esattamente quello che manca a `tenancy`. Ma `LIGHT_ATTENUATION_K` è recintata da un ADR precedente proprio per questo motivo: è la finestra dentro cui si misura α, e allargarla vuol dire rimisurare α, e quindi risolvere di nuovo `EXISTENCE_COST`, e quindi ricominciare la catena di calibrazione da un pezzo più a monte. Non è una costante qualunque, è la definizione stessa dello strumento di misura.
+
+La cura più ovvia era fuori dal recinto che il progetto si era già dato.
+
+---
+
+> fotico è proprio brutto come termine
+
+Detto en passant, dentro una domanda di design, come se fosse un dettaglio. Non lo è: "banda fotica" è nel glossario di `CONTEXT.md`, in quattro ADR, nell'HUD. Rinominarlo oggi vorrebbe dire riscrivere lo stesso vocabolario che il progetto ha appena finito di stabilizzare — non una parola sbagliata, una parola arrivata prima che qualcuno si fermasse ad ascoltarla ad alta voce.
+
+---
+
+> corsa al piccolo
+
+La parola che chiude il capitolo, ed è quasi un'eco: `vision.md` ne aveva già scritta una versione, in inglese, mesi prima che succedesse davvero — "a race to zero: without a flat cost, smaller is always fitter without bound." Il progetto si era già premunito contro esattamente questa corsa, con quel nome preciso, e ci aveva messo un pavimento apposta.
+
+Il pavimento ha retto contro il pericolo che il testo immaginava — un corpo piccolo che guadagna di più in proporzione — e ha ceduto a un altro, da una porta che il testo non stava guardando: un corpo piccolo che non guadagna di più, ma fa in tempo. La corsa al piccolo è successa lo stesso.

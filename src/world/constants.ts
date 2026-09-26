@@ -212,7 +212,7 @@ export const CARBON_BUDGET_BASELINE_ORGANISMS = tunable(
  * `≥ 3` and `≥ 5`. This is recorded as a finding on #36 rather than forced
  * into a passing number — the population trending toward small bodies that
  * a live run shows is consistent with `tenancy` failing (small bodies leave
- * the photic band before proving their fitness through several
+ * the bright band before proving their fitness through several
  * reproductions), not necessarily with genuine convergence on `r_opt`.
  */
 export const AMBIENT_CO2_SHARE = tunable("AMBIENT_CO2_SHARE", 0.6);
@@ -261,11 +261,11 @@ export const LIGHT_SURFACE_INTENSITY = 1;
  * Light's exponential attenuation coefficient with depth (ADR-0004):
  * `ln(10)/10`, chosen so light falls to a tenth of its surface value ten
  * baseline radii down. With `AQUARIUM_HEIGHT` at 40 baseline radii, that
- * puts the photic zone at the aquarium's top quarter — enough of a split
+ * puts the bright zone at the aquarium's top quarter — enough of a split
  * that depth is worth something, without every organism below it sitting
  * in total darkness.
  *
- * **Not tunable.** `PHOTIC_BAND_DEPTH` is derived from this value and is
+ * **Not tunable.** `BRIGHT_BAND_DEPTH` is derived from this value and is
  * fixed before any calibration run (ADR-0023), so a sweep able to move
  * this one would be moving the window `α` is measured through. Reopenable
  * only with an ADR, which means editing this line.
@@ -328,7 +328,7 @@ export const K_RESP = tunable("K_RESP", 1.0);
  * hundred ticks: photosynthetic carbon income, averaged over a population
  * spread across the aquarium's full depth, is small enough that even a
  * baseline body sitting in full surface light could not out-earn its own
- * body cost at that yield. 800 is the order that lets a body in the photic
+ * body cost at that yield. 800 is the order that lets a body in the bright
  * zone run a genuine energy surplus while a body on the floor still
  * starves — the legible gradient the milestone is after — found by running
  * `createWorld` out to 100k ticks and reading where the population
@@ -352,8 +352,8 @@ export const RESPIRATION_ENERGY_YIELD = tunable(
  * The flat existence cost `c₀` (ADR-0009): the size-independent half of
  * maintenance, and the term that creates a minimum viable body size.
  *
- * Solved as `c₀ = α_photic · r_opt / 2` (#35), against `α` measured over
- * the **photic band** in a **fixed population** — mortality and fertility
+ * Solved as `c₀ = α_bright · r_opt / 2` (#35), against `α` measured over
+ * the **bright band** in a **fixed population** — mortality and fertility
  * both off, nothing able to select (ADR-0015, ADR-0023). `α` depends on
  * the ambient environment respiration draws from, which is what
  * `CARBON_BUDGET_BASELINE_ORGANISMS` sets — so it is measured with `npm
@@ -362,7 +362,7 @@ export const RESPIRATION_ENERGY_YIELD = tunable(
  * `r_opt = 1.5` (ADR-0025), fixed before any fertile world is run to judge
  * it against.
  *
- * #35's own reading — seeds 7–11, `α_photic = 6.067 ± 0.40`, giving 4.55 —
+ * #35's own reading — seeds 7–11, `α_bright = 6.067 ± 0.40`, giving 4.55 —
  * was measured before `AMBIENT_CO2_SHARE` moved, and it said so at the
  * time: that noise came from every founder's internal CO₂ starting above
  * `K_CAP.carbonDioxide`'s ceiling of 1, throttling respiration until
@@ -372,7 +372,7 @@ export const RESPIRATION_ENERGY_YIELD = tunable(
  * changes the ambient environment `α` is measured against, so it is
  * re-measured against that calibrated world: same seeds, `SETTLE_TICKS`
  * shortened for the same reason its own comment records,
- * `α_photic = 8.320 ± 0.25`, giving `8.320 × 1.5 / 2 = 6.24`.
+ * `α_bright = 8.320 ± 0.25`, giving `8.320 × 1.5 / 2 = 6.24`.
  *
  * Not chased to the fixed point exactly, on the same grounds #35 already
  * measured once and moved on: re-measuring `α` against a world built with

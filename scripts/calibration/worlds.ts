@@ -19,7 +19,7 @@ import {
  * readers — the same door the app and the long suite use. ADR-0024's
  * instrument opens no seam of its own, so if a measurement below cannot be
  * taken through that door, the answer is a reader on the world (there is
- * exactly one in this milestone, `getPhoticAlpha`) and never a back way in
+ * exactly one in this milestone, `getBrightAlpha`) and never a back way in
  * from `scripts/`.
  */
 

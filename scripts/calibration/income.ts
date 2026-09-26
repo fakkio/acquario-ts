@@ -4,7 +4,7 @@ import {
   createWorld,
   getPoolLevels,
   getPopulation,
-  isPhotic,
+  isBright,
   type OrganismView,
 } from "../../src/world";
 import {
@@ -244,7 +244,7 @@ function measureLadder(
         concentration / ambient,
       );
       depthSum[rung] += organism.y;
-      if (!isPhotic(organism.y)) {
+      if (!isBright(organism.y)) {
         leftTheBand[rung] = true;
       }
       const exclusion = exclusionFor(organism);

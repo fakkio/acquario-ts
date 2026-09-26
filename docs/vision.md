@@ -161,13 +161,13 @@ I(y) = I₀ · e^(−k·y)
 
 Organisms nearer the surface receive more of it. In v0.1 attenuation is precomputed into a lookup table indexed by depth, so no transcendental function is evaluated in the simulation loop.
 
-`I₀ = 1`, defining the light unit the same way `ρ = 1` defines the carbon unit. `k = ln(10)/10`, so light falls to a tenth of its surface value at a depth of ten baseline radii: the photic zone is the aquarium's top quarter, which makes the founder effect below a real spatial split rather than a gradient washing over everything equally.
+`I₀ = 1`, defining the light unit the same way `ρ = 1` defines the carbon unit. `k = ln(10)/10`, so light falls to a tenth of its surface value at a depth of ten baseline radii: the bright zone is the aquarium's top quarter, which makes the founder effect below a real spatial split rather than a gradient washing over everything equally.
 
 The table samples every `0.1` baseline radii over the aquarium's height and is read with **linear interpolation**. Interpolating costs `+ − × ÷` only, so the arithmetic-only property is kept; reading the nearest entry instead would quantise the gradient into steps wide enough for a lineage to settle on one.
 
 Light is sampled at the **body's centre**, not at its upper edge. The projected-width factor in the photosynthesis rate already carries the body's size, and sampling the edge would hand a large body a second advantage nothing in the model intends.
 
-Because v0.1 has no thrusters and no gravity, depth is not under genetic control. What light produces instead is spatial heterogeneity of income, plus a **positional founder effect**: since children are born tangent to their parents, position is quasi-heritable, and a lineage that happens to sit in the photic zone breeds faster and passes on the good address. Genetic control of depth arrives in v0.2 together with thrusters and buoyancy.
+Because v0.1 has no thrusters and no gravity, depth is not under genetic control. What light produces instead is spatial heterogeneity of income, plus a **positional founder effect**: since children are born tangent to their parents, position is quasi-heritable, and a lineage that happens to sit in the bright zone breeds faster and passes on the good address. Genetic control of depth arrives in v0.2 together with thrusters and buoyancy.
 
 This also gives v0.1 two ways to live from a single genome, and only one of them is a way to persist. In the light an organism fixes carbon and can build a child. In the dark it survives on food absorbed passively from the pool — food that corpses put there — but it cannot breed: respiration steadily turns its internal food into CO₂ and nothing turns it back, so a dark body fills with carbon in the wrong chemical form (ADR-0023). Its energy balance admits a band of radii centred well above `r_opt`, so the dark is a habitat of rare large bodies with no lineages in it, populated by emigrants from the light. v0.2's eating is what opens it.
 
@@ -266,7 +266,7 @@ The `c₀/r²` term is what prevents a race to zero: without a flat cost, smalle
 
 `r_opt` is a **design input**: pick the radius organisms should converge on, then derive `c₀ = α·r_opt/2`. The baseline genome deliberately starts below `r_opt`, so the first thing a run shows is the population climbing toward a value predicted on paper.
 
-`α` is **not** one of the world's constants (ADR-0015). Energy comes only from respiration, whose substrate arrives by photosynthesis — proportional to the light at _this_ depth — and by food diffusion — proportional to how rich the pool currently is. So `α` is a field over the aquarium and a function of time, and it is measured rather than declared. M2 reports the population mean; M5 solves `c₀` against the mean over the **photic band**, because selection acts only through reproduction and reproduction happens only in the light (ADR-0023). There is no circularity, because `α` is measured in a fixed population where nothing can select, and the prediction is fixed before the world that tests it exists.
+`α` is **not** one of the world's constants (ADR-0015). Energy comes only from respiration, whose substrate arrives by photosynthesis — proportional to the light at _this_ depth — and by food diffusion — proportional to how rich the pool currently is. So `α` is a field over the aquarium and a function of time, and it is measured rather than declared. M2 reports the population mean; M5 solves `c₀` against the mean over the **bright band**, because selection acts only through reproduction and reproduction happens only in the light (ADR-0023). There is no circularity, because `α` is measured in a fixed population where nothing can select, and the prediction is fixed before the world that tests it exists.
 
 ### Organelle costs
 
@@ -348,7 +348,7 @@ The tick is the simulation's own unit of time, so every world quantity is expres
 
 A consequence worth stating: an organism that stops pushing stops immediately. There is no coasting, and inertial gliding can never become an evolvable strategy.
 
-Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means _higher variance_ in lifetime light income. It is also a selective pressure on `bodyRadius` that `r_opt` does not carry, since a small body leaves the photic band before it has bred many times, which is why ADR-0025 gates on **tenancy**.
+Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means _higher variance_ in lifetime light income. It is also a selective pressure on `bodyRadius` that `r_opt` does not carry, since a small body leaves the bright band before it has bred many times, which is why ADR-0025 gates on **tenancy**.
 
 ### Collisions
 
@@ -356,7 +356,7 @@ Overlaps are resolved by **positional separation**: bodies are displaced apart a
 
 One pass runs per tick, which makes overlap decay across ticks rather than vanish within one. Two things follow, both measured rather than assumed (ADR-0008). A crowd left alone settles until its bodies are merely touching, asymptotically, so there is no tick on which the overlap reaches zero. And where bodies are piled deep enough to overlap five or six neighbours at once, the summed correction can push one further into a seventh, so the worst overlap in the world climbs for a tick here and there on the way down.
 
-Collisions are not decoration. Light is the only spatially localised resource in v0.1, so volume exclusion is what makes the photic zone finite — and the only way one organism's existence costs another anything.
+Collisions are not decoration. Light is the only spatially localised resource in v0.1, so volume exclusion is what makes the bright zone finite — and the only way one organism's existence costs another anything.
 
 ### Thrusters
 
@@ -565,7 +565,7 @@ A fullscreen Canvas2D view with:
 - start, pause, and single-tick step while paused
 - zoom and pan
 - a new world on demand, and an auto-restart toggle for starting one whenever the population goes extinct
-- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — cumulative births and deaths, the measured `α` over both the photic band and the whole population, and mean ± σ of each gene
+- a HUD showing tick, seed, population, worst penetration depth (the no-overlap invariant), the three pool levels, total carbon and total oxygen as **relative drift since tick 0** rather than as absolute values — a large number moving in its twelfth digit hides exactly what the conservation invariant is about — cumulative births and deaths, the measured `α` over both the bright band and the whole population, and mean ± σ of each gene
 
 The zero-energy count that M2 shipped belongs to the immortal world, where an aquarium half-parked at zero says the constants are wrong. In a mortal world energy passes through zero to negative and the organism is gone the same tick, so the mortal HUD shows cumulative deaths instead. Cumulative rather than per-tick: `advance` runs up to 240 ticks in one frame, and a per-tick readout loses every death but the last batch's.
 
@@ -631,7 +631,7 @@ Two automated invariants and one scientific criterion.
 
 2. **Determinism.** The same seed yields an identical state hash at tick N, across runs on the same build and engine.
 
-3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed from the constants and from the `α` measured over the **photic band** of a selection-free fixed population (ADR-0015, ADR-0023): drift does not converge on a number predicted in advance, only selection does. Its operational form — fifteen runs, the band around the prediction, and the requirement that the runs end closer together than the baseline genomes they started from — is in ADR-0025. When simulation meets the closed-form prediction, v0.1 is correct.
+3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed from the constants and from the `α` measured over the **bright band** of a selection-free fixed population (ADR-0015, ADR-0023): drift does not converge on a number predicted in advance, only selection does. Its operational form — fifteen runs, the band around the prediction, and the requirement that the runs end closer together than the baseline genomes they started from — is in ADR-0025. When simulation meets the closed-form prediction, v0.1 is correct.
 
 ### Calibration method
 
@@ -643,7 +643,7 @@ Non-dimensionalise rather than guess. Fix `β = 1` (defining the energy unit) an
 K · π = A + (A + aquariumArea) · s      →      s = (K·π − A) / (A + aquariumArea)
 ```
 
-`s` then splits between CO₂ and food. A world that starts CO₂-rich and food-poor opens on carbon fixation in the photic zone, which is the story the closed cycle is there to tell.
+`s` then splits between CO₂ and food. A world that starts CO₂-rich and food-poor opens on carbon fixation in the bright zone, which is the story the closed cycle is there to tell.
 
 Running that relation backwards is how `K` itself is chosen. Reproduction halts once `s` falls to `ρ` (ADR-0022), so the population ceiling is closed-form too, and the carbon budget follows from the ceiling rather than the other way round:
 

@@ -167,7 +167,7 @@ function bodyFillFor(organism: OrganismView): string {
  * under the same world-space transform as everything else so it sits still
  * while the camera pans and scales with it while the camera zooms. It costs
  * one fill and it is the only way the difference between two organisms'
- * fortunes — one in the photic zone, one in the dark — is legible on screen.
+ * fortunes — one in the bright zone, one in the dark — is legible on screen.
  *
  * Reads `lightAt` at `GRADIENT_STOPS` depths rather than the table's own
  * resolution — see that constant for why.
@@ -186,7 +186,7 @@ function drawLightGradient(ctx: CanvasRenderingContext2D): void {
 /**
  * Light intensity spans several orders of magnitude by the floor (ADR-0004's
  * whole point), so mapping it straight to lightness would read as fully dark
- * past the photic zone and waste the gradient's range on its top few units.
+ * past the bright zone and waste the gradient's range on its top few units.
  * The square root compresses that range perceptually, the way gamma does for
  * a display, while staying monotonic — the one property `lightAt` itself is
  * tested for and the only one this rendering decision has to preserve.

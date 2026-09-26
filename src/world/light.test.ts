@@ -2,7 +2,7 @@ import {describe, expect, it, vi} from "vitest";
 
 import {AQUARIUM_HEIGHT, BASELINE_BODY_RADIUS} from "./aquarium";
 import {LIGHT_ATTENUATION_K, LIGHT_SURFACE_INTENSITY} from "./constants";
-import {PHOTIC_BAND_DEPTH, lightAt} from "./light";
+import {BRIGHT_BAND_DEPTH, lightAt} from "./light";
 
 /**
  * Linear interpolation of a curve with curvature carries a real error, not
@@ -80,23 +80,23 @@ describe("lightAt", () => {
 });
 
 /**
- * The photic band's floor (ADR-0023) is a claim about light, not a number
+ * The bright band's floor (ADR-0023) is a claim about light, not a number
  * with a nice shape, so it is checked against the light table rather than
  * restated. Fixed before any calibration run: deriving it from where
  * breeding turned out to happen would reintroduce the circularity ADR-0015
  * exists to remove, and a test that read it back off a run would be that
  * same circularity wearing a green tick.
  */
-describe("PHOTIC_BAND_DEPTH", () => {
+describe("BRIGHT_BAND_DEPTH", () => {
   it("sits where light has fallen to a tenth of its surface value", () => {
-    expect(lightAt(PHOTIC_BAND_DEPTH) / lightAt(0)).toBeCloseTo(0.1, 3);
+    expect(lightAt(BRIGHT_BAND_DEPTH) / lightAt(0)).toBeCloseTo(0.1, 3);
   });
 
   it("is ten baseline radii down", () => {
-    expect(PHOTIC_BAND_DEPTH).toBe(10 * BASELINE_BODY_RADIUS);
+    expect(BRIGHT_BAND_DEPTH).toBe(10 * BASELINE_BODY_RADIUS);
   });
 
   it("leaves most of the aquarium outside it", () => {
-    expect(PHOTIC_BAND_DEPTH).toBeLessThan(AQUARIUM_HEIGHT / 2);
+    expect(BRIGHT_BAND_DEPTH).toBeLessThan(AQUARIUM_HEIGHT / 2);
   });
 });

@@ -1,10 +1,10 @@
 import {
-  PHOTIC_BAND_DEPTH,
+  BRIGHT_BAND_DEPTH,
   createWorld,
+  getBrightAlpha,
   getMeasuredAlpha,
-  getPhoticAlpha,
   getPopulation,
-  isPhotic,
+  isBright,
 } from "../../src/world";
 import {
   heading,
@@ -20,7 +20,7 @@ import {SETTLE_TICKS, WINDOW_TICKS, seeds} from "./settings";
 import {runTicks, runTicksWatching} from "./worlds";
 
 /**
- * `α`, over the photic band and over the whole population (ADR-0015,
+ * `α`, over the bright band and over the whole population (ADR-0015,
  * ADR-0023).
  *
  * Measured in a **fixed population** — mortality and fertility both off —
@@ -34,7 +34,7 @@ import {runTicks, runTicksWatching} from "./worlds";
 
 interface AlphaRun {
   readonly whole: number;
-  readonly photic: number;
+  readonly bright: number;
   /** Ticks each reading had anybody admissible in its set at all. Both
    * readings report 0 for a tick with nobody in them, and averaging those
    * zeros in would report a `c₀` for an ecology that was empty rather than
@@ -43,9 +43,9 @@ interface AlphaRun {
    * of how each was averaged, which is exactly what `meanMeasuredAlpha`'s
    * comment promises it is not. */
   readonly wholeTicks: number;
-  readonly photicTicks: number;
+  readonly brightTicks: number;
   /** The share of organism-ticks spent inside the band. The context the
-   * two means need: a photic `α` measured over two organisms out of forty
+   * two means need: a bright `α` measured over two organisms out of forty
    * is a real number about a small corner of the aquarium. */
   readonly occupancy: number;
 }
@@ -58,8 +58,8 @@ function measureAlpha(seed: number): AlphaRun {
 
   let wholeSum = 0;
   let wholeTicks = 0;
-  let photicSum = 0;
-  let photicTicks = 0;
+  let brightSum = 0;
+  let brightTicks = 0;
   let insideBand = 0;
   let organismTicks = 0;
 
@@ -69,14 +69,14 @@ function measureAlpha(seed: number): AlphaRun {
       wholeSum += whole;
       wholeTicks++;
     }
-    const photic = getPhoticAlpha(world);
-    if (photic > 0) {
-      photicSum += photic;
-      photicTicks++;
+    const bright = getBrightAlpha(world);
+    if (bright > 0) {
+      brightSum += bright;
+      brightTicks++;
     }
     for (const organism of getPopulation(world)) {
       organismTicks++;
-      if (isPhotic(organism.y)) {
+      if (isBright(organism.y)) {
         insideBand++;
       }
     }
@@ -84,19 +84,19 @@ function measureAlpha(seed: number): AlphaRun {
 
   return {
     whole: wholeTicks > 0 ? wholeSum / wholeTicks : 0,
-    photic: photicTicks > 0 ? photicSum / photicTicks : 0,
+    bright: brightTicks > 0 ? brightSum / brightTicks : 0,
     wholeTicks,
-    photicTicks,
+    brightTicks,
     occupancy: organismTicks > 0 ? insideBand / organismTicks : 0,
   };
 }
 
 export interface AlphaReport {
-  /** The photic-band mean across seeds — the one `EXISTENCE_COST` is
+  /** The bright-band mean across seeds — the one `EXISTENCE_COST` is
    * solved against in #35, and the one `r_opt` is predicted from. The
    * whole-population mean is printed and not returned: nothing downstream
    * is allowed to solve anything against it (ADR-0023). */
-  readonly photic: number;
+  readonly bright: number;
 }
 
 export function reportAlpha(): AlphaReport {
@@ -110,7 +110,7 @@ export function reportAlpha(): AlphaReport {
     `  places it, settled for ${String(SETTLE_TICKS)} ticks, then time-averaged over ${String(WINDOW_TICKS)}.`,
   );
   note(
-    `  The photic band is y ≤ ${num(PHOTIC_BAND_DEPTH)} baseline radii, fixed before calibration.`,
+    `  The bright band is y ≤ ${num(BRIGHT_BAND_DEPTH)} baseline radii, fixed before calibration.`,
   );
   note(
     `  Both means skip the ticks their own set had nobody earning in, so the only thing`,
@@ -119,7 +119,7 @@ export function reportAlpha(): AlphaReport {
   table(
     [
       "seed",
-      "α photic",
+      "α bright",
       "α whole",
       "band occupancy",
       "ticks earning, band",
@@ -127,18 +127,18 @@ export function reportAlpha(): AlphaReport {
     ],
     runs.map(({seed, run}) => [
       String(seed),
-      num(run.photic),
+      num(run.bright),
       num(run.whole),
       percent(run.occupancy),
-      percent(run.photicTicks / WINDOW_TICKS),
+      percent(run.brightTicks / WINDOW_TICKS),
       percent(run.wholeTicks / WINDOW_TICKS),
     ]),
   );
 
-  const photic = runs.map(({run}) => run.photic);
+  const bright = runs.map(({run}) => run.bright);
   const whole = runs.map(({run}) => run.whole);
-  row("α photic, across seeds", meanSigma(photic));
+  row("α bright, across seeds", meanSigma(bright));
   row("α whole, across seeds", meanSigma(whole));
 
-  return {photic: meanAndSigma(photic).mean};
+  return {bright: meanAndSigma(bright).mean};
 }

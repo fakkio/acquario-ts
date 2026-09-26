@@ -8,7 +8,7 @@ The full design lives in [`docs/vision.md`](./docs/vision.md); decisions and the
 
 Code, documentation, ADRs and commit messages are written in English, using the terms defined below.
 
-The dev-log in [`docs/devlog/`](./docs/devlog/) is the one deliberate exception: it is written in Italian. It is public-facing prose about the project rather than documentation of it, so it follows its audience rather than the codebase. Its English domain terms stay in English — an _organism_ is not a _creatura_.
+The dev-log in [`docs/devlog/`](./docs/devlog/) is the one deliberate exception: it is written in Italian. It is public-facing prose about the project rather than documentation of it, so it follows its audience rather than the codebase. Its English domain terms stay in English — an _organism_ is not a _creatura_. Multi-word terms are the one case that gets a natural Italian rendering instead of being dropped in as a bare English label (an unglossed idiom): **Bright Zone**/**Bright Band** read as _zona luminosa_/_banda luminosa_.
 
 ### Life
 
@@ -137,7 +137,7 @@ The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable i
 _Avoid_: ideal size, target radius
 
 **Energy Income Coefficient**:
-`α`, the energy an organism earns per tick per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Photic Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
+`α`, the energy an organism earns per tick per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Bright Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
 _Avoid_: income rate, efficiency, alpha (alone, in prose)
 
 ### World
@@ -178,13 +178,13 @@ _Avoid_: reservoir, tank, store
 The total carbon in the world, fixed at initialisation and conserved thereafter. Sets the carrying capacity, expressed as "enough carbon for K baseline organisms".
 _Avoid_: mass budget, total mass
 
-**Photic Zone**:
+**Bright Zone**:
 The region near the surface where light is strong enough for photosynthesis to matter.
-_Avoid_: surface layer, light zone
+_Avoid_: surface layer, light zone, photic zone (old name; still the term in ADR-0004 through ADR-0025)
 
-**Photic Band**:
-The depth range `α` is measured over, fixed in advance by a light threshold rather than derived from where breeding turns out to happen. Narrower and sharper than the **Photic Zone**, which stays the informal ecological region.
-_Avoid_: photic zone (that is the region, not the measurement window), light band, depth bin
+**Bright Band**:
+The depth range `α` is measured over, fixed in advance by a light threshold rather than derived from where breeding turns out to happen. Narrower and sharper than the **Bright Zone**, which stays the informal ecological region.
+_Avoid_: bright zone (that is the region, not the measurement window), light band, depth bin, photic band (old name; still the term in ADR-0004 through ADR-0025)
 
 **Tick**:
 One fixed-length step of simulated time. Decoupled from rendering frames.
@@ -235,5 +235,5 @@ One of the fifteen runs, five seeds by three baseline genomes, whose gene means 
 _Avoid_: acceptance run, validation run, final run, convergence test
 
 **Tenancy**:
-The ratio of the time an organism spends inside the **Photic Band** to its reproductive period: how many births a lineage gets per stay in the light. Low tenancy means a gene mean is reporting geography rather than genetics (ADR-0025).
-_Avoid_: residence time (that is only the numerator), dwell time, photic time
+The ratio of the time an organism spends inside the **Bright Band** to its reproductive period: how many births a lineage gets per stay in the light. Low tenancy means a gene mean is reporting geography rather than genetics (ADR-0025).
+_Avoid_: residence time (that is only the numerator), dwell time, bright time

@@ -222,7 +222,7 @@ describe("applyPhotosynthesis", () => {
     expect(organism.oxygen).toBe(0);
   });
 
-  it("fixes carbon measurably faster in the photic zone than near the floor, all else equal", () => {
+  it("fixes carbon measurably faster in the bright zone than near the floor, all else equal", () => {
     const bright = organismAt(0, 0, 1);
     const dim = organismAt(0, 0, 1);
     bright.carbonDioxide = 0.5 * bodyArea(bright);

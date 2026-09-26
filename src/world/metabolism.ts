@@ -81,7 +81,7 @@ export function applyPassiveExchange(
  * The rate follows mass action on internal CO₂ — ADR-0003's shape, applied
  * here to fixation rather than diffusion — multiplied by the light at the
  * body's centre and by the width it projects toward that light, i.e. its
- * diameter. Depth buys something real: an organism in the photic zone
+ * diameter. Depth buys something real: an organism in the bright zone
  * fixes carbon a floor-dwelling twin cannot approach, and complete darkness
  * fixes nothing at all.
  *

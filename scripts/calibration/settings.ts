@@ -1,4 +1,4 @@
-import {AQUARIUM_HEIGHT, PHOTIC_BAND_DEPTH} from "../../src/world";
+import {AQUARIUM_HEIGHT, BRIGHT_BAND_DEPTH} from "../../src/world";
 
 /**
  * How long the harness runs and what it places, separate from **what the
@@ -122,10 +122,10 @@ export const LADDER_RUNGS = setting("LADDER_RUNGS", 10);
  */
 export const LADDER_MIN_SPAN_TICKS = setting("LADDER_MIN_SPAN_TICKS", 200);
 
-/** Where the income ladder sits: inside the photic band, at a depth whose
+/** Where the income ladder sits: inside the bright band, at a depth whose
  * light is still most of the surface's, so the measurement is about radius
  * and not about the gradient. */
-export const LADDER_DEPTH = setting("LADDER_DEPTH", PHOTIC_BAND_DEPTH / 2);
+export const LADDER_DEPTH = setting("LADDER_DEPTH", BRIGHT_BAND_DEPTH / 2);
 
 /** The dark ladder reaches further up, because ADR-0023 predicts the dark's
  * viable band — where one exists at all — centred on `α_dark/(2β)`, which
@@ -134,7 +134,7 @@ export const DARK_MIN_RADIUS = setting("DARK_MIN_RADIUS", 0.25);
 export const DARK_MAX_RADIUS = setting("DARK_MAX_RADIUS", 8);
 export const DARK_RUNGS = setting("DARK_RUNGS", 12);
 
-/** Well below the photic band: light here is a thousandth of the surface's,
+/** Well below the bright band: light here is a thousandth of the surface's,
  * so "the dark" is dark rather than dim. */
 export const DARK_DEPTH = setting("DARK_DEPTH", (3 * AQUARIUM_HEIGHT) / 4);
 

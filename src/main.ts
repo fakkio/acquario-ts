@@ -14,7 +14,7 @@ import {
   getCumulativeDeaths,
   getMeasuredAlpha,
   getOxygenDrift,
-  getPhoticAlpha,
+  getBrightAlpha,
   getPoolLevels,
   getPopulation,
   getSeed,
@@ -36,13 +36,13 @@ const formatDrift = (drift: number): string => drift.toExponential(3);
  * running average (ADR-0015): low, because the raw reading is a per-tick
  * mean over a whole population and jitters tick to tick even at a real
  * steady state — the row is worth having only once it has settled into
- * something legible to read at a glance. The photic-band reading (ADR-0023)
+ * something legible to read at a glance. The bright-band reading (ADR-0023)
  * gets its own running average, smoothed the same way and reset alongside
  * it, so the two rows stay comparable.
  */
 const ALPHA_SMOOTHING = 0.02;
 let smoothedAlpha = 0;
-let smoothedPhoticAlpha = 0;
+let smoothedBrightAlpha = 0;
 
 const formatStat = (value: GeneStat): string =>
   `${value.mean.toFixed(3)} ± ${value.sigma.toFixed(3)}`;
@@ -115,18 +115,18 @@ const updateHud = (currentWorld: World, fps: number): void => {
   // Smoothed here, in the App layer, per ADR-0015: a moving average kept in
   // the world would be state crossing tick boundaries with no reader inside
   // a tick, so it would only enter `hashState` for the sake of this row.
-  // Shown beside the photic-band reading (ADR-0023) so the gap between the
+  // Shown beside the bright-band reading (ADR-0023) so the gap between the
   // two ecologies — everyone, versus only who can actually breed — is
   // visible while the run is happening rather than only in a report.
   smoothedAlpha +=
     (getMeasuredAlpha(currentWorld) - smoothedAlpha) * ALPHA_SMOOTHING;
   hud.setField("alpha", "α whole (energy/r)", smoothedAlpha.toFixed(2));
-  smoothedPhoticAlpha +=
-    (getPhoticAlpha(currentWorld) - smoothedPhoticAlpha) * ALPHA_SMOOTHING;
+  smoothedBrightAlpha +=
+    (getBrightAlpha(currentWorld) - smoothedBrightAlpha) * ALPHA_SMOOTHING;
   hud.setField(
-    "alphaPhotic",
-    "α photic (energy/r)",
-    smoothedPhoticAlpha.toFixed(2),
+    "alphaBright",
+    "α bright (energy/r)",
+    smoothedBrightAlpha.toFixed(2),
   );
 
   // Gene mean ± σ (ADR-0011), folded here rather than read off a world
@@ -182,7 +182,7 @@ const restart = (): void => {
   // A fresh world's own α has produced nothing yet; carrying the last
   // world's smoothed reading across the restart would flash a stale number.
   smoothedAlpha = 0;
-  smoothedPhoticAlpha = 0;
+  smoothedBrightAlpha = 0;
   updateHud(newWorld, 0);
   repaint();
 };

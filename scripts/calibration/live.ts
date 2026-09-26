@@ -1,12 +1,12 @@
 import {
-  PHOTIC_BAND_DEPTH,
+  BRIGHT_BAND_DEPTH,
   bodyArea,
   createWorld,
   getCumulativeBirths,
   getCumulativeDeaths,
   getPoolLevels,
   getPopulation,
-  isPhotic,
+  isBright,
   type OrganismView,
 } from "../../src/world";
 import {K_DIFFUSION, RHO} from "../../src/world/constants";
@@ -90,7 +90,7 @@ function sampleResidence(
       residence = {enteredAt: null};
       residences.set(organism, residence);
     }
-    const inside = isPhotic(organism.y);
+    const inside = isBright(organism.y);
     if (inside && residence.enteredAt === null) {
       residence.enteredAt = sample;
     } else if (!inside && residence.enteredAt !== null) {
@@ -136,7 +136,7 @@ function runLive(seed: number): LiveRun {
         concentration / ambient,
       );
       radiusSum += organism.bodyRadius;
-      if (isPhotic(organism.y)) {
+      if (isBright(organism.y)) {
         insideBand++;
       }
     }
@@ -223,9 +223,9 @@ export function reportLiveWorld(): void {
     ]),
   );
 
-  heading("Tenancy — births per stay in the photic band");
+  heading("Tenancy — births per stay in the bright band");
   note(
-    `  Residence is measured by sampling depth every ${String(LIVE_SAMPLE_EVERY)} ticks against y ≤ ${num(PHOTIC_BAND_DEPTH)},`,
+    `  Residence is measured by sampling depth every ${String(LIVE_SAMPLE_EVERY)} ticks against y ≤ ${num(BRIGHT_BAND_DEPTH)},`,
   );
   note(
     `  tracking each body by identity rather than by array position. A stay cut short`,
@@ -233,7 +233,7 @@ export function reportLiveWorld(): void {
   note(`  by death is dropped, not counted: it ended, but it did not finish.`);
   row("mean population size", num(run.meanPopulationSize));
   row("mean body radius", num(run.meanBodyRadius));
-  row("photic-band occupancy", percent(run.occupancy));
+  row("bright-band occupancy", percent(run.occupancy));
   row(
     "mean completed stay",
     run.completedStays === 0

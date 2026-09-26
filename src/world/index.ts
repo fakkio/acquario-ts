@@ -2,7 +2,7 @@ export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 export {BASELINE_GENOME, type Genome} from "./genome";
 export {type GridOccupancy} from "./grid";
 export {type Pools} from "./ledger";
-export {PHOTIC_BAND_DEPTH, isPhotic, lightAt} from "./light";
+export {BRIGHT_BAND_DEPTH, isBright, lightAt} from "./light";
 export {
   bodyArea,
   bodyAreaOfRadius,
@@ -16,13 +16,13 @@ export {
   advance,
   createWorld,
   FIXED_DT_MS,
+  getBrightAlpha,
   getCarbonDrift,
   getCumulativeBirths,
   getCumulativeDeaths,
   getGridOccupancy,
   getMeasuredAlpha,
   getOxygenDrift,
-  getPhoticAlpha,
   getPoolLevels,
   getPopulation,
   getSeed,

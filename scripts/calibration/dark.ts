@@ -119,7 +119,7 @@ export function reportDarkBand(): void {
   const threshold = 2 * Math.sqrt(BODY_COST_COEFFICIENT * EXISTENCE_COST);
   const band = predictedBand(alphaDark);
 
-  heading("The dark — can anything live below the photic band?");
+  heading("The dark — can anything live below the bright band?");
   note(
     `  One body per world, alone, at depth ${num(DARK_DEPTH)} where light is ${num(lightAt(DARK_DEPTH))} of the`,
   );
