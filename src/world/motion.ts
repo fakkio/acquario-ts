@@ -25,11 +25,20 @@ import {drawUnitVector} from "./rng";
 const DRAG_PER_RADIUS = 6 * Math.PI;
 
 /**
- * The magnitude of the random force applied to a body each tick, in the
- * direction it drew. Tuned against the constant above so a baseline body moves
- * about a tenth of its own radius per tick: enough to read as microscopy at
- * sixty ticks a second, little enough that a body covers a few body radii in a
- * minute rather than a lap of the aquarium.
+ * The magnitude of the random force applied to a baseline body each tick, in
+ * the direction it drew. Tuned against the constant above so a baseline body
+ * moves about a tenth of its own radius per tick: enough to read as microscopy
+ * at sixty ticks a second, little enough that a body covers a few body radii
+ * in a minute rather than a lap of the aquarium.
+ *
+ * A body of any other radius is pushed by this times `√bodyRadius`. That is
+ * fluctuation–dissipation: a larger body has more drag and takes more
+ * molecular kicks, so the random force scales with the square root of drag.
+ * The step then goes as `1/√r`, and since a random walk's diffusion
+ * coefficient goes as the square of its step, `D ∝ 1/r` — Stokes–Einstein. A
+ * force independent of radius would give a step `∝ 1/r` and `D ∝ 1/r²`,
+ * sending small bodies out of the bright band twice as fast as the physics
+ * says.
  *
  * Retuning this is a visible change to how a run looks, so the resulting step
  * length is pinned by a test rather than left to drift silently.
@@ -44,7 +53,9 @@ export function applyBrownianMotion(organism: Organism): void {
   const direction = drawUnitVector(organism.rng);
   organism.rng = direction.stream;
 
-  const velocity = BROWNIAN_FORCE / (DRAG_PER_RADIUS * organism.bodyRadius);
+  // BROWNIAN_FORCE·√r / (DRAG_PER_RADIUS·r), simplified.
+  const velocity =
+    BROWNIAN_FORCE / (DRAG_PER_RADIUS * Math.sqrt(organism.bodyRadius));
 
   organism.x += direction.x * velocity;
   organism.y += direction.y * velocity;
