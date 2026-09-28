@@ -1,7 +1,11 @@
 import {
+  AQUARIUM_AREA,
+  bodyArea,
   createWorld,
+  getBrightAlpha,
   getCumulativeBirths,
   getCumulativeDeaths,
+  getPoolLevels,
   getPopulation,
   isBright,
   type OrganismView,
@@ -34,6 +38,12 @@ interface Point {
   deaths: number;
   meanR: number;
   inBand: number;
+  // #41 carbon readouts (ρ = 1): ambient total carbon s, ambient food, mean
+  // internal C_food, and α over the bright band at this tick.
+  s: number;
+  foodPool: number;
+  meanCFood: number;
+  brightAlpha: number;
 }
 
 function runSeed(seed: number) {
@@ -82,8 +92,11 @@ function runSeed(seed: number) {
     if (tick % SAMPLE_EVERY === 0 || population.length === 0) {
       let radiusSum = 0;
       let inBand = 0;
+      let cFoodSum = 0;
+      const pools = getPoolLevels(current);
       for (const organism of population) {
         radiusSum += organism.bodyRadius;
+        cFoodSum += organism.food / bodyArea(organism);
         if (isBright(organism.y)) {
           inBand++;
         }
@@ -95,6 +108,10 @@ function runSeed(seed: number) {
         deaths: getCumulativeDeaths(current),
         meanR: population.length > 0 ? radiusSum / population.length : 0,
         inBand,
+        s: (pools.food + pools.carbonDioxide) / AQUARIUM_AREA,
+        foodPool: pools.food / AQUARIUM_AREA,
+        meanCFood: population.length > 0 ? cFoodSum / population.length : 0,
+        brightAlpha: getBrightAlpha(current),
       });
     }
     if (population.length === 0) {

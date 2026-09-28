@@ -112,3 +112,61 @@ for (const name of names) {
     `| ${name} | ${Math.round(mean(runs.map((r) => r.births)))} | ${Math.round(popRun)} | ${surv.length ? Math.round(mean(surv.map((r) => r.sizeLast10k))) : "—"} | ${f(rate, 1)} | ${rAt(1000)} → ${rAt(50000)} → ${rAt(100000)} |`,
   );
 }
+
+// #41 carbon budget: full gate-row columns plus the carbon readouts the trajectory carries from sweep4 on
+// (s/ρ ambient total carbon, ambient food/ρ, mean internal C_food/ρ, α over the bright band), last-10k means.
+const hasCarbon = (name) =>
+  variants.get(name).runs.some((r) => r.trajectory[0]?.s !== undefined);
+console.log(
+  "\nCarbon readouts (sweep4 on; lifespan = organism-ticks / deaths; last 10k = ticks 91k–100k, survivors):\n",
+);
+console.log(
+  "| variant | survived | births | peak | mean pop last 10k | births/100k/org | mean r 1k → 50k → 100k | per-seed last-10k r | tenancy | lifespan | s/ρ 1k → last 10k | ambient food/ρ 1k → last 10k | internal C_food/ρ last 10k | α_bright 1k → last 10k |",
+);
+console.log("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|");
+for (const name of names.filter(hasCarbon)) {
+  const {runs} = variants.get(name);
+  const orgTicks = runs.map((r) => {
+    let sum = 0;
+    let prev = 0;
+    for (const p of r.trajectory) {
+      sum += p.size * (p.tick - prev);
+      prev = p.tick;
+    }
+    return sum;
+  });
+  const totalOrgTicks = orgTicks.reduce((a, b) => a + b, 0);
+  const births = runs.reduce((a, r) => a + r.births, 0);
+  const deaths = runs.reduce((a, r) => a + r.deaths, 0);
+  const surv = runs.filter((r) => r.extinctAt === null);
+  const rAt = (c) => {
+    const alive = runs
+      .map((r) => r.trajectory.find((p) => p.tick === c))
+      .filter((p) => p && p.size > 0);
+    return alive.length ? f(mean(alive.map((p) => p.meanR))) : "†";
+  };
+  const at1k = (key) =>
+    mean(
+      runs
+        .map((r) => r.trajectory.find((p) => p.tick === 1000)?.[key])
+        .filter((x) => x !== undefined),
+    );
+  const last = (key) =>
+    mean(
+      surv.map((r) =>
+        mean(
+          r.trajectory
+            .filter((p) => p.tick > 90_000 && p.size)
+            .map((p) => p[key]),
+        ),
+      ),
+    );
+  const ten = runs.map((r) => r.tenancy).filter((t) => t !== null);
+  const perSeed = [...runs]
+    .sort((a, b) => a.seed - b.seed)
+    .map((r) => f(r.meanRLast10k))
+    .join(", ");
+  console.log(
+    `| ${name} | ${surv.length}/${runs.length} | ${Math.round(births / runs.length)} | ${Math.round(mean(runs.map((r) => r.peakSize)))} | ${surv.length ? Math.round(mean(surv.map((r) => r.sizeLast10k))) : "—"} | ${f(births / (totalOrgTicks / 100_000), 1)} | ${rAt(1000)} → ${rAt(50000)} → ${rAt(100000)} | ${perSeed} | ${ten.length ? f(mean(ten)) : "∞"} | ${deaths ? `${f(totalOrgTicks / deaths / 1000, totalOrgTicks / deaths < 10_000 ? 1 : 0)}k` : "∞"} | ${f(at1k("s"))} → ${f(last("s"))} | ${f(at1k("foodPool"))} → ${f(last("foodPool"))} | ${f(last("meanCFood"))} | ${f(at1k("brightAlpha"))} → ${f(last("brightAlpha"))} |`,
+  );
+}

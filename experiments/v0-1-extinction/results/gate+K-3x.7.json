@@ -1,0 +1,41 @@
+{
+  "variant": "gate+K-3x",
+  "overrides": [
+    "ACQUARIO_CARBON_BUDGET_BASELINE_ORGANISMS=4316.8311",
+    "ACQUARIO_WORST_CASE_BIRTH_GATE=1"
+  ],
+  "income": null,
+  "runs": [
+    {
+      "seed": 7,
+      "extinctAt": 250,
+      "firstBirthTick": null,
+      "births": 0,
+      "deaths": 40,
+      "peakSize": 0,
+      "finalSize": 0,
+      "completedStays": 0,
+      "openStays": 0,
+      "meanStayTicks": null,
+      "reproductivePeriod": null,
+      "tenancy": null,
+      "meanRLast10k": null,
+      "sizeLast10k": null,
+      "wallSeconds": 0.032,
+      "trajectory": [
+        {
+          "tick": 250,
+          "size": 0,
+          "births": 0,
+          "deaths": 40,
+          "meanR": 0,
+          "inBand": 0,
+          "s": 5.650718696061643,
+          "foodPool": 2.29256816067928,
+          "meanCFood": 0,
+          "brightAlpha": 0
+        }
+      ]
+    }
+  ]
+}

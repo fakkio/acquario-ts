@@ -1,0 +1,42 @@
+{
+  "variant": "gate+K-1.5x+co2held",
+  "overrides": [
+    "ACQUARIO_AMBIENT_CO2_SHARE=0.3962",
+    "ACQUARIO_CARBON_BUDGET_BASELINE_ORGANISMS=2158.4156",
+    "ACQUARIO_WORST_CASE_BIRTH_GATE=1"
+  ],
+  "income": null,
+  "runs": [
+    {
+      "seed": 7,
+      "extinctAt": 250,
+      "firstBirthTick": null,
+      "births": 0,
+      "deaths": 40,
+      "peakSize": 0,
+      "finalSize": 0,
+      "completedStays": 0,
+      "openStays": 0,
+      "meanStayTicks": null,
+      "reproductivePeriod": null,
+      "tenancy": null,
+      "meanRLast10k": null,
+      "sizeLast10k": null,
+      "wallSeconds": 0.042,
+      "trajectory": [
+        {
+          "tick": 250,
+          "size": 0,
+          "births": 0,
+          "deaths": 40,
+          "meanR": 0,
+          "inBand": 0,
+          "s": 2.8253594134806677,
+          "foodPool": 1.727268024375097,
+          "meanCFood": 0,
+          "brightAlpha": 0
+        }
+      ]
+    }
+  ]
+}
