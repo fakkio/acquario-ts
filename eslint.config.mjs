@@ -3,7 +3,7 @@ import tseslint from "typescript-eslint";
 
 export default tseslint.config(
   {
-    ignores: ["node_modules", "dist", ".agents", ".claude"],
+    ignores: ["node_modules", "dist", ".agents", ".claude", "experiments"],
   },
   js.configs.recommended,
   {

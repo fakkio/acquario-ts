@@ -1,4 +1,5 @@
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
+import {CONFINE_DEPTH} from "./constants";
 import type {Organism} from "./organism";
 import {drawUnitVector} from "./rng";
 
@@ -80,7 +81,7 @@ export function constrainToAquarium(organism: Organism): void {
   organism.y = clamp(
     organism.y,
     organism.bodyRadius,
-    AQUARIUM_HEIGHT - organism.bodyRadius,
+    Math.min(AQUARIUM_HEIGHT, CONFINE_DEPTH) - organism.bodyRadius,
   );
 }
 

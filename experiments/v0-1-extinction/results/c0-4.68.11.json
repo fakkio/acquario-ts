@@ -1,0 +1,298 @@
+{
+  "variant": "c0-4.68",
+  "overrides": ["ACQUARIO_EXISTENCE_COST=4.68"],
+  "income": null,
+  "runs": [
+    {
+      "seed": 11,
+      "extinctAt": 34000,
+      "firstBirthTick": 63,
+      "births": 92876,
+      "deaths": 92916,
+      "peakSize": 2392,
+      "finalSize": 0,
+      "completedStays": 1550,
+      "openStays": 0,
+      "meanStayTicks": 2702.9032258064517,
+      "reproductivePeriod": 369.8102846806495,
+      "tenancy": 7.308891444543112,
+      "meanRLast10k": null,
+      "sizeLast10k": null,
+      "wallSeconds": 367.59,
+      "trajectory": [
+        {
+          "tick": 1000,
+          "size": 100,
+          "births": 92,
+          "deaths": 32,
+          "meanR": 0.9277978313722949,
+          "inBand": 99
+        },
+        {
+          "tick": 2000,
+          "size": 251,
+          "births": 245,
+          "deaths": 34,
+          "meanR": 0.8561189102047363,
+          "inBand": 199
+        },
+        {
+          "tick": 3000,
+          "size": 286,
+          "births": 282,
+          "deaths": 36,
+          "meanR": 0.8383608005020443,
+          "inBand": 187
+        },
+        {
+          "tick": 4000,
+          "size": 264,
+          "births": 303,
+          "deaths": 79,
+          "meanR": 0.8192946646895487,
+          "inBand": 185
+        },
+        {
+          "tick": 5000,
+          "size": 328,
+          "births": 411,
+          "deaths": 123,
+          "meanR": 0.7530520350419474,
+          "inBand": 253
+        },
+        {
+          "tick": 6000,
+          "size": 346,
+          "births": 447,
+          "deaths": 141,
+          "meanR": 0.7405174790646264,
+          "inBand": 246
+        },
+        {
+          "tick": 7000,
+          "size": 369,
+          "births": 531,
+          "deaths": 202,
+          "meanR": 0.6966972843325515,
+          "inBand": 287
+        },
+        {
+          "tick": 8000,
+          "size": 423,
+          "births": 636,
+          "deaths": 253,
+          "meanR": 0.6552913434724242,
+          "inBand": 331
+        },
+        {
+          "tick": 9000,
+          "size": 456,
+          "births": 726,
+          "deaths": 310,
+          "meanR": 0.6265253331524193,
+          "inBand": 349
+        },
+        {
+          "tick": 10000,
+          "size": 529,
+          "births": 897,
+          "deaths": 408,
+          "meanR": 0.5764200757117885,
+          "inBand": 433
+        },
+        {
+          "tick": 11000,
+          "size": 582,
+          "births": 1057,
+          "deaths": 515,
+          "meanR": 0.5438579069615952,
+          "inBand": 478
+        },
+        {
+          "tick": 12000,
+          "size": 645,
+          "births": 1304,
+          "deaths": 699,
+          "meanR": 0.5029178428209651,
+          "inBand": 562
+        },
+        {
+          "tick": 13000,
+          "size": 790,
+          "births": 1663,
+          "deaths": 913,
+          "meanR": 0.45582598946636294,
+          "inBand": 707
+        },
+        {
+          "tick": 14000,
+          "size": 899,
+          "births": 2076,
+          "deaths": 1217,
+          "meanR": 0.4162094191250645,
+          "inBand": 825
+        },
+        {
+          "tick": 15000,
+          "size": 1059,
+          "births": 2665,
+          "deaths": 1646,
+          "meanR": 0.37664957517121095,
+          "inBand": 1009
+        },
+        {
+          "tick": 16000,
+          "size": 1216,
+          "births": 3489,
+          "deaths": 2313,
+          "meanR": 0.3431427257646106,
+          "inBand": 1185
+        },
+        {
+          "tick": 17000,
+          "size": 1459,
+          "births": 4674,
+          "deaths": 3255,
+          "meanR": 0.30678035963929645,
+          "inBand": 1443
+        },
+        {
+          "tick": 18000,
+          "size": 1690,
+          "births": 6361,
+          "deaths": 4711,
+          "meanR": 0.27864308796171433,
+          "inBand": 1688
+        },
+        {
+          "tick": 19000,
+          "size": 1888,
+          "births": 8615,
+          "deaths": 6767,
+          "meanR": 0.2559833201631193,
+          "inBand": 1888
+        },
+        {
+          "tick": 20000,
+          "size": 2072,
+          "births": 11511,
+          "deaths": 9479,
+          "meanR": 0.2336630799737228,
+          "inBand": 2072
+        },
+        {
+          "tick": 21000,
+          "size": 2209,
+          "births": 15266,
+          "deaths": 13097,
+          "meanR": 0.2142989380000311,
+          "inBand": 2209
+        },
+        {
+          "tick": 22000,
+          "size": 2330,
+          "births": 20005,
+          "deaths": 17715,
+          "meanR": 0.19813342415003118,
+          "inBand": 2330
+        },
+        {
+          "tick": 23000,
+          "size": 2386,
+          "births": 25872,
+          "deaths": 23526,
+          "meanR": 0.18490769248428604,
+          "inBand": 2386
+        },
+        {
+          "tick": 24000,
+          "size": 2367,
+          "births": 32955,
+          "deaths": 30628,
+          "meanR": 0.17332447884355828,
+          "inBand": 2367
+        },
+        {
+          "tick": 25000,
+          "size": 2241,
+          "births": 41189,
+          "deaths": 38988,
+          "meanR": 0.16157450060220624,
+          "inBand": 2241
+        },
+        {
+          "tick": 26000,
+          "size": 1946,
+          "births": 50316,
+          "deaths": 48410,
+          "meanR": 0.15141875810942654,
+          "inBand": 1946
+        },
+        {
+          "tick": 27000,
+          "size": 1538,
+          "births": 59802,
+          "deaths": 58304,
+          "meanR": 0.14675046541534453,
+          "inBand": 1538
+        },
+        {
+          "tick": 28000,
+          "size": 1308,
+          "births": 68936,
+          "deaths": 67668,
+          "meanR": 0.14407793322578896,
+          "inBand": 1308
+        },
+        {
+          "tick": 29000,
+          "size": 945,
+          "births": 77263,
+          "deaths": 76358,
+          "meanR": 0.13774335803612028,
+          "inBand": 945
+        },
+        {
+          "tick": 30000,
+          "size": 712,
+          "births": 84038,
+          "deaths": 83366,
+          "meanR": 0.13530314161351054,
+          "inBand": 712
+        },
+        {
+          "tick": 31000,
+          "size": 477,
+          "births": 88852,
+          "deaths": 88415,
+          "meanR": 0.1352569011793192,
+          "inBand": 477
+        },
+        {
+          "tick": 32000,
+          "size": 154,
+          "births": 91859,
+          "deaths": 91745,
+          "meanR": 0.12996010618989243,
+          "inBand": 154
+        },
+        {
+          "tick": 33000,
+          "size": 41,
+          "births": 92648,
+          "deaths": 92647,
+          "meanR": 0.1296604611797413,
+          "inBand": 41
+        },
+        {
+          "tick": 34000,
+          "size": 0,
+          "births": 92876,
+          "deaths": 92916,
+          "meanR": 0,
+          "inBand": 0
+        }
+      ]
+    }
+  ]
+}

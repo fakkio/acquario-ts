@@ -1,0 +1,10 @@
+{
+  "variant": "c0-3.12",
+  "overrides": ["ACQUARIO_EXISTENCE_COST=3.12"],
+  "income": {
+    "nSettled": 1.3395026142917197,
+    "nAll": 1.3395026142917197,
+    "rMax": 2.983259054737534
+  },
+  "runs": []
+}

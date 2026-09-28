@@ -1,0 +1,10 @@
+{
+  "variant": "confine+kphoto-0.06",
+  "overrides": ["ACQUARIO_CONFINE_DEPTH=10", "ACQUARIO_K_PHOTO=0.06"],
+  "income": {
+    "nSettled": 0.750558126806735,
+    "nAll": 0.750558126806735,
+    "rMax": null
+  },
+  "runs": []
+}

@@ -1,4 +1,9 @@
-import {MITOSIS_ENERGY_COST, RHO} from "./constants";
+import {
+  DELTA_BODY_RADIUS,
+  MITOSIS_ENERGY_COST,
+  RHO,
+  WORST_CASE_BIRTH_GATE,
+} from "./constants";
 import {mutateGenome, type Genome} from "./genome";
 import {constrainToAquarium} from "./motion";
 import {
@@ -74,6 +79,20 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
     return null;
   }
 
+  // EXPERIMENT ONLY (#40): price the largest child a mutation could draw,
+  // before any draw, so the size gate below can never reject on the draw.
+  if (WORST_CASE_BIRTH_GATE === 1) {
+    const worstArea = bodyAreaOfRadius(
+      organism.genome.bodyRadius * (1 + DELTA_BODY_RADIUS),
+    );
+    if (
+      organism.food < RHO * worstArea ||
+      organism.energy < MITOSIS_ENERGY_COST * worstArea
+    ) {
+      return null;
+    }
+  }
+
   const derivation = deriveChildStream(organism.rng);
   organism.rng = derivation.parentStream;
   const childStream = derivation.childStream;
@@ -104,6 +123,13 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
 
   organism.food -= massCost;
   organism.energy -= energyCost;
+
+  // EXPERIMENT ONLY (#40): a passive tally of committed births, read by
+  // scripts/extinction.ts; changes nothing the world computes.
+  const tally = (globalThis as {__births?: number[][]}).__births;
+  if (tally !== undefined) {
+    tally.push([organism.bodyRadius, childGenome.bodyRadius]);
+  }
 
   // `childAllocationRatio` splits what remains after both costs, across
   // all four resources including energy (ADR-0019). A child that cannot

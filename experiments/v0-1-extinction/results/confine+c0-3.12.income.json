@@ -1,0 +1,10 @@
+{
+  "variant": "confine+c0-3.12",
+  "overrides": ["ACQUARIO_CONFINE_DEPTH=10", "ACQUARIO_EXISTENCE_COST=3.12"],
+  "income": {
+    "nSettled": 1.3290295455578334,
+    "nAll": 1.3290295455578334,
+    "rMax": 3.499933597851185
+  },
+  "runs": []
+}

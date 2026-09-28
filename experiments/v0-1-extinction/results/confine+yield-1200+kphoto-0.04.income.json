@@ -1,0 +1,14 @@
+{
+  "variant": "confine+yield-1200+kphoto-0.04",
+  "overrides": [
+    "ACQUARIO_CONFINE_DEPTH=10",
+    "ACQUARIO_K_PHOTO=0.04",
+    "ACQUARIO_RESPIRATION_ENERGY_YIELD=1200"
+  ],
+  "income": {
+    "nSettled": 0.9484068916081471,
+    "nAll": 0.9484068916081471,
+    "rMax": null
+  },
+  "runs": []
+}

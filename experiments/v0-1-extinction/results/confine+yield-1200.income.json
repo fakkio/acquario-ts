@@ -1,0 +1,13 @@
+{
+  "variant": "confine+yield-1200",
+  "overrides": [
+    "ACQUARIO_CONFINE_DEPTH=10",
+    "ACQUARIO_RESPIRATION_ENERGY_YIELD=1200"
+  ],
+  "income": {
+    "nSettled": 1.2534287771265618,
+    "nAll": 1.2534287771265618,
+    "rMax": null
+  },
+  "runs": []
+}

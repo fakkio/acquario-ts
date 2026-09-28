@@ -1,0 +1,13 @@
+{
+  "variant": "yield-1200+kphoto-0.04",
+  "overrides": [
+    "ACQUARIO_K_PHOTO=0.04",
+    "ACQUARIO_RESPIRATION_ENERGY_YIELD=1200"
+  ],
+  "income": {
+    "nSettled": 0.9632040482169234,
+    "nAll": 0.9632040482169234,
+    "rMax": null
+  },
+  "runs": []
+}

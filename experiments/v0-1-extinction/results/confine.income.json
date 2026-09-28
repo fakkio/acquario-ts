@@ -1,0 +1,10 @@
+{
+  "variant": "confine",
+  "overrides": ["ACQUARIO_CONFINE_DEPTH=10"],
+  "income": {
+    "nSettled": 1.0682586625047545,
+    "nAll": 1.0682586625047545,
+    "rMax": 3.0097010300635985
+  },
+  "runs": []
+}

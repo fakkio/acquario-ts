@@ -1,0 +1,10 @@
+{
+  "variant": "kphoto-0.06",
+  "overrides": ["ACQUARIO_K_PHOTO=0.06"],
+  "income": {
+    "nSettled": 0.8803398114767971,
+    "nAll": 0.8803398114767971,
+    "rMax": null
+  },
+  "runs": []
+}

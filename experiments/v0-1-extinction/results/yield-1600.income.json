@@ -1,0 +1,10 @@
+{
+  "variant": "yield-1600",
+  "overrides": ["ACQUARIO_RESPIRATION_ENERGY_YIELD=1600"],
+  "income": {
+    "nSettled": 0.9479115608340216,
+    "nAll": 0.9479115608340216,
+    "rMax": null
+  },
+  "runs": []
+}

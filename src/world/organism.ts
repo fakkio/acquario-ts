@@ -4,6 +4,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {
+  CONFINE_DEPTH,
   GENERATION_0_MUTATION_SCALE,
   K_CAP,
   K_CAP_ENERGY,
@@ -326,7 +327,11 @@ export function createPopulation(
     population.push(
       new Organism({
         x: placeWithin(draws.unit(), AQUARIUM_WIDTH, genome.bodyRadius),
-        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, genome.bodyRadius),
+        y: placeWithin(
+          draws.unit(),
+          Math.min(AQUARIUM_HEIGHT, CONFINE_DEPTH),
+          genome.bodyRadius,
+        ),
         genome,
         rng,
       }),

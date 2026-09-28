@@ -488,6 +488,24 @@ export const GENERATION_0_MUTATION_SCALE = tunable(
 export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
 
 /**
+ * EXPERIMENT ONLY (#40, throwaway branch): a floor for body centres'
+ * reach, so a run can hold every organism inside the bright band and take
+ * tenancy out of the causes of extinction. The default is the aquarium's
+ * own height (40, written as a literal like `CARBON_BUDGET_BASELINE_ORGANISMS`
+ * does), which makes the floor coincide with the real wall: every run that
+ * does not override it is bit-identical to `develop`.
+ */
+export const CONFINE_DEPTH = tunable("CONFINE_DEPTH", 40);
+
+/**
+ * EXPERIMENT ONLY (#40, throwaway branch): when 1, a parent attempts a
+ * birth only if it can already pay — food and energy — for the largest
+ * child a mutation could draw, `bodyRadius × (1 + DELTA_BODY_RADIUS)`, so
+ * no drawn child is ever rejected on size. 0 (the default) is `develop`.
+ */
+export const WORST_CASE_BIRTH_GATE = tunable("WORST_CASE_BIRTH_GATE", 0);
+
+/**
  * Last, once every `tunable` above has registered its name: an
  * `ACQUARIO_`-prefixed variable that matched nothing is a typo, or a
  * constant somebody expected to be reachable and is not, and either way
