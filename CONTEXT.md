@@ -17,7 +17,7 @@ An autonomous individual: a circular body carrying a genome, internal resource s
 _Avoid_: creature, agent, cell, entity
 
 **Organelle**:
-A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1.
+A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1. From v0.2 a neuron is an organelle; a synapse is not.
 _Avoid_: organ, module, part
 
 **Minimal Organism**:
@@ -39,20 +39,48 @@ _Avoid_: colony, swarm, agents, creatures
 ### Genetics
 
 **Genome**:
-The complete heritable description of an organism. In v0.1 a flat record of four genes — `bodyRadius`, `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue` — held by the organism and fixed for its life; from v0.2 a `Gene[]`.
+The complete heritable description of an organism. In v0.1 a flat record of four genes — `bodyRadius`, `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue` — held by the organism and fixed for its life; from v0.2 a fixed header of **Organism Genes** plus a `Gene[]` of structural genes.
 _Avoid_: DNA (in code — fine in prose), chromosome
 
 **Mutation**:
-The change a genome undergoes when it is copied at birth. Applied to the child, drawn from the parent's own stream, before the child's area, costs and caps are computed — never to a living organism, whose genome is fixed for its life. Each gene mutates with its own independent probability, so some births are exact clones.
+The change a genome undergoes when it is copied at birth. Applied to the child, drawn from the parent's own stream, before the child's area, costs and caps are computed — never to a living organism, whose genome is fixed for its life. Each **Organism Gene** mutates with its own independent probability; from v0.2 the `Gene[]` instead takes a bounded number of structural events per birth, each one operator applied to one gene. Some births are exact clones.
 _Avoid_: variation, drift (that is what `lineageHue` does), evolution
 
 **Gene**:
 One heritable, independently mutable field of the genome.
 _Avoid_: trait, allele, parameter
 
+**Organism Gene**:
+A gene the organism has exactly once, held in the genome's fixed header rather than in its `Gene[]`: `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue`, and the body-size gene (`bodyRadius` in v0.1, **Cytoplasm Thickness** from v0.2). Never duplicated, deleted or inserted; carries no **Innovation Id**, since it is aligned by name.
+_Avoid_: trait, header field, global gene
+
+**Innovation Id**:
+The stable identifier of a gene in the `Gene[]`, minted once from a monotonic per-world counter when the gene is inserted or split off, and preserved through mutation and inheritance. Identity only: ids are compared for equality and nothing else, so nothing sorts, iterates, draws or branches on an id's value, and evaluation order is the gene's position in the genome. That rule is what keeps a counter advanced in population order from leaking into behaviour.
+_Avoid_: gene id, innovation number, uid
+
+**Structural Gene**:
+From v0.2, an element of the genome's `Gene[]`: an **Organelle Gene** or a **Synapse Gene**, carrying an **Innovation Id**. What insertion, deletion and **Split** act on; **Organism Genes** are never structural.
+_Avoid_: gene (alone, when the distinction matters), module gene, body gene
+
+**Organelle Gene**:
+The structural gene describing one organelle: its type, position, radius, orientation and the parameters its type declares. A neuron is an organelle type, so a neuron is an organelle gene too.
+_Avoid_: organ gene, part gene, neuron gene (as a separate kind)
+
+**Synapse Gene**:
+The structural gene describing one synapse: a source endpoint, a destination endpoint and a weight. The one structural gene with no geometry, a relation rather than an object.
+_Avoid_: connection gene, edge, link
+
+**Split**:
+The v0.2 duplication operator, which divides rather than copies: one organelle becomes two whose areas sum to the original's, incoming synapses copied to both, outgoing ones divided between them. Exactly neutral for a neuron, area-conserving for any organelle.
+_Avoid_: duplication (in prose it is fine; the operator is a split), copy, fission, clone
+
 **Body Radius**:
-The gene setting an organism's circular body size. The only multiplicatively mutating gene.
+The radius of an organism's circular body. A gene in v0.1, the only one mutating multiplicatively. From v0.2 derived: the minimum enclosing circle of the body's relaxed organelles plus the **Cytoplasm Thickness**, which is the whole radius of a body with no organelles.
 _Avoid_: size, scale
+
+**Cytoplasm Thickness**:
+From v0.2, the **Organism Gene** giving the width of cytoplasm around a body's organelles: body radius is the organelles' minimum enclosing circle plus this. With no organelles it is the whole body radius, so it inherits v0.1's `bodyRadius` and its multiplicative law.
+_Avoid_: margin, cytoplasm radius, body radius (that is derived)
 
 **Mitosis Energy Threshold**:
 The gene, in `[0, 1]`, giving the fraction of its energy cap an organism must reach before attempting to reproduce.
@@ -217,7 +245,7 @@ The law that a parent attempts **Mitosis** only when it can already pay for the 
 _Avoid_: affordability check, mass gate (that is the physical requirement alone), birth check
 
 **Birth Cost Ceiling**:
-The bound, guaranteed by the **Mutation** law itself rather than enforced by rejecting draws, on how much more a child can cost than its parent. The margin the **Worst-Case Birth Gate** prices.
+The bound, guaranteed by the **Mutation** law itself rather than enforced by rejecting draws, on how much more a child can cost than its parent. The margin the **Worst-Case Birth Gate** prices. A constant factor in v0.1; from v0.2 a closed-form bound read from the parent's own genome, because a body that follows its organelles' layout has no constant factor worth pricing (ADR-0028).
 _Avoid_: max child cost, growth cap, mutation cap
 
 **Birth Sieve**:

@@ -66,6 +66,8 @@ _(v0.2+ — no organelles exist in v0.1.)_
 
 Each organelle is a circle with a type, a position relative to the body centre, a radius, an orientation and type-specific parameters. Size determines both energy cost and effectiveness: a larger lung holds more gas, a larger thruster produces more thrust, a larger eye sees further.
 
+A neuron is an organelle type like any other, with a position, a size and a place in the layout; what its size and position mean is the nervous system's to decide. A synapse is not an organelle: it is a relation between two endpoints, with no geometry (ADR-0028).
+
 ### Body construction
 
 _(v0.2+.)_ The genome defines organelle layout. When an organism is generated:
@@ -74,9 +76,11 @@ _(v0.2+.)_ The genome defines organelle layout. When an organism is generated:
 2. overlaps are detected
 3. a relaxation algorithm separates them
 4. the minimum enclosing circle is computed
-5. a safety margin is added
+5. the **cytoplasm thickness** gene is added to its radius
 
-The result becomes the body. A mutation producing overlapping organelles must never cause immediate death.
+The result becomes the body, centred on that circle. With no organelles the circle is empty and the body's radius is the cytoplasm thickness alone, which is v0.1's minimal organism. A mutation producing overlapping organelles must never cause immediate death.
+
+Because the body follows its layout, an organelle's position changes the body's size, and so what a child costs. The relaxation algorithm is left to the milestone that builds it, under one contract the Birth Cost Ceiling depends on: an event that adds `Δd` of diameter or moves an organelle by `d` grows the enclosing radius by at most `Δd + d` (ADR-0028).
 
 ### Internal capacity
 
@@ -399,12 +403,12 @@ Strategy gene:
 Physical requirement (not genetic, not bypassable), priced on the worst case before any draw:
   energy ≥ mitosisEnergyCost(maxChildArea)
   food   ≥ mitosisMassCost(maxChildArea)
-  maxChildArea = (1 + γ) × parentArea      γ: the Birth Cost Ceiling
+  maxChildArea: the Birth Cost Ceiling
 ```
 
 The physical requirement is checked **before** the child is drawn, against the most expensive child the mutation law could produce, so the draw that follows never fails for lack of means. v0.1 checked it after the draw and redrew on failure. That is rejection sampling on the child's cost, the **Birth Sieve**: it let only cheaper children through and drove every v0.1 world down to extinction by mechanism rather than by selection (#40, ADR-0027). With the **Worst-Case Birth Gate** the children actually born are an unbiased sample of the mutation law, and what the gate filters is which parents breed.
 
-`γ` is guaranteed by the mutation law's construction, not computed by the parent over every possible mutation. In v0.1 a child's radius is at most `r·(1+δ)`, so `γ = (1+δ)² − 1`. v0.2's structural operators must guarantee a ceiling of their own (see [Mutations](#mutations)).
+The ceiling is guaranteed by the mutation law's construction, not found by the parent enumerating every possible mutation. In v0.1 a child's radius is at most `r·(1+δ)`, so `maxChildArea = (1+δ)² × parentArea`, a constant factor. From v0.2 the body follows its organelles' layout and no constant factor is worth pricing, so the ceiling is a closed-form bound read from the parent's own genome (see [Mutations](#mutations), ADR-0028).
 
 The child's body mass is paid out of the parent's internal food store — matter, not just fuel. `childAllocationRatio` then splits only what remains after both costs are paid.
 
@@ -420,7 +424,7 @@ Further details:
 
 ### Initial population
 
-At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. Not identical clones, not fully random genomes — variance from tick zero for selection to act on. `lineageHue` is the one gene exempt from that common baseline: each founder draws it uniformly over its own range instead of inheriting it, because forty founders each one mutation from a single baseline would be forty near-indistinguishable shades of one colour, and a marker locus that cannot tell them apart is not a marker.
+At generation 0, N organisms (indicatively 20–50, adjustable) are placed at random positions, each independently mutated from a common, minimal **baseline genome**. From v0.2 the baseline genome still carries no organelles, so the baseline organism is v0.1's minimal organism; founders go through the same mutation law as any birth, so a founder may be born with an organelle, but none is seeded. Not identical clones, not fully random genomes — variance from tick zero for selection to act on. `lineageHue` is the one gene exempt from that common baseline: each founder draws it uniformly over its own range instead of inheriting it, because forty founders each one mutation from a single baseline would be forty near-indistinguishable shades of one colour, and a marker locus that cannot tell them apart is not a marker.
 
 Each organism's initial internal resources are set so that tick 0 is already **diffusive equilibrium**: the three diffusibles start at exactly the ambient concentration, so nothing crosses a membrane until metabolism moves it. A run therefore opens on the thing worth watching rather than on a filling transient.
 
@@ -454,15 +458,24 @@ The three functional genes give a real strategic axis to watch: a low threshold 
 ### v0.2+
 
 ```text
-Gene[]
+Genome = { mitosisEnergyThreshold, childAllocationRatio, lineageHue, cytoplasmThickness, genes: Gene[] }
+Gene   = OrganelleGene | SynapseGene
 ```
 
-Each gene is a discriminated union — `OrganelleGene | NeuronGene | SynapseGene` — with a type-specific payload plus common fields:
+The genome is a fixed **header** of organism genes plus a `Gene[]` of structural genes (ADR-0028).
 
-- `id`: a stable historical identifier, assigned once from a monotonic global counter and preserved through mutation, duplication and inheritance (NEAT-style innovation numbers)
-- `active`: an activation flag
+**Organism genes** are the genes an organism has exactly once. They keep v0.1's laws (ADR-0021), carry no id, are aligned by name, and can never be duplicated, deleted or inserted. `cytoplasmThickness` replaces `bodyRadius`: it is the width of cytoplasm around the organelles, so with no organelles it is the whole radius, and it keeps `bodyRadius`'s multiplicative law.
 
-Stable ids are what let a gene recognise itself across generations. They are needed immediately, because a synapse references the ids of its source and destination — which may be neurons or organelles — and they will be needed to align genes during crossover. Aligning by array position breaks as soon as two lineages duplicate genes differently: the competing-conventions problem.
+**Structural genes** are the `Gene[]`:
+
+- an `OrganelleGene` has a type (neuron is one), a position in the genome's frame, a radius, an orientation and the parameters its type declares;
+- a `SynapseGene` has a source, a destination and a weight.
+
+Each carries an `id`, its **innovation id**: minted once from a monotonic per-world counter when the gene is inserted or split off, and preserved through mutation and inheritance (NEAT-style innovation numbers). Stable ids are what let a gene recognise itself across generations. They are needed immediately, because a synapse references the ids of its endpoints, and they will be needed to align genes during crossover. Aligning by array position breaks as soon as two lineages duplicate genes differently: the competing-conventions problem.
+
+Ids are **identity only**. The counter advances in population order, so an id's value depends on processing order; nothing may therefore sort, iterate, draw or branch on an id's value, and evaluation order is a gene's position in the genome. Innate endpoints a synapse can reference without being genes (innate senses) have fixed ids reserved outside the counter's range.
+
+There is no activation flag in v0.2. An inactive gene that pays nothing makes reactivation an unbounded jump in a child's cost; one that pays in full is strictly worse than deleting it. The flag's canonical use is crossover, and it returns with crossover if needed.
 
 ---
 
@@ -481,19 +494,27 @@ Mutations must be resilient. Most should be neutral, slightly negative or slight
 
 ### v0.2+
 
-The full mutation space, applicable once the structural genome exists:
+Organism genes mutate as in v0.1, each with its own independent probability. The `Gene[]` does not: a per-gene probability over dozens of synapses would mean a dozen mutations a birth. Instead each birth draws a bounded number of **structural events**, `n ∈ 0…M_max`; each event picks an operator by rate weight, then a target uniformly among the genes that operator can act on. An event with no valid target does nothing and is not redrawn. The rates, `M_max` and the distribution of `n` are the milestone's.
 
-- **parameter changes** — size, position, orientation, type-specific parameters
-- **synaptic weight changes** — small continuous variations
-- **duplication** — of organelles, neurons and genes; considered one of the principal sources of complexity
-- **deletion** — removal of existing genes
-- **activation / deactivation** — genes can exist in an inactive state, letting evolution experiment with new structures at no immediate cost
+The operators:
 
-Excluded initially: direct transformation of one organelle into another, and drastic structural mutations.
+- **parameter change**: one parameter of one organelle, by the law its type declares. Types declare their parameters and pick each one's law from a closed menu (symmetric multiplicative, additive clamped, wrapping angle), widened only by ADR, so every law's worst case can be read off its declaration. Radius is symmetric multiplicative; position is a Cartesian step of at most `δ_pos` times the organelle's own radius; orientation is a wrapping angle.
+- **weight change**: a small continuous step on one synapse.
+- **insertion**: an organelle of a type drawn uniformly from the roster, born at a small fixed size at a uniform position inside the current body; a neuron is such an insertion, born unconnected and so exactly neutral; a synapse between two existing endpoints, born with a small weight. New organelles cost very little and can grow over subsequent generations.
+- **deletion**: one gene, and in cascade every synapse touching it, as one event.
+- **split**: duplication, which divides rather than copies. One organelle becomes two of areas `f·A` and `(1−f)·A`, with `f` drawn from a triangular bell on `[0.2, 0.8]`; incoming synapses are copied to both pieces, outgoing ones divided as `f·w` and `(1−f)·w`. For a neuron that is exactly neutral; for any organelle it conserves area. Synapses are never split on their own.
 
-New organelles are born very small, cost very little, and can grow over subsequent generations.
+Excluded: direct transformation of one organelle into another, NEAT's add-node (splitting a synapse with a new neuron, which is not neutral under a synchronous update), and drastic structural mutations.
 
-Every operator is bounded by the **Birth Cost Ceiling**: whatever mutations a birth carries, the child costs at most `(1 + γ)` times its parent. The bound holds by construction: new organelles are born at a small fixed size, a duplication cannot copy a large organelle for free, and a birth carries a bounded number of mutations. It is never enforced by rejecting draws that exceed it, because rejecting draws is exactly the Birth Sieve the Worst-Case Birth Gate removes (ADR-0027).
+Every operator is bounded by the **Birth Cost Ceiling**. Area is conserved by a split, but the body is not: two circles need a wider enclosing circle than one of the same area, so splitting an organelle that fills its body nearly doubles the child. No constant factor covers that without sterilising every parent, so the gate prices a bound computed from the parent's own genome:
+
+```text
+R_max          = MEC_parent + M_max · maxEventGrowth(genome) + cytoplasmThickness · (1 + δ)
+maxEventGrowth = max(split 0.83 · r_max, insertion 2 · r_new, size 2 · δ_size · r_max, position δ_pos · r_max)
+maxChildArea   = π · R_max²
+```
+
+It holds by construction, from the declared laws and the relaxation contract (see [Body construction](#body-construction)). It is never enforced by rejecting draws that exceed it, because rejecting draws is exactly the Birth Sieve the Worst-Case Birth Gate removes (ADR-0027). A parent carrying one large organelle must hold much more than it will pay, and so breeds later: a known cost of a body that follows its layout (ADR-0028).
 
 ---
 
