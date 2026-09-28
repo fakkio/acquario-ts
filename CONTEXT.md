@@ -212,6 +212,22 @@ _Avoid_: pending organism, child (that is the organism once it exists), egg (res
 Asexual reproduction by budding: the parent pays energy and food-mass, the child is created tangent to it, and the parent does not shrink.
 _Avoid_: division, split, cloning, fission
 
+**Worst-Case Birth Gate**:
+The law that a parent attempts **Mitosis** only when it can already pay for the most expensive child its **Mutation** law could produce, so the draw that follows never fails for lack of means. What makes the children actually born an unbiased sample of the mutation law.
+_Avoid_: affordability check, mass gate (that is the physical requirement alone), birth check
+
+**Birth Cost Ceiling**:
+The bound, guaranteed by the **Mutation** law itself rather than enforced by rejecting draws, on how much more a child can cost than its parent. The margin the **Worst-Case Birth Gate** prices.
+_Avoid_: max child cost, growth cap, mutation cap
+
+**Birth Sieve**:
+The defect the **Worst-Case Birth Gate** removes: drawing a child's mutation, rejecting it when the parent cannot pay, and redrawing later, which filters births towards cheaper children than the mutation law proposes and pushes a lineage downhill by mechanism rather than by selection (#40).
+_Avoid_: size drift, shrinkage, race to small (those are its symptom)
+
+**Persistence**:
+An unprimed world's population surviving to the end of a run across every seed. A gate every milestone from v0.2's first on holds, like conservation; a milestone that breaks it retires or relaxes it by ADR, never silently.
+_Avoid_: survival (that is one organism's), viability, stability
+
 **Brownian Motion**:
 The random force applied to every organism, and the only source of movement in v0.1.
 _Avoid_: drift, jitter, wander, random walk

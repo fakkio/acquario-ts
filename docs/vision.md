@@ -393,13 +393,18 @@ Available to every organism. The model is **budding**, not a literal split: the 
 Reproduction has a hard physical requirement and a genetic strategy gate:
 
 ```text
-Physical requirement (not genetic, not bypassable):
-  energy ≥ mitosisEnergyCost(childArea)
-  food   ≥ mitosisMassCost(childArea)
-
 Strategy gene:
   attempt mitosis when  energy ≥ mitosisEnergyThreshold × cap(energy)
+
+Physical requirement (not genetic, not bypassable), priced on the worst case before any draw:
+  energy ≥ mitosisEnergyCost(maxChildArea)
+  food   ≥ mitosisMassCost(maxChildArea)
+  maxChildArea = (1 + γ) × parentArea      γ: the Birth Cost Ceiling
 ```
+
+The physical requirement is checked **before** the child is drawn, against the most expensive child the mutation law could produce, so the draw that follows never fails for lack of means. v0.1 checked it after the draw and redrew on failure. That is rejection sampling on the child's cost, the **Birth Sieve**: it let only cheaper children through and drove every v0.1 world down to extinction by mechanism rather than by selection (#40, ADR-0027). With the **Worst-Case Birth Gate** the children actually born are an unbiased sample of the mutation law, and what the gate filters is which parents breed.
+
+`γ` is guaranteed by the mutation law's construction, not computed by the parent over every possible mutation. In v0.1 a child's radius is at most `r·(1+δ)`, so `γ = (1+δ)² − 1`. v0.2's structural operators must guarantee a ceiling of their own (see [Mutations](#mutations)).
 
 The child's body mass is paid out of the parent's internal food store — matter, not just fuel. `childAllocationRatio` then splits only what remains after both costs are paid.
 
@@ -407,7 +412,7 @@ The mass requirement is stricter than it looks, and it is what decides whether a
 
 Further details:
 
-- the child's genome is mutated _before_ its area, costs and caps are computed
+- the worst-case gate draws nothing; the child's genome is mutated after it passes and _before_ the child's actual area, costs and caps are computed
 - `childAllocationRatio` is a single gene shared by all internal resources
 - if a child cannot hold its full allocation, it receives up to its own caps and the excess stays with the parent
 - the child is born tangent to the parent at a random angle; any residual overlap is resolved by the normal collision system
@@ -488,6 +493,8 @@ Excluded initially: direct transformation of one organelle into another, and dra
 
 New organelles are born very small, cost very little, and can grow over subsequent generations.
 
+Every operator is bounded by the **Birth Cost Ceiling**: whatever mutations a birth carries, the child costs at most `(1 + γ)` times its parent. The bound holds by construction: new organelles are born at a small fixed size, a duplication cannot copy a large organelle for free, and a birth carries a bounded number of mutations. It is never enforced by rejecting draws that exceed it, because rejecting draws is exactly the Birth Sieve the Worst-Case Birth Gate removes (ADR-0027).
+
 ---
 
 ## Simulation
@@ -514,7 +521,7 @@ PHASE 2 — per organism, in index order (no writes to the world)
   4. respiration            food + O₂ → energy + CO₂       (internal state only)
   5. maintenance            energy −= (c₀ + β·area) × dt
   6. brownian motion        draw a direction, position += force / drag
-  7. evaluate mitosis       → mutate, price, debit the parent, enqueue a pending birth
+  7. evaluate mitosis       → worst-case gate, mutate, price, debit the parent, enqueue a pending birth
   8. evaluate death         → freeze remains, enqueue a pending death
 
 PHASE 3 — commit
@@ -634,6 +641,8 @@ Two automated invariants and one scientific criterion.
 3. **Selection, not drift.** Population means of each gene converge to the same neighbourhood from different seeds and different baseline genomes. The decisive check is `r_opt = 2·c₀/α`, computed from the constants and from the `α` measured over the **bright band** of a selection-free fixed population (ADR-0015, ADR-0023): drift does not converge on a number predicted in advance, only selection does. Its operational form — fifteen runs, the band around the prediction, and the requirement that the runs end closer together than the baseline genomes they started from — is in ADR-0025. When simulation meets the closed-form prediction, v0.1 is correct.
 
    **Measured, and not met.** All fifteen done-criteria runs went extinct before ever reaching a living population inside the measurement window — there is no `bodyRadius` mean to check against `r_opt` in any of them. v0.1 ships without this criterion satisfied; conservation and determinism both hold, this one does not. Further pursuit is deferred to v0.2 rather than chased inside v0.1's own constants (ADR-0026).
+
+   The cause was found afterwards, and it was a law, not a constant: the Birth Sieve in mitosis (#40). With the Worst-Case Birth Gate every seed persists and `bodyRadius` rises towards `r_opt` for the first time. v0.2's first milestone re-runs these fifteen runs on the gated world as a reported measurement (ADR-0027). The verdict above stays v0.1's.
 
 ### Calibration method
 
