@@ -269,8 +269,20 @@ An unprimed world's population surviving to the end of a run across every seed. 
 _Avoid_: survival (that is one organism's), viability, stability
 
 **Brownian Motion**:
-The random force applied to every organism, and the only source of movement in v0.1.
+The random force applied to every organism, and the only source of movement in v0.1. From v0.2 joined by **Buoyant Weight** and thrust, and the scale both are calibrated against.
 _Avoid_: drift, jitter, wander, random walk
+
+**Buoyant Weight**:
+From v0.2, the vertical force gravity puts on a body: over its organelles only, each one's area times the difference between its **Organelle Density** and the **Water Density** where it sits, applied at the organelle's own position so it also turns the body. Zero for a body with no organelles, at any depth. It vanishes where the organelles' mean density meets the water's, which is the depth a body rests at without thrust (ADR-0030).
+_Avoid_: gravity (that is the field), mass, buoyancy (alone), sinking force
+
+**Organelle Density**:
+The mass per area an organelle type declares, a constant of the type and never a gene, compared against the **Water Density** to give its share of **Buoyant Weight**. Separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area.
+_Avoid_: density (alone), ρ (that is carbon), weight, buoyancy
+
+**Water Density**:
+From v0.2, the aquarium's water profile, rising linearly from the surface to the floor so that composition alone gives a body an interior resting depth. The cytoplasm is water inside the membrane, so it is neutral at every depth and only organelles are weighed against this.
+_Avoid_: stratification (that is the fact that it varies), pycnocline, medium density
 
 **Positional Separation**:
 Collision resolution that displaces overlapping bodies apart along their normal, without impulses or restitution.

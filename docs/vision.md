@@ -48,7 +48,7 @@ Every organism has innate capabilities, even with no organelles. This is the onl
 
 **Passive respiration.** `food + O₂ → energy + CO₂`. The sole source of energy in the simulation. Both reactions are extremely inefficient — that inefficiency is what organelles later improve on.
 
-**Passive movement.** Organisms without thrusters are subject to brownian motion, which lets them drift slowly and encounter one another.
+**Passive movement.** Organisms without thrusters are subject to brownian motion, which lets them drift slowly and encounter one another. From v0.2 gravity weighs organelles only, so a body with none neither sinks nor floats (ADR-0030).
 
 **Passive reproduction.** Every organism can reproduce by mitosis once it holds enough energy and food-mass.
 
@@ -173,7 +173,7 @@ The table samples every `0.1` baseline radii over the aquarium's height and is r
 
 Light is sampled at the **body's centre**, not at its upper edge. The projected-width factor in the photosynthesis rate already carries the body's size, and sampling the edge would hand a large body a second advantage nothing in the model intends.
 
-Because v0.1 has no thrusters and no gravity, depth is not under genetic control. What light produces instead is spatial heterogeneity of income, plus a **positional founder effect**: since children are born tangent to their parents, position is quasi-heritable, and a lineage that happens to sit in the bright zone breeds faster and passes on the good address. Genetic control of depth arrives in v0.2 together with thrusters and buoyancy.
+Because v0.1 has no thrusters and no gravity, depth is not under genetic control. What light produces instead is spatial heterogeneity of income, plus a **positional founder effect**: since children are born tangent to their parents, position is quasi-heritable, and a lineage that happens to sit in the bright zone breeds faster and passes on the good address. Genetic control of depth arrives in v0.2 with buoyancy: organelles denser or lighter than a stratified water column give each body a depth it rests at for free, and thrusters move it away from there at a price (ADR-0030).
 
 This also gives v0.1 two ways to live from a single genome, and only one of them is a way to persist. In the light an organism fixes carbon and can build a child. In the dark it survives on food absorbed passively from the pool — food that corpses put there — but it cannot breed: respiration steadily turns its internal food into CO₂ and nothing turns it back, so a dark body fills with carbon in the wrong chemical form (ADR-0023). Its energy balance admits a band of radii centred well above `r_opt`, so the dark is a habitat of rare large bodies with no lineages in it, populated by emigrants from the light. v0.2's eating is what opens it.
 
@@ -378,6 +378,23 @@ A consequence worth stating: an organism that stops pushing stops immediately. T
 
 Because the diffusion coefficient goes as `1/r`, large organisms wander slowly and stay near where they were born, while small ones diffuse quickly and average out the light gradient. Large size therefore means _higher variance_ in lifetime light income. It is also a selective pressure on `bodyRadius` that `r_opt` does not carry, since a small body leaves the bright band before it has bred many times, which is why ADR-0025 gates on **tenancy**.
 
+### Gravity and buoyancy
+
+_(v0.2+.)_ Gravity is one more force in the overdamped sum, and it weighs **organelles only**, against water that grows denser towards the floor (ADR-0030):
+
+```text
+buoyantWeight = g · Σ organelles (ρ_type − ρ_w(y_i)) · a_i        positive = down
+velocity     += buoyantWeight / (6π · r)
+```
+
+Each type declares an **organelle density** `ρ_type`, a constant and never a gene, and it is separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area. The cytoplasm is water inside the membrane and neutral at every depth, stores included, so a body with no organelles moves exactly as in v0.1. There is no density gene: a body's density is what its organelles are made of.
+
+Because the water is stratified, a body rests where its organelles' mean density meets the water's, `ρ_w(y*) = Σ ρ_type·aᵢ / Σ aᵢ`, held there by a restoring force proportional to its organelle area. Carrying more float against more chloroplast is therefore a continuous, heritable choice of depth that needs no neurons. Uniform water would leave only three outcomes, surface, floor or neutral, which is why there is no gravity without stratification.
+
+Each organelle weighs at its own position, so a body whose centre of mass sits below its centre of buoyancy is turned upright: passive gravitaxis, and the vertical half of why organelle placement matters.
+
+`g` is calibrated so that a single float inserted at `r_new` gives a baseline body a scale height equal to the bright band's thickness, and the gradient's span so that bodies of a few organelles find resting depths across the whole column rather than only at the walls. Brownian motion is not retuned: gravity and thrust are calibrated against it.
+
 ### Collisions
 
 Overlaps are resolved by **positional separation**: bodies are displaced apart along their normal, split in proportion to `1/area`, with no impulses and no restitution. Corrections accumulate in a buffer and are applied once, so the result does not depend on iteration order.
@@ -388,7 +405,7 @@ Collisions are not decoration. Light is the only spatially localised resource in
 
 ### Thrusters
 
-_(v0.2+.)_ Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed.
+_(v0.2+.)_ Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed. Composition sets the depth a body rests at for free; a thruster holding it anywhere else pays `k_thrust × |F|` every tick it does so.
 
 ---
 
@@ -397,6 +414,10 @@ _(v0.2+.)_ Each thruster has a position and an orientation. When activated it ge
 ### Light
 
 A vertical gradient, strongest at the surface and weakest at depth.
+
+### Water
+
+_(v0.2+.)_ The water's density rises linearly from the surface to the floor, a stratified column rather than a compressed one. It carries nothing and does not move; it only sets where each body's organelles balance (ADR-0030).
 
 ### Fluids
 
@@ -667,7 +688,7 @@ The minimal organism, built end to end, with no organelles:
 - organelles (eyes, thrusters, real neurons and synapses, chloroplasts, …)
 - spatial fluid simulation
 - sight and colour perception
-- gravity and buoyancy, alongside thrusters
+- gravity and buoyancy, weighing organelles against stratified water (ADR-0030)
 - sexual reproduction and crossover
 - selecting and inspecting an organism
 - scavenging as real behaviour

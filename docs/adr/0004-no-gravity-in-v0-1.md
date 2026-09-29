@@ -1,5 +1,7 @@
 # No gravity in v0.1; light acts through a positional founder effect
 
+> **Superseded for v0.2 by [ADR-0030](./0030-gravity-weighs-organelles-against-stratified-water.md).** v0.1 stays as described here. From v0.2, gravity weighs organelles only, against water stratified towards the floor, so a body with no organelles never sinks and gravity no longer needs thrusters to avoid the collapse below.
+
 v0.1 has no gravity or buoyancy. Light is a vertical gradient attenuating exponentially with depth (`I(y) = I₀·e^(−k·y)`), precomputed into a lookup table so the simulation loop evaluates no transcendental function.
 
 ## Considered options
