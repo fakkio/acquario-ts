@@ -66,6 +66,8 @@ _(v0.2+ — no organelles exist in v0.1.)_
 
 Each organelle is a circle with a type, a position relative to the body centre, a radius, an orientation and type-specific parameters. Size determines both energy cost and effectiveness: a larger lung holds more gas, a larger thruster produces more thrust, a larger eye sees further.
 
+An organelle runs the passive capability it improves on its own disc, with a better coefficient, so a rate-producing organelle's effectiveness scales with its **radius**, as passive photosynthesis scales with the body's diameter. A chloroplast fixes `kChloro × light × 2·r_c × C_internal(CO₂)`, reading light at its own position in the world rather than at the body's centre. It only fixes carbon: it has no exchange surface of its own, so its ceiling is the CO₂ the body's perimeter lets in, and lifting that ceiling is a gill's job (ADR-0029).
+
 A neuron is an organelle type like any other, with a position, a size and a place in the layout; what its size and position mean is the nervous system's to decide. A synapse is not an organelle: it is a relation between two endpoints, with no geometry (ADR-0028).
 
 ### Body construction
@@ -84,15 +86,15 @@ Because the body follows its layout, an organelle's position changes the body's 
 
 ### Internal capacity
 
-Storage capacity is `bodyArea − Σ organelleArea` — the space left over, a kind of internal circulatory system holding energy, oxygen, carbon dioxide and food.
+Storage capacity is the **cytoplasm area**, `bodyArea − Σ organelleArea` — the space left over, a kind of internal circulatory system holding energy, oxygen, carbon dioxide and food. In v0.1 there are no organelles, so it is the whole body.
 
-In v0.1 these stores are independent rather than competing for one shared volume. Each resource has its own cap:
+These stores are independent rather than competing for one shared volume. Each resource has its own cap:
 
 ```text
-cap(resource) = kCap(resource) × bodyArea
+cap(resource) = kCap(resource) × cytoplasmArea
 ```
 
-Because a cap scales with area, it is really a maximum internal _concentration_. Direct competition for a single internal volume is deferred to a later version.
+Because a cap scales with area, it is really a maximum internal _concentration_, and internal concentrations are taken over the same area: an organelle occupies space that holds no stores, which makes its area a storage cost as well as an energy one (ADR-0029). `cytoplasmThickness > 0` keeps that area strictly positive. Direct competition for a single internal volume is not in v0.2: no storage organelle exists to make it matter.
 
 `kCap` is **1 for CO₂ and O₂** and larger for food. It carries `ρ`'s own dimension, so only the ratio `kCap/ρ` is physical: `ρ` alone fixes the carbon unit, and setting both to 1 was one unit choice plus one silent assertion — that an organism can hold exactly its own body's worth of a diffusible. That assertion is load-bearing at mitosis, where it would force a parent to sit at exactly 100% of its food cap to afford a child, so food is given headroom of its own (ADR-0022). Energy gets `kCapEnergy`, because energy is not a carbon or oxygen quantity and its unit is fixed independently by `β = 1`.
 
@@ -274,11 +276,33 @@ The `c₀/r²` term is what prevents a race to zero: without a flat cost, smalle
 
 ### Organelle costs
 
-_(v0.2+.)_ Each organelle pays a **flat overhead plus an area-scaled cost**, with sublinear effectiveness. That combination is what makes the size/number trade-off real: many small organelles pay many fixed overheads, while one large organelle pays a single overhead but suffers diminishing returns. Where the balance falls depends on the organelle type — which is exactly the variety worth having.
+_(v0.2+.)_ Every area in a body is paid once, at the rate of whatever occupies it, and each organelle and synapse pays a flat **organelle overhead** (ADR-0029):
 
-Position matters too: an eye near the centre sees almost omnidirectionally, an eye near the rim sees a narrow, specialised cone.
+```text
+maintenance = c₀ + β · cytoplasmArea
+            + Σ organelles (c_type + β_type · aᵢ)
+            + Σ synapses   c_synapse
+```
 
-Sublinear effectiveness has a known tension with the goal of producers and consumers diverging: at equal area it favours the generalist carrying both pathways over the specialist committed to one. Sublinearity stands; the incentive that rewards specialisation is an open v0.2 question — see ADR-0014.
+With no organelles this is v0.1's `c₀ + β·area` exactly. `β_type` says what a type's tissue costs relative to cytoplasm. There is no construction cost at birth: a child's mass is still `ρ · bodyArea`, and everything else an organelle costs it pays per tick.
+
+That combination is what makes the size/number trade-off real. Effectiveness scales with radius, so dividing an organelle's area into `n` pieces raises its output as `√n` at the same area cost, and a split always looks attractive. Two things push back: every piece pays its own overhead, and more circles need a wider enclosing circle, so the body, its cytoplasm and a child's mass grow. The overhead is what bounds the count, and it gives each type a closed-form optimal organelle radius, the same shape as `r_opt`:
+
+```text
+r*_type = c_type / k_type
+```
+
+Where the balance falls depends on the organelle type — which is exactly the variety worth having — and, for a chloroplast, on depth: its `k` carries the light and the internal CO₂, which falls as fixation nears the CO₂ the body's perimeter lets in, so few large chloroplasts pay near the surface and many small ones in the dark.
+
+A new organelle is born small, so a fixed overhead leaves it in the red until it grows. Insertion must be near-painless, so `c_type` is derived from the insertion size rather than the other way round: an organelle inserted where its type works starts near break-even (`r_new ≈ r*/2`). A neuron's overhead and a synapse's are small, so new network structure is cheap and near-neutral.
+
+Position matters too: a chloroplast reads light where it sits, and an eye near the centre sees almost omnidirectionally, an eye near the rim sees a narrow, specialised cone.
+
+Sublinear effectiveness favours the generalist carrying two substitutable routes over the specialist committed to one. In v0.2 there is no second route to specialise into: every organism respires, and food intake beyond diffusion arrives with eating. So v0.2 observes specialisation rather than paying for it, and the question reopens in v0.3 on the axis chloroplast against food intake (ADR-0029, superseding ADR-0014).
+
+### Activity costs
+
+_(v0.2+.)_ A thruster pays in proportion to the force it produces, `k_thrust × |F|` per tick, not the physical power `F·v`: under Stokes drag, power would make holding depth against gravity at rest free. Neurons pay no activity cost; they evaluate every tick anyway, so their overhead already covers it.
 
 ---
 

@@ -141,11 +141,11 @@ Signed diffusion of a resource across the membrane, proportional to perimeter an
 _Avoid_: absorption, uptake, intake, osmosis
 
 **Concentration**:
-An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside. The only quantity the two sides of a membrane can be compared in.
+An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside (from v0.2, `internal ÷` **Cytoplasm Area**, which is the body area when there are no organelles). The only quantity the two sides of a membrane can be compared in.
 _Avoid_: density, level
 
 **Cap**:
-The maximum amount of a resource an organism can hold: `kCap(resource) × bodyArea`, i.e. a maximum internal concentration. Only `kCap/ρ` is physical, since `ρ` alone carries the carbon unit (ADR-0022).
+The maximum amount of a resource an organism can hold: `kCap(resource) × bodyArea` (from v0.2 `× cytoplasmArea`, see **Cytoplasm Area**), i.e. a maximum internal concentration. One per resource, never a shared volume. Only `kCap/ρ` is physical, since `ρ` alone carries the carbon unit (ADR-0022).
 _Avoid_: capacity, limit, storage
 
 **Existence Cost**:
@@ -153,12 +153,24 @@ The flat, size-independent energy an organism pays per unit time simply for bein
 _Avoid_: base cost, overhead, upkeep
 
 **Body Cost**:
-The energy an organism pays per unit time in proportion to its body area.
+The energy an organism pays per unit time in proportion to its body area, `β·area`. From v0.2 charged on the **Cytoplasm Area** only: each organelle pays for its own area at its type's rate (ADR-0029).
 _Avoid_: area cost, maintenance (that is both costs together, not this half)
 
 **Maintenance**:
-The whole energy an organism pays per unit time simply to keep being one: existence cost plus body cost, `c₀ + β·area`. The name of the tick's fifth step, and of the total — never of either half alone.
+The whole energy an organism pays per unit time simply to keep being one: existence cost plus body cost, `c₀ + β·area`. From v0.2 also every organelle's **Organelle Overhead** and area cost and every synapse's overhead, each area paid once at its occupant's rate; **Thrust Cost** is not part of it. The name of the tick's fifth step, and of the total — never of any term alone.
 _Avoid_: upkeep, basal cost, body cost (that is one of its two terms)
+
+**Cytoplasm Area**:
+From v0.2, the part of a body not occupied by organelles: `bodyArea − Σ organelleArea`, strictly positive because **Cytoplasm Thickness** is. What holds the stores, so caps and internal concentrations are taken over it, and what the body cost is charged on.
+_Avoid_: free area, internal capacity, storage area
+
+**Organelle Overhead**:
+The flat energy each organelle pays per unit time for existing, whatever its size, declared per type; a synapse pays a small one of its own. Paid per piece, it is the only thing that bounds how many pieces a body divides its organelle area into, and it sets each type's optimal organelle radius `c_type / k_type` (ADR-0029).
+_Avoid_: organelle upkeep, per-capability cost, existence cost (that is the organism's)
+
+**Thrust Cost**:
+The energy a thruster pays per tick in proportion to the magnitude of the force it produces, `k_thrust × |F|`, so pushing against gravity while standing still costs. The one activity cost in v0.2.
+_Avoid_: movement cost, power, work
 
 **Optimal Radius**:
 The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable in closed form from the world's constants. The prediction v0.1 is validated against.
