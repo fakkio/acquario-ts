@@ -1,5 +1,7 @@
 # The structural genome and its mutation law
 
+> **Amended by [ADR-0031](./0031-the-nervous-system-is-a-ctrnn-wired-through-ports.md) and [ADR-0032](./0032-the-v0-2-roster-is-four-types-and-weight-comes-from-function.md).** Innate endpoints share one reserved id, the body's (ADR-0031). Orientation is not a common parameter: a type declares it when it uses one, and in v0.2 only the thruster does (ADR-0032).
+
 v0.2's genome is a fixed header of **Organism Genes** plus a `Gene[]` of structural genes. Structural mutation is a bounded number of events per birth, duplication is a **Split** that conserves area, and the **Birth Cost Ceiling** becomes a closed-form bound computed per parent, because a body derived from its organelles' layout has no constant ceiling worth pricing. Settled in #42.
 
 ## The shape

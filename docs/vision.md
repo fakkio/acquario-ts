@@ -23,18 +23,21 @@ This document describes **what AcquarioTS is**. The reasoning behind each contes
 
 Every advanced capability is implemented as an organelle.
 
-| Capability           | Organelle      |
-| -------------------- | -------------- |
-| Sight                | Eye            |
-| Processing           | Neuron         |
-| Movement             | Thruster       |
-| Photosynthesis       | Chloroplast    |
-| Advanced respiration | Lung / Gill    |
-| Sexual reproduction  | Gonad          |
-| Egg laying           | Uterus         |
-| Defence              | Carapace       |
-| Attack               | Teeth / Spines |
-| Storage              | Vesicle        |
+| Capability           | Organelle      | Arrives |
+| -------------------- | -------------- | ------- |
+| Processing           | Neuron         | v0.2    |
+| Movement             | Thruster       | v0.2    |
+| Buoyancy             | Float          | v0.2    |
+| Photosynthesis       | Chloroplast    | v0.2    |
+| Sight                | Eye            | v0.3    |
+| Defence              | Carapace       | v0.3    |
+| Attack               | Teeth / Spines | v0.3    |
+| Advanced respiration | Lung / Gill    | v0.4    |
+| Storage              | Vesicle        | v0.4    |
+| Sexual reproduction  | Gonad          | v0.5    |
+| Egg laying           | Uterus         | v0.5    |
+
+Versions after v0.2 are tentative. v0.2's four types are its **roster**, the set an insertion draws from (ADR-0032).
 
 Organisms can survive with no organelles at all. Organelles are evolutionary optimisations of capabilities every organism already has.
 
@@ -58,15 +61,26 @@ Every organism has innate capabilities, even with no organelles. This is the onl
 
 ### Shape
 
-In v0.1 every organism is a circle, and a body has a position and nothing else kinematic: motion is overdamped, so there is no velocity to carry between ticks, and a circle with no organelles has no visible orientation to rotate. Rotation and angular velocity arrive in v0.2 with the organelles that make them matter, because organelles have an orientation and a position relative to the body's centre.
+In v0.1 every organism is a circle, and a body has a position and nothing else kinematic: motion is overdamped, so there is no velocity to carry between ticks, and a circle with no organelles has no visible orientation to rotate. Rotation and angular velocity arrive in v0.2 with the organelles that make them matter, because organelles have a position relative to the body's centre, and a thruster a direction too.
 
 ### Organelles
 
 _(v0.2+ — no organelles exist in v0.1.)_
 
-Each organelle is a circle with a type, a position relative to the body centre, a radius, an orientation and type-specific parameters. Size determines both energy cost and effectiveness: a larger lung holds more gas, a larger thruster produces more thrust, a larger eye sees further.
+Each organelle is a circle with a type, a position relative to the body centre, a radius and the parameters its type declares. Orientation is one of those only for a type that uses it: a disc that reads light where it sits is the same at any angle, so in v0.2 only the thruster has one (ADR-0032). Size determines both energy cost and effectiveness: a larger lung holds more gas, a larger thruster produces more thrust, a larger eye sees further.
 
 An organelle runs the passive capability it improves on its own disc, with a better coefficient, so a rate-producing organelle's effectiveness scales with its **radius**, as passive photosynthesis scales with the body's diameter. A chloroplast fixes `kChloro × light × 2·r_c × C_internal(CO₂)`, reading light at its own position in the world rather than at the body's centre. It only fixes carbon: it has no exchange surface of its own, so its ceiling is the CO₂ the body's perimeter lets in, and lifting that ceiling is a gill's job (ADR-0029).
+
+v0.2's roster (ADR-0032):
+
+| Type        | Parameters beyond radius and position       | Organelle density | Ports                    |
+| ----------- | ------------------------------------------- | ----------------- | ------------------------ |
+| Chloroplast | none                                        | `ρ_w(H) + Δ/2`    | none                     |
+| Float       | none                                        | `ρ_w(0) − Δ`      | none                     |
+| Thruster    | `orientation`, `drive`                      | weightless        | input `power`            |
+| Neuron      | `τ`, `bias`, `threshold`, `dischargeFactor` | weightless        | input `in`, output `out` |
+
+The float does one thing, lift. It has no collapse depth and no port, so its density cannot be regulated.
 
 A neuron is an organelle type like any other, with a position, a size and a place in the layout, though for a neuron they mean only cost and space (ADR-0031). A synapse is not an organelle: it is a relation between an output port and an input port, with no geometry (ADR-0028, ADR-0031).
 
@@ -284,7 +298,7 @@ maintenance = c₀ + β · cytoplasmArea
             + Σ synapses   c_synapse
 ```
 
-With no organelles this is v0.1's `c₀ + β·area` exactly. `β_type` says what a type's tissue costs relative to cytoplasm. There is no construction cost at birth: a child's mass is still `ρ · bodyArea`, and everything else an organelle costs it pays per tick.
+With no organelles this is v0.1's `c₀ + β·area` exactly. `β_type` says what a type's tissue costs relative to cytoplasm; in v0.2 every type's is `β` (ADR-0032). There is no construction cost at birth: a child's mass is still `ρ · bodyArea`, and everything else an organelle costs it pays per tick.
 
 That combination is what makes the size/number trade-off real. Effectiveness scales with radius, so dividing an organelle's area into `n` pieces raises its output as `√n` at the same area cost, and a split always looks attractive. Two things push back: every piece pays its own overhead, and more circles need a wider enclosing circle, so the body, its cytoplasm and a child's mass grow. The overhead is what bounds the count, and it gives each type a closed-form optimal organelle radius, the same shape as `r_opt`:
 
@@ -294,7 +308,7 @@ r*_type = c_type / k_type
 
 Where the balance falls depends on the organelle type — which is exactly the variety worth having — and, for a chloroplast, on depth: its `k` carries the light and the internal CO₂, which falls as fixation nears the CO₂ the body's perimeter lets in, so few large chloroplasts pay near the surface and many small ones in the dark.
 
-A new organelle is born small, so a fixed overhead leaves it in the red until it grows. Insertion must be near-painless, so `c_type` is derived from the insertion size rather than the other way round: an organelle inserted where its type works starts near break-even (`r_new ≈ r*/2`). A neuron's overhead and a synapse's are small, so new network structure is cheap and near-neutral.
+A new organelle is born small, so a fixed overhead leaves it in the red until it grows. Insertion must be near-painless, so `c_type` is derived from the insertion size rather than the other way round: an organelle inserted where its type works starts near break-even (`r_new ≈ r*/2`). Only the chloroplast's output is energy, so only it has a closed-form `r*`; the float and the thruster share its overhead, one `c_organelle` for all three (ADR-0032). A neuron's overhead and a synapse's are small, so new network structure is cheap and near-neutral.
 
 Position matters too: a chloroplast reads light where it sits, and an eye near the centre sees almost omnidirectionally, an eye near the rim sees a narrow, specialised cone.
 
@@ -411,7 +425,9 @@ velocity     += buoyantWeight / (6π · r)
 
 Each type declares an **organelle density** `ρ_type`, a constant and never a gene, and it is separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area. The cytoplasm is water inside the membrane and neutral at every depth, stores included, so a body with no organelles moves exactly as in v0.1. There is no density gene: a body's density is what its organelles are made of.
 
-Because the water is stratified, a body rests where its organelles' mean density meets the water's, `ρ_w(y*) = Σ ρ_type·aᵢ / Σ aᵢ`, held there by a restoring force proportional to its organelle area. Carrying more float against more chloroplast is therefore a continuous, heritable choice of depth that needs no neurons. Uniform water would leave only three outcomes, surface, floor or neutral, which is why there is no gravity without stratification.
+A type weighs only when weight is what it does or what it costs (ADR-0032). The float's lift is its function, and the chloroplast's weight is the price of photosynthesis: `ρ_float = ρ_w(0) − Δ` and `ρ_chloro = ρ_w(H) + Δ/2`, with `Δ` the water's span. The thruster and the neuron are weightless like the cytoplasm, so a network or a thruster is never selected for its buoyancy, and a neuron's insertion stays neutral. The sums below run over weighing organelles only.
+
+Because the water is stratified, a body rests where its organelles' mean density meets the water's, `ρ_w(y*) = Σ ρ_type·aᵢ / Σ aᵢ`, held there by a restoring force proportional to its organelle area. Carrying more float against more chloroplast is therefore a continuous, heritable choice of depth that needs no neurons. With the roster's densities a body rests inside the column when chloroplasts make up 40–80% of its weighing area, and in the bright zone only when it carries about as much float as chloroplast. A chloroplast alone sinks its carrier to the floor, where it cannot breed, and a float alone already pays by gathering a wandering body towards the light, so the expected route is float first, then chloroplast. Uniform water would leave only three outcomes, surface, floor or neutral, which is why there is no gravity without stratification.
 
 Each organelle weighs at its own position, so a body whose centre of mass sits below its centre of buoyancy is turned upright: passive gravitaxis, and the vertical half of why organelle placement matters.
 
@@ -427,7 +443,9 @@ Collisions are not decoration. Light is the only spatially localised resource in
 
 ### Thrusters
 
-_(v0.2+.)_ Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed. Its input port takes a signal that sets the fraction of its maximum force, pushing forward only; unwired, it runs at its own `drive` (ADR-0031). Composition sets the depth a body rests at for free; a thruster holding it anywhere else pays `k_thrust × |F|` every tick it does so.
+_(v0.2+.)_ Each thruster has a position and an orientation, independent of each other. It pushes at its centre along its orientation, contributing to both linear motion and rotation — which is what makes organelle placement matter. A radial thruster pushes the body straight; a tangential one near the rim both turns it and moves it; pure rotation takes a pair of opposed thrusters. Position has no law of its own beyond that lever arm (ADR-0032). Under overdamped physics, a thruster's output maps directly to a speed.
+
+Its maximum force scales with its radius, `F_max = kForce × 2·r`, like every type whose output is a rate. Its input port, `power`, takes a signal that sets the fraction of that force, `clamp(drive + Σ, 0, 1)`, pushing forward only; unwired, it runs at its own `drive` (ADR-0031). `drive` is additive, clamped to `[0, 1]`, and born small but not zero, so a new thruster already does something. A newly inserted thruster points at a uniformly drawn angle. A Split copies `drive` and every incoming synapse to both pieces, each pushing by its own radius, so total force grows by up to ×1.41, and the two pieces can later diverge into finer control. Composition sets the depth a body rests at for free; a thruster holding it anywhere else pays `k_thrust × |F|` every tick it does so.
 
 ---
 
@@ -535,7 +553,7 @@ The genome is a fixed **header** of organism genes plus a `Gene[]` of structural
 
 **Structural genes** are the `Gene[]`:
 
-- an `OrganelleGene` has a type (neuron is one), a position in the genome's frame, a radius, an orientation and the parameters its type declares;
+- an `OrganelleGene` has a type (neuron is one), a position in the genome's frame, a radius and the parameters its type declares, orientation among them for a type that uses one;
 - a `SynapseGene` has a source `(id, output port)`, a destination `(id, input port)` and a weight.
 
 Each carries an `id`, its **innovation id**: minted once from a monotonic per-world counter when the gene is inserted or split off, and preserved through mutation and inheritance (NEAT-style innovation numbers). Stable ids are what let a gene recognise itself across generations. They are needed immediately, because a synapse references the ids of its endpoints, and they will be needed to align genes during crossover. Aligning by array position breaks as soon as two lineages duplicate genes differently: the competing-conventions problem.
@@ -565,9 +583,9 @@ Organism genes mutate as in v0.1, each with its own independent probability. The
 
 The operators:
 
-- **parameter change**: one parameter of one organelle, by the law its type declares. Types declare their parameters and pick each one's law from a closed menu (symmetric multiplicative, symmetric multiplicative with a floor, additive clamped, wrapping angle), widened only by ADR, so every law's worst case can be read off its declaration. Radius is symmetric multiplicative; position is a Cartesian step of at most `δ_pos` times the organelle's own radius; orientation is a wrapping angle.
+- **parameter change**: one parameter of one organelle, by the law its type declares. Types declare their parameters and pick each one's law from a closed menu (symmetric multiplicative, symmetric multiplicative with a floor, additive clamped, wrapping angle), widened only by ADR, so every law's worst case can be read off its declaration. Radius is symmetric multiplicative; position is a Cartesian step of at most `δ_pos` times the organelle's own radius; orientation, where a type declares it, is a wrapping angle.
 - **weight change**: a small continuous step on one synapse.
-- **insertion**: an organelle of a type drawn uniformly from the roster, born at a small fixed size at a uniform position inside the current body; a neuron is such an insertion, born unconnected and so exactly neutral; a synapse from an output port drawn uniformly among all of them to an input port drawn likewise, born with a small weight. New organelles cost very little and can grow over subsequent generations.
+- **insertion**: an organelle of a type drawn uniformly from the roster, born at a small fixed size at a uniform position inside the current body, and at a uniform angle if its type has one; a neuron is such an insertion, born unconnected and so exactly neutral; a synapse from an output port drawn uniformly among all of them to an input port drawn likewise, born with a small weight. New organelles cost very little and can grow over subsequent generations.
 - **deletion**: one gene, and in cascade every synapse touching it, as one event.
 - **split**: duplication, which divides rather than copies. One organelle becomes two of areas `f·A` and `(1−f)·A`, with `f` drawn from a triangular bell on `[0.2, 0.8]`; incoming synapses are copied to both pieces, outgoing ones divided as `f·w` and `(1−f)·w`. For a neuron that is exactly neutral; for any organelle it conserves area. Synapses are never split on their own.
 

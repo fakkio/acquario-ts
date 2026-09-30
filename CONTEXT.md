@@ -20,6 +20,22 @@ _Avoid_: creature, agent, cell, entity
 A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1. From v0.2 a neuron is an organelle; a synapse is not. Each type declares its **Ports**.
 _Avoid_: organ, module, part
 
+**Roster**:
+The set of organelle types a version ships, and the set an insertion draws its type from. v0.2's is the chloroplast, the **Float**, the thruster and the neuron; every other type in `vision.md`'s table is deferred with the version it is expected in.
+_Avoid_: catalogue, palette, organelle list
+
+**Float**:
+From v0.2, the organelle type lighter than the water at the surface. Its only effect is lift: it moves the depth its carrier rests at upward and, placed off-centre, turns the body upright. The passive capability it improves is staying suspended. It has no ports, so its density cannot be regulated.
+_Avoid_: gas vesicle, vesicle (that is storage), swim bladder, balloon
+
+**Chloroplast**:
+From v0.2, the organelle type that fixes carbon: passive photosynthesis run on its own disc, reading light where it sits. It is denser than the water at the floor, so photosynthesis costs lift. It has no ports.
+_Avoid_: photosynthetic organelle, plastid, leaf
+
+**Thruster**:
+From v0.2, the organelle type that pushes the body along its own orientation, from its own position, with a force that scales with its radius. The only type with an orientation and the only **Actuator**. Weightless.
+_Avoid_: flagellum, motor, propeller, muscle
+
 **Minimal Organism**:
 An organism with no organelles, surviving on innate passive capabilities alone. The only kind of organism in v0.1.
 _Avoid_: base organism, default organism
@@ -63,7 +79,7 @@ From v0.2, an element of the genome's `Gene[]`: an **Organelle Gene** or a **Syn
 _Avoid_: gene (alone, when the distinction matters), module gene, body gene
 
 **Organelle Gene**:
-The structural gene describing one organelle: its type, position, radius, orientation and the parameters its type declares. A neuron is an organelle type, so a neuron is an organelle gene too.
+The structural gene describing one organelle: its type, position, radius and the parameters its type declares, orientation among them for a type that uses one. A neuron is an organelle type, so a neuron is an organelle gene too.
 _Avoid_: organ gene, part gene, neuron gene (as a separate kind)
 
 **Synapse Gene**:
@@ -273,11 +289,11 @@ The random force applied to every organism, and the only source of movement in v
 _Avoid_: drift, jitter, wander, random walk
 
 **Buoyant Weight**:
-From v0.2, the vertical force gravity puts on a body: over its organelles only, each one's area times the difference between its **Organelle Density** and the **Water Density** where it sits, applied at the organelle's own position so it also turns the body. Zero for a body with no organelles, at any depth. It vanishes where the organelles' mean density meets the water's, which is the depth a body rests at without thrust (ADR-0030).
+From v0.2, the vertical force gravity puts on a body: over its weighing organelles only, each one's area times the difference between its **Organelle Density** and the **Water Density** where it sits, applied at the organelle's own position so it also turns the body. Zero for a body with no organelles, at any depth. It vanishes where the organelles' mean density meets the water's, which is the depth a body rests at without thrust (ADR-0030).
 _Avoid_: gravity (that is the field), mass, buoyancy (alone), sinking force
 
 **Organelle Density**:
-The mass per area an organelle type declares, a constant of the type and never a gene, compared against the **Water Density** to give its share of **Buoyant Weight**. Separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area.
+The mass per area an organelle type declares, a constant of the type and never a gene, compared against the **Water Density** to give its share of **Buoyant Weight**. Only a type whose function or cost is its weight declares one; every other type is weightless, like the cytoplasm. Separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area.
 _Avoid_: density (alone), ρ (that is carbon), weight, buoyancy
 
 **Water Density**:
