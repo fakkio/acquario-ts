@@ -17,7 +17,7 @@ An autonomous individual: a circular body carrying a genome, internal resource s
 _Avoid_: creature, agent, cell, entity
 
 **Organelle**:
-A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1. From v0.2 a neuron is an organelle; a synapse is not.
+A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1. From v0.2 a neuron is an organelle; a synapse is not. Each type declares its **Ports**.
 _Avoid_: organ, module, part
 
 **Minimal Organism**:
@@ -67,7 +67,7 @@ The structural gene describing one organelle: its type, position, radius, orient
 _Avoid_: organ gene, part gene, neuron gene (as a separate kind)
 
 **Synapse Gene**:
-The structural gene describing one synapse: a source endpoint, a destination endpoint and a weight. The one structural gene with no geometry, a relation rather than an object.
+The structural gene describing one **Synapse**: a source output **Port**, a destination input **Port** and a weight. The one structural gene with no geometry, a relation rather than an object.
 _Avoid_: connection gene, edge, link
 
 **Split**:
@@ -291,6 +291,36 @@ _Avoid_: collision response, bounce, impulse resolution
 **Uniform Grid**:
 The spatial index rebuilt each tick, bucketing organisms by cell index for neighbour queries.
 _Avoid_: spatial hash, quadtree, broadphase
+
+### Nervous system
+
+**Neuron**:
+From v0.2, the organelle type that computes: one input **Port** it integrates over time and one output Port carrying the result. Its size and position mean only cost and space.
+_Avoid_: node, unit, cell
+
+**Synapse**:
+A weighted connection from an output **Port** to an input Port, carrying a **Signal** from one tick to the next. Described by a **Synapse Gene**; not an organelle, and with no geometry.
+_Avoid_: connection, edge, link, wire
+
+**Signal**:
+The value an output **Port** carries on one tick: in `[−1, 1]` from a neuron, in `[0, 1]` or `[−1, 1]` from an **Innate Sense**.
+_Avoid_: activation (that is the function), output (that is the port), impulse, spike
+
+**Port**:
+A named place on an organelle, or on the body, where synapses attach: an input port receives the weighted sum of its synapses, an output port emits one **Signal** per tick. Each type declares its own; a port takes any number of synapses.
+_Avoid_: pin, channel, socket, input/output (alone)
+
+**Innate Sense**:
+An output **Port** of the body itself, present in every organism at no cost: a store over its cap, the light at the body's centre, or which way the body's axis points. The passive version of what a sensor organelle would improve.
+_Avoid_: sensor (reserved for sensor organelles, v0.3+), input neuron, perception
+
+**Actuator**:
+An organelle whose input **Port** turns a **Signal** into an effect on the world. In v0.2 only the thruster.
+_Avoid_: motor, effector, output neuron
+
+**Drive**:
+The signal an **Actuator** acts on when nothing is wired to it, and the offset its wired inputs add to. A thruster with no synapses pushes at its drive.
+_Avoid_: bias (that is the neuron's), baseline, idle level
 
 ### Calibration
 

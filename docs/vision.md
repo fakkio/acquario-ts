@@ -68,7 +68,7 @@ Each organelle is a circle with a type, a position relative to the body centre, 
 
 An organelle runs the passive capability it improves on its own disc, with a better coefficient, so a rate-producing organelle's effectiveness scales with its **radius**, as passive photosynthesis scales with the body's diameter. A chloroplast fixes `kChloro × light × 2·r_c × C_internal(CO₂)`, reading light at its own position in the world rather than at the body's centre. It only fixes carbon: it has no exchange surface of its own, so its ceiling is the CO₂ the body's perimeter lets in, and lifting that ceiling is a gill's job (ADR-0029).
 
-A neuron is an organelle type like any other, with a position, a size and a place in the layout; what its size and position mean is the nervous system's to decide. A synapse is not an organelle: it is a relation between two endpoints, with no geometry (ADR-0028).
+A neuron is an organelle type like any other, with a position, a size and a place in the layout, though for a neuron they mean only cost and space (ADR-0031). A synapse is not an organelle: it is a relation between an output port and an input port, with no geometry (ADR-0028, ADR-0031).
 
 ### Body construction
 
@@ -318,25 +318,47 @@ These references concern topology only, not learning. There is no training withi
 
 ### Neurons
 
-Neurons are organelles. Updates are synchronous: at each tick every neuron computes its new output from the _previous_ tick's outputs of its source neurons, which is necessary because a recurrent network has cycles and therefore no valid topological order.
+Neurons are organelles. Updates are synchronous: at each tick every neuron computes its new signal from the _previous_ tick's signals of its sources, which is necessary because a recurrent network has cycles and therefore no valid topological order.
 
 ```text
-inputSum   = bias + Σ (weightᵢ × previousOutput(sourceᵢ))
-memory_t+1 = decay × memory_t + inputSum
-fired      = memory_t+1 ≥ threshold
-output_t+1 = activation(memory_t+1)
-if fired: memory_t+1 = memory_t+1 × dischargeFactor
+inputSum = bias + Σ (weightᵢ × previousSignal(sourceᵢ))
+memory  ← decay · memory + (1 − decay) · inputSum          decay = 1 − 1/τ
+signal   = tanh(memory)
+if memory ≥ threshold: memory ← memory × dischargeFactor
 ```
 
-`decay`, `bias`, `threshold`, `dischargeFactor` and the choice of `activation` (from a small evolvable set: tanh, sigmoid, sin, step, …) are all genes. `memory` is the leaky integrator giving a neuron persistence across ticks. `threshold` and `dischargeFactor` enable integrate-and-fire behaviour: a neuron can accumulate silently for many ticks then discharge at once, or integrate continuously without ever firing.
+`memory` is a leaky integrator moving _towards_ its input, so a constant input `u` settles at `u` whatever the memory length: time constant and gain are separate (ADR-0031). The genes are:
 
-### Synapses
+- **`τ`**, the time constant in ticks: symmetric multiplicative, floored at 1, where the neuron has no memory;
+- **`bias`**, additive, born at 0, the centre-crossing point of `tanh`;
+- **`threshold`**, additive;
+- **`dischargeFactor`**, additive in `[0, 1]`.
 
-Synapses are encoded in the genome, each with a source, a destination and a weight.
+A neuron is born with `dischargeFactor = 1`, where firing changes nothing and the neuron is a plain continuous-time recurrent neuron. As the factor falls, the reset strengthens continuously, so every behaviour from "always on" to "accumulate silently, fire, reset" is reachable from one neuron in small steps. A latch needs no discharge at all: a self-synapse of weight above 1 is bistable, and a pulse switches it between its two states.
+
+`tanh` is v0.2's only activation, so signals lie in `[−1, 1]`. Any function added later must share its value 0 and slope 1 at zero (`sin`, a clamped identity), so that switching between them stays near-neutral.
+
+A neuron's size and position carry no meaning beyond its cost, its space and its place in the layout. Tying gain or time constant to radius would make a split change both pieces and lose its exact neutrality, so neurons are left to shrink under their own cost.
+
+### Ports and synapses
+
+Every organelle type declares named **input ports** and **output ports**. A synapse joins an output port to an input port with a weight, and is encoded in the genome. A port takes any number of synapses: an input port receives the weighted sum of its synapses' signals from the previous tick, and each type decides what to do with that sum; an output port carries one signal per tick. Self-synapses are allowed, and so is a synapse straight from a sense to an actuator, a reflex with no neuron between.
+
+In v0.2 a neuron has one input and one output port; a thruster has one input port. A thruster's signal is `clamp(drive + Σ, 0, 1)` and it pushes with that fraction of its maximum force, forward only. With nothing wired to it, it runs at its `drive`, a flagellum at constant thrust.
+
+### Innate senses
+
+The body itself is an endpoint, with one reserved id and output ports only. Those ports are the **innate senses** every organism has, the passive version of what a sensor organelle would improve:
+
+- `energy`, `food`, `O₂`, `CO₂`: each store over its cap, in `[0, 1]`;
+- `light`: light at the body's centre, in `[0, 1]`, which in v0.2 is also its depth;
+- `up` and `tilt`: `cos θ` and `sin θ` of the angle between the body's axis and the vertical, in `[−1, 1]`.
+
+v0.2 has no sensor organelles; the eye (v0.3) is the first.
 
 ### A single network
 
-Organelles can have inputs and outputs: eyes produce sensory signals, thrusters receive control signals, lungs receive activation signals, neurons do both. Organelles and neurons share one identity space, so a synapse can connect two neurons, a neuron and an organelle, or two organelles — modelling brain and body as a single network.
+Organelles and the body share one identity space and one port model: eyes will produce signals, thrusters receive them, neurons do both. A synapse can connect two neurons, a neuron and an organelle, a sense and an organelle, or two organelles, modelling brain and body as a single network.
 
 ---
 
@@ -405,7 +427,7 @@ Collisions are not decoration. Light is the only spatially localised resource in
 
 ### Thrusters
 
-_(v0.2+.)_ Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed. Composition sets the depth a body rests at for free; a thruster holding it anywhere else pays `k_thrust × |F|` every tick it does so.
+_(v0.2+.)_ Each thruster has a position and an orientation. When activated it generates a force along its own direction, contributing to both linear motion and rotation — which is what makes organelle placement matter. Under overdamped physics, a thruster's output maps directly to a speed. Its input port takes a signal that sets the fraction of its maximum force, pushing forward only; unwired, it runs at its own `drive` (ADR-0031). Composition sets the depth a body rests at for free; a thruster holding it anywhere else pays `k_thrust × |F|` every tick it does so.
 
 ---
 
@@ -514,11 +536,11 @@ The genome is a fixed **header** of organism genes plus a `Gene[]` of structural
 **Structural genes** are the `Gene[]`:
 
 - an `OrganelleGene` has a type (neuron is one), a position in the genome's frame, a radius, an orientation and the parameters its type declares;
-- a `SynapseGene` has a source, a destination and a weight.
+- a `SynapseGene` has a source `(id, output port)`, a destination `(id, input port)` and a weight.
 
 Each carries an `id`, its **innovation id**: minted once from a monotonic per-world counter when the gene is inserted or split off, and preserved through mutation and inheritance (NEAT-style innovation numbers). Stable ids are what let a gene recognise itself across generations. They are needed immediately, because a synapse references the ids of its endpoints, and they will be needed to align genes during crossover. Aligning by array position breaks as soon as two lineages duplicate genes differently: the competing-conventions problem.
 
-Ids are **identity only**. The counter advances in population order, so an id's value depends on processing order; nothing may therefore sort, iterate, draw or branch on an id's value, and evaluation order is a gene's position in the genome. Innate endpoints a synapse can reference without being genes (innate senses) have fixed ids reserved outside the counter's range.
+Ids are **identity only**. The counter advances in population order, so an id's value depends on processing order; nothing may therefore sort, iterate, draw or branch on an id's value, and evaluation order is a gene's position in the genome. The body, whose output ports are the innate senses, is the one endpoint that is not a gene; it has a fixed id reserved outside the counter's range (ADR-0031).
 
 There is no activation flag in v0.2. An inactive gene that pays nothing makes reactivation an unbounded jump in a child's cost; one that pays in full is strictly worse than deleting it. The flag's canonical use is crossover, and it returns with crossover if needed.
 
@@ -543,9 +565,9 @@ Organism genes mutate as in v0.1, each with its own independent probability. The
 
 The operators:
 
-- **parameter change**: one parameter of one organelle, by the law its type declares. Types declare their parameters and pick each one's law from a closed menu (symmetric multiplicative, additive clamped, wrapping angle), widened only by ADR, so every law's worst case can be read off its declaration. Radius is symmetric multiplicative; position is a Cartesian step of at most `δ_pos` times the organelle's own radius; orientation is a wrapping angle.
+- **parameter change**: one parameter of one organelle, by the law its type declares. Types declare their parameters and pick each one's law from a closed menu (symmetric multiplicative, symmetric multiplicative with a floor, additive clamped, wrapping angle), widened only by ADR, so every law's worst case can be read off its declaration. Radius is symmetric multiplicative; position is a Cartesian step of at most `δ_pos` times the organelle's own radius; orientation is a wrapping angle.
 - **weight change**: a small continuous step on one synapse.
-- **insertion**: an organelle of a type drawn uniformly from the roster, born at a small fixed size at a uniform position inside the current body; a neuron is such an insertion, born unconnected and so exactly neutral; a synapse between two existing endpoints, born with a small weight. New organelles cost very little and can grow over subsequent generations.
+- **insertion**: an organelle of a type drawn uniformly from the roster, born at a small fixed size at a uniform position inside the current body; a neuron is such an insertion, born unconnected and so exactly neutral; a synapse from an output port drawn uniformly among all of them to an input port drawn likewise, born with a small weight. New organelles cost very little and can grow over subsequent generations.
 - **deletion**: one gene, and in cascade every synapse touching it, as one event.
 - **split**: duplication, which divides rather than copies. One organelle becomes two of areas `f·A` and `(1−f)·A`, with `f` drawn from a triangular bell on `[0.2, 0.8]`; incoming synapses are copied to both pieces, outgoing ones divided as `f·w` and `(1−f)·w`. For a neuron that is exactly neutral; for any organelle it conserves area. Synapses are never split on their own.
 
