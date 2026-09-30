@@ -386,11 +386,11 @@ Eyes have no concept of predator, prey or mate. They perceive physical character
 
 ### Colour
 
-From v0.2, colour derives from body composition: green for chloroplasts, red for muscle, blue for lungs, yellow for eyes. Organisms can use it to recognise similar individuals, potential mates and potential prey.
+A body's hue comes from `lineageHue`, a heritable gene with no physiological effect that drifts slightly each generation — a neutral marker locus, the same tool population geneticists use to track descent. On screen, related organisms share a colour, so a clade sweeping the population is visible as a wave of colour and coexisting strategies show as stable patches.
 
-In v0.1 a body's hue comes instead from `lineageHue`, a heritable gene with no physiological effect that drifts slightly each generation — a neutral marker locus, the same tool population geneticists use to track descent. On screen, related organisms share a colour, so a clade sweeping the population is visible as a wave of colour and coexisting strategies show as stable patches.
+v0.2 keeps it that way. Composition reaches the screen by drawing the organelles inside the body, each in its type's colour (see Interface), not by recolouring the body: the organelles already show what a body is made of, and recolouring would erase the one instrument that shows which lineage is winning. The screen is not an eye, so nothing an organism can perceive is decided here (#50).
 
-`lineageHue` lives in the genome, not in the rendering layer. The moment v0.2 eyes can perceive it, it stops being neutral: mimicry, aposematism and kin recognition all become evolvable, and colour becomes a signal that can lie. How that reconciles with composition-derived colour is an open v0.2 decision.
+`lineageHue` lives in the genome, not in the rendering layer. The moment v0.3 eyes can perceive it, it stops being neutral: mimicry, aposematism and kin recognition all become evolvable, and colour becomes a signal that can lie. What a body shows to an eye — composition-derived colour (green for chloroplasts, red for thrusters, …), `lineageHue`, or both — and how the arbitrary marker reconciles with honest signalling is an open v0.3 decision. The screen's type palette does not bind it.
 
 ---
 
@@ -689,6 +689,16 @@ Rendering encodes state directly: **hue** is `lineageHue`, **brightness** is the
 The CSV export this section used to promise is gone. The calibration harness replaced it (ADR-0024): comparing runs offline was the whole justification, and a reproducible command whose output diffs does that better than a file someone remembered to click for.
 
 There is no run persistence: closing the tab loses the run.
+
+### v0.2
+
+The v0.1 view carries over; bodies now have insides (#50).
+
+- **Body.** The cytoplasm is filled in the body's `lineageHue`, less saturated than v0.1's fill, so clade waves stay readable at any zoom. Brightness is still the energy fraction and dims the **whole** organism, organelles included, so dying still reads as fading.
+- **Organelles.** Drawn inside the body at their positions, opaque, saturated and with a dark outline, so a green lineage never swallows its chloroplasts. Type colours are the screen's only: **chloroplast** green, **thruster** red, **float** pale white-blue and translucent, like a bubble, **neuron** light grey. Only the thruster has an orientation, so only the thruster is drawn as an oriented shape (a wedge along its thrust), with a mark of how hard it is pushing that tick, proportional to `|F|`; every other type is a disc whose angle is never drawn. Body rotation is visible through the organelles turning with it.
+- **Synapses** never appear in the main view: port-to-port wiring is shown only by the inspector.
+- **HUD.** The organism genes keep their mean ± σ. Structural genes cannot be averaged by name, so for each roster type the HUD shows the fraction of the population carrying at least one and the mean count per carrier.
+- **Selecting and inspecting** an organism ships with the first milestone that gives bodies organelles, and grows with each milestone after it: genome and organelles first, port-to-port wiring with the nervous system. Its layout is each milestone's own.
 
 ---
 

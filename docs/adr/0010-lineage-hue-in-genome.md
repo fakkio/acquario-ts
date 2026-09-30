@@ -15,4 +15,4 @@ Keeping the hue purely in the rendering layer, derived from an id. Rejected deli
 ## Consequences
 
 - The moment eyes can see it, `lineageHue` **stops being neutral**. Mimicry, aposematism and kin recognition become evolvable, and colour becomes a signal that can lie.
-- That leaves an open v0.2 question: how a heritable arbitrary marker reconciles with colour as honest signalling of body composition.
+- That leaves an open question: how a heritable arbitrary marker reconciles with colour as honest signalling of body composition. It moves to v0.3 with the eyes: v0.2's screen keeps `lineageHue` as body hue and shows composition by drawing the organelles, with a type palette that binds nothing an eye perceives (#50).
