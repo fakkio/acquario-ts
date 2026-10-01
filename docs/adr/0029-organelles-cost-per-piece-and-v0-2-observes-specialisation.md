@@ -59,7 +59,7 @@ The physical power under Stokes drag is `F·v`. It makes holding depth against g
 
 ## Specialisation is observed, not paid for
 
-ADR-0014 asked what makes a producer out-compete a generalist. The prior-art research (#43) corrects its axis. Every organism respires, so respiration combines multiplicatively with any food route, and the literature's trade-off is between substitutable routes: **chloroplast against food intake**. v0.2 has no food intake beyond passive diffusion (eating is v0.3), and the dark does not breed (ADR-0023). So there is no second route to specialise into, and a per-capability overhead would only be a surcharge on the first chloroplast that deepens the insertion valley.
+ADR-0014 asked what makes a producer out-compete a generalist. The prior-art research (#43, [findings](../research/organ-costs.md)) corrects its axis. Every organism respires, so respiration combines multiplicatively with any food route, and the literature's trade-off is between substitutable routes: **chloroplast against food intake**. v0.2 has no food intake beyond passive diffusion (eating is v0.3), and the dark does not breed (ADR-0023). So there is no second route to specialise into, and a per-capability overhead would only be a surcharge on the first chloroplast that deepens the insertion valley.
 
 v0.2 takes **do nothing and observe**. The ecological option comes for free, since the closed carbon ledger already makes the pools depletable (ADR-0001), and no law is written for it. The question reopens in v0.3, on the corrected axis, when eating gives it a second route.
 
