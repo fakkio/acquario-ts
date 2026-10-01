@@ -21,7 +21,7 @@ A specialised structure inside a body that provides a capability the minimal org
 _Avoid_: organ, module, part
 
 **Roster**:
-The set of organelle types a version ships, and the set an insertion draws its type from. v0.2's is the chloroplast, the **Float**, the thruster and the neuron; every other type in `vision.md`'s table is deferred with the version it is expected in.
+The set of organelle types shipped so far, and the set an insertion draws its type from. It grows milestone by milestone: v0.2 starts from the neuron alone and ends with the chloroplast, the **Float**, the thruster and the neuron; every other type in `vision.md`'s table is deferred with the version it is expected in.
 _Avoid_: catalogue, palette, organelle list
 
 **Float**:

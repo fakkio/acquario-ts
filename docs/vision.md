@@ -37,7 +37,7 @@ Every advanced capability is implemented as an organelle.
 | Sexual reproduction  | Gonad          | v0.5    |
 | Egg laying           | Uterus         | v0.5    |
 
-Versions after v0.2 are tentative. v0.2's four types are its **roster**, the set an insertion draws from (ADR-0032).
+Versions after v0.2 are tentative. v0.2's four types are its **roster**, the set an insertion draws from (ADR-0032). The roster grows milestone by milestone, starting from the neuron alone (see [Milestones](#milestones)).
 
 Organisms can survive with no organelles at all. Organelles are evolutionary optimisations of capabilities every organism already has.
 
@@ -65,7 +65,7 @@ In v0.1 every organism is a circle, and a body has a position and nothing else k
 
 ### Organelles
 
-_(v0.2+ — no organelles exist in v0.1.)_
+_(From v0.2; no organelles exist in v0.1.)_
 
 Each organelle is a circle with a type, a position relative to the body centre, a radius and the parameters its type declares. Orientation is one of those only for a type that uses it: a disc that reads light where it sits is the same at any angle, so in v0.2 only the thruster has one (ADR-0032). Size determines both energy cost and effectiveness: a larger lung holds more gas, a larger thruster produces more thrust, a larger eye sees further.
 
@@ -86,7 +86,7 @@ A neuron is an organelle type like any other, with a position, a size and a plac
 
 ### Body construction
 
-_(v0.2+.)_ The genome defines organelle layout. When an organism is generated:
+_(From v0.2.)_ The genome defines organelle layout. When an organism is generated:
 
 1. organelles are created
 2. overlaps are detected
@@ -193,7 +193,7 @@ This also gives v0.1 two ways to live from a single genome, and only one of them
 
 ### Resource pools
 
-O₂, CO₂ and food are three global, well-mixed pools with no spatial variation — a zero-dimensional approximation of the spatial fluid simulation planned for v0.2+.
+O₂, CO₂ and food are three global, well-mixed pools with no spatial variation — a zero-dimensional approximation of the spatial fluid simulation planned for v0.4.
 
 The pools start at finite values and never receive external injections. They exchange matter only with each other and with organisms.
 
@@ -242,11 +242,11 @@ Mortality is a property of the world, not of the milestone: a world is construct
 
 ### Predation
 
-_(v0.2+.)_ Organisms will be able to obtain energy by eating other organisms. This requires dedicated organelles and behaviour.
+_(v0.3+.)_ Organisms will be able to obtain energy by eating other organisms. This requires dedicated organelles (teeth / spines, against a carapace) and behaviour. Eating is also what opens the dark (ADR-0023).
 
 ### Scavenging
 
-_(v0.2+.)_ Corpses will persist as entities releasing organic matter that can be consumed. In v0.1 this is simplified to instant conversion to food on death; a corpse only becomes worth modelling once something exists that can interact with it.
+_(v0.3+.)_ Corpses will persist as entities releasing organic matter that can be consumed. In v0.1 this is simplified to instant conversion to food on death; a corpse only becomes worth modelling once something exists that can interact with it.
 
 ---
 
@@ -290,7 +290,7 @@ The `c₀/r²` term is what prevents a race to zero: without a flat cost, smalle
 
 ### Organelle costs
 
-_(v0.2+.)_ Every area in a body is paid once, at the rate of whatever occupies it, and each organelle and synapse pays a flat **organelle overhead** (ADR-0029):
+_(From v0.2.)_ Every area in a body is paid once, at the rate of whatever occupies it, and each organelle and synapse pays a flat **organelle overhead** (ADR-0029):
 
 ```text
 maintenance = c₀ + β · cytoplasmArea
@@ -316,13 +316,13 @@ Sublinear effectiveness favours the generalist carrying two substitutable routes
 
 ### Activity costs
 
-_(v0.2+.)_ A thruster pays in proportion to the force it produces, `k_thrust × |F|` per tick, not the physical power `F·v`: under Stokes drag, power would make holding depth against gravity at rest free. Neurons pay no activity cost; they evaluate every tick anyway, so their overhead already covers it.
+_(From v0.2.)_ A thruster pays in proportion to the force it produces, `k_thrust × |F|` per tick, not the physical power `F·v`: under Stokes drag, power would make holding depth against gravity at rest free. Neurons pay no activity cost; they evaluate every tick anyway, so their overhead already covers it.
 
 ---
 
 ## Nervous system
 
-_(v0.2+.)_
+_(From v0.2.)_
 
 ### Philosophy
 
@@ -378,7 +378,7 @@ Organelles and the body share one identity space and one port model: eyes will p
 
 ## Sight
 
-_(v0.2+.)_
+_(v0.3+.)_
 
 Eyes observe a vision cone whose shape depends on the eye's position: closer to the rim means narrower and more specialised, closer to the centre means broader coverage and less specialisation. Viewing distance depends on eye size.
 
@@ -416,7 +416,7 @@ Because the diffusion coefficient goes as `1/r`, large organisms wander slowly a
 
 ### Gravity and buoyancy
 
-_(v0.2+.)_ Gravity is one more force in the overdamped sum, and it weighs **organelles only**, against water that grows denser towards the floor (ADR-0030):
+_(From v0.2.)_ Gravity is one more force in the overdamped sum, and it weighs **organelles only**, against water that grows denser towards the floor (ADR-0030):
 
 ```text
 buoyantWeight = g · Σ organelles (ρ_type − ρ_w(y_i)) · a_i        positive = down
@@ -443,7 +443,7 @@ Collisions are not decoration. Light is the only spatially localised resource in
 
 ### Thrusters
 
-_(v0.2+.)_ Each thruster has a position and an orientation, independent of each other. It pushes at its centre along its orientation, contributing to both linear motion and rotation — which is what makes organelle placement matter. A radial thruster pushes the body straight; a tangential one near the rim both turns it and moves it; pure rotation takes a pair of opposed thrusters. Position has no law of its own beyond that lever arm (ADR-0032). Under overdamped physics, a thruster's output maps directly to a speed.
+_(From v0.2.)_ Each thruster has a position and an orientation, independent of each other. It pushes at its centre along its orientation, contributing to both linear motion and rotation — which is what makes organelle placement matter. A radial thruster pushes the body straight; a tangential one near the rim both turns it and moves it; pure rotation takes a pair of opposed thrusters. Position has no law of its own beyond that lever arm (ADR-0032). Under overdamped physics, a thruster's output maps directly to a speed.
 
 Its maximum force scales with its radius, `F_max = kForce × 2·r`, like every type whose output is a rate. Its input port, `power`, takes a signal that sets the fraction of that force, `clamp(drive + Σ, 0, 1)`, pushing forward only; unwired, it runs at its own `drive` (ADR-0031). `drive` is additive, clamped to `[0, 1]`, and born small but not zero, so a new thruster already does something. A newly inserted thruster points at a uniformly drawn angle. A Split copies `drive` and every incoming synapse to both pieces, each pushing by its own radius, so total force grows by up to ×1.41, and the two pieces can later diverge into finer control. Composition sets the depth a body rests at for free; a thruster holding it anywhere else pays `k_thrust × |F|` every tick it does so.
 
@@ -457,13 +457,13 @@ A vertical gradient, strongest at the surface and weakest at depth.
 
 ### Water
 
-_(v0.2+.)_ The water's density rises linearly from the surface to the floor, a stratified column rather than a compressed one. It carries nothing and does not move; it only sets where each body's organelles balance (ADR-0030).
+_(From v0.2.)_ The water's density rises linearly from the surface to the floor, a stratified column rather than a compressed one. It carries nothing and does not move; it only sets where each body's organelles balance (ADR-0030).
 
 ### Fluids
 
 **v0.1**: no spatial fluid grid. O₂, CO₂ and food are global well-mixed pools.
 
-**v0.2+**: O₂ and CO₂ become spatial fields simulated with a simple fluid solver, following _Real-Time Fluid Dynamics for Games_ (Jos Stam) and _Fluid Simulation for Dummies_ (Mike Ash).
+**v0.4+**: O₂ and CO₂ become spatial fields simulated with a simple fluid solver, following _Real-Time Fluid Dynamics for Games_ (Jos Stam) and _Fluid Simulation for Dummies_ (Mike Ash).
 
 ### Boundaries
 
@@ -517,7 +517,7 @@ Energy is the exception, because it neither diffuses nor has an ambient value to
 
 ### Sexual reproduction
 
-_(v0.2+.)_ Requires dedicated organelles. Possible strategies include direct fertilisation, gamete release, egg laying, internal gestation and seeds. Crossover will be defined together with the final genome structure.
+_(v0.5+.)_ Requires dedicated organelles (gonad, uterus). Possible strategies include direct fertilisation, gamete release, egg laying, internal gestation and seeds. Crossover will be defined together with the final genome structure.
 
 ---
 
@@ -646,7 +646,7 @@ Newborns are appended at step 12 and are therefore **inert for their first tick*
 
 Deaths are applied at step 11, before births at step 12, deliberately: a corpse's carbon lands in the pool for the _next_ tick's diffusion. Every carbon transfer within a tick is one-directional, which makes the conservation assertion checkable at exactly one point — the end of step 13.
 
-In v0.2 the missing steps (eyes, neurons, active organelles, thrust) slot in between steps 5 and 6.
+In v0.2 the new steps (innate senses, neurons, thrust, gravity) slot in around steps 5 and 6; where exactly each goes is the milestone's own.
 
 ### Determinism
 
@@ -733,16 +733,18 @@ The minimal organism, built end to end, with no organelles:
 - Canvas2D rendering; start / pause / single step / zoom / pan; HUD with gene statistics
 - death by starvation
 
-### Deferred to v0.2+
+### Deferred
 
-- organelles (eyes, thrusters, real neurons and synapses, chloroplasts, …)
-- spatial fluid simulation
-- sight and colour perception
-- gravity and buoyancy, weighing organelles against stratified water (ADR-0030)
-- sexual reproduction and crossover
-- selecting and inspecting an organism
-- scavenging as real behaviour
-- persistence
+Each item carries the version it is expected in; versions after v0.2 are tentative.
+
+- organelles: neurons and synapses, floats, chloroplasts, thrusters (v0.2, M7–M11); eyes, teeth / spines, carapace (v0.3); lung / gill, storage vesicle (v0.4); gonad, uterus (v0.5)
+- gravity and buoyancy, weighing organelles against stratified water (v0.2, M8; ADR-0030)
+- selecting and inspecting an organism (v0.2, from M7)
+- sight and colour perception (v0.3)
+- predation, and scavenging as real behaviour (v0.3)
+- spatial fluid simulation (v0.4)
+- sexual reproduction and crossover (v0.5)
+- persistence, including the founder archive across launches (1.0 or later)
 
 ---
 
@@ -804,6 +806,8 @@ Four standing gates, one feasibility gate and one scientific criterion (ADR-0033
 
 Each milestone is independently runnable and adds exactly one invariant. The ordering exists so that a broken invariant has one possible cause.
 
+### v0.1
+
 | #   | Branch                        | Ships                                                                                                                                   | Invariant added                                                                           |
 | --- | ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | M0  | `feature/simulation-skeleton` | toolchain; fixed-step accumulator with catch-up cap; seeded PRNG and per-organism streams; canvas, pan/zoom, play/pause/step, HUD shell | same seed ⇒ same state hash                                                               |
@@ -820,6 +824,35 @@ Immortality in M2 is a **clamp, not an exemption**: maintenance is charged in fu
 From M3 that clamp becomes a **world mode** rather than a milestone's temporary state (ADR-0017). The immortal world outlives M2 because M5 needs it: `α` is measured where nothing can select, and calibration is exactly the milestone that moves the constants `α` would have to be re-measured against. It also keeps M2's 100k-tick conservation gate running in a world with no death code in it at all.
 
 M0 front-loads pan, zoom, pause and step because they are debugging tooling, used in every milestone that follows.
+
+### v0.2
+
+| #   | Branch                          | Ships                                                                                                                                                                                                                                                                                   | Invariant added                                                                                 |
+| --- | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| M6  | `feature/worst-case-birth-gate` | Worst-Case Birth Gate; no-sieve unit test; v0.1's done-criteria runs re-run on the gated world as a report, the last measurement of `r_opt`                                                                                                                                             | persistence                                                                                     |
+| M7  | `feature/structural-genome`     | organism header and `Gene[]`, innovation ids, structural events and the Birth Cost Ceiling bound; relaxed layout, enclosing circle, `cytoplasmThickness`; organelle cost law (overhead, Cytoplasm Area); roster {neuron}; inspector (genome, organelles); HUD carrier fraction per type | every child fits its parent's Birth Cost Ceiling                                                |
+| M8  | `feature/buoyancy`              | float; gravity on organelles; stratified water; body rotation and rotational drag; M1's overlap ceiling re-measured under wall piles; resting depth in the harness                                                                                                                      | a body rests where its organelles' mean density meets the water                                 |
+| M9  | `feature/chloroplast`           | chloroplast, light read per disc; `r*` and chloroplast count × radius against depth in the harness                                                                                                                                                                                      | conservation survives chloroplasts                                                              |
+| M10 | `feature/thrusters`             | thruster (`orientation`, `drive`), Thrust Cost, oriented glyph with its `\|F\|` mark                                                                                                                                                                                                    | a lone thruster moves its body at `F/ζ`, turns it at `τ/ζ_rot`, and is charged `k_thrust·\|F\|` |
+| M11 | `feature/nervous-system`        | synapses, ports, the body's innate senses, the CTRNN update; inspector wiring                                                                                                                                                                                                           | a neuron split leaves every actuator signal unchanged, tick by tick                             |
+| M12 | `feature/abundance`             | mean Generation in the harness; longer runs, then mass-side levers with `c₀` re-solved                                                                                                                                                                                                  | mean Generation ≥ 50 at the end of a reference run                                              |
+| M13 | `feature/selection`             | knockout option in `WorldOptions`; carrier fractions per world in the harness; done-criteria runs                                                                                                                                                                                       | float and chloroplast each beat their knockout world in every one of five seed pairs            |
+
+Every v0.2 milestone also holds the four standing gates of the [definition of done](#definition-of-done-for-v02): conservation, determinism, persistence and the overlap ceiling. The column lists only what a milestone adds.
+
+M6 ships the gate alone. What killed v0.1 was the Birth Sieve, not the metabolic margin (#40), and nothing should be built on a world before it persists (ADR-0027).
+
+M7 builds the whole organelle machinery with one type, the neuron, and no synapses. Without synapses a neuron does nothing: it is a disc that takes space and pays its overhead, and that is why it comes first. It weighs nothing, so gravity can wait; it touches no reaction, so conservation is not at stake; and it still puts insertion, split, deletion, relaxation, the enclosing circle and the Birth Cost Ceiling to work on living organisms. A type with no function is its own knockout world, so its carrier fraction settling low, at mutation–selection balance, is a free check that the cost law bites. A world with an empty roster must reproduce M6: one of M7's unit tests, not its invariant.
+
+M8 brings gravity with the float, the first type whose density differs from the water's (ADR-0030), and rotation with gravity, because offset weight is the first torque: before M8 nothing turns a body, and from M8 passive gravitaxis is testable. There is no rotational brownian motion. The float comes before the chloroplast because a lone chloroplast sinks its carrier to the floor, while a lone float already helps: it lifts a body whose cytoplasm still photosynthesises towards the light. The shared overhead `c_organelle` is derived in M8 from the chloroplast's `r_new ≈ r*/2` rule (ADR-0032), before the chloroplast itself joins the roster.
+
+M9's chloroplast is the first organelle that moves carbon, so its invariant follows M3's and M4's: conservation survives it. Fixation per disc, each read at its own position, is TDD territory like the rest of the metabolic core.
+
+M10's thruster works unwired, pushing at its `drive` (ADR-0031), so it ships before the nervous system, and the nervous system then ships with something to drive. M11 adds synapses, ports and the body's innate senses together, since a synapse needs an output port and an input port to mean anything. The split's exact neutrality is v0.2's only protection for new structure (#45), which is why it is M11's invariant.
+
+M12 and M13 split the definition of done in the order ADR-0033 sets. M12 thickens the world until selection can be told apart from drift: longer runs first, since they move no constant, then the mass side, each move re-solving `c₀`. M13 adds the knockout option and runs the done criteria, so whatever M12 moved is settled before the world M13 judges.
+
+Selecting and inspecting an organism has no row, because it adds no invariant. As pan and zoom were front-loaded into M0, it ships with M7, the first milestone with insides worth inspecting, and grows with each row after it. Each organelle row likewise draws its type in the main view and adds its carrier fraction to the HUD, and each calibration readout lands in the row that first needs it.
 
 ---
 
