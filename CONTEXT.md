@@ -345,8 +345,12 @@ The headless script that constructs worlds, runs them and reports the numbers M5
 _Avoid_: benchmark, tuner, calibration test, sweep (that is one of its runs)
 
 **Done-Criteria Run**:
-One of the fifteen runs, five seeds by three baseline genomes, whose gene means decide whether v0.1 met ADR-0011's criteria. An extinct one is a failed one, never an excluded one.
+One of the runs whose outcome decides whether a version met its definition of done: in v0.1 the fifteen runs, five seeds by three baseline genomes, of ADR-0011's criteria; in v0.2 the seed pairs of a world and its **Knockout World** (ADR-0033). An extinct one is a failed one, never an excluded one.
 _Avoid_: acceptance run, validation run, final run, convergence test
+
+**Knockout World**:
+A world identical to another, seed included, except that one roster type has its function switched off and keeps its cost: it is still inserted, still pays its overhead and takes its area. It is v0.2's null model for selection (ADR-0033).
+_Avoid_: control world, null world, ablation, disabled type
 
 **Tenancy**:
 The ratio of the time an organism spends inside the **Bright Band** to its reproductive period: how many births a lineage gets per stay in the light. Low tenancy means a gene mean is reporting geography rather than genetics (ADR-0025).

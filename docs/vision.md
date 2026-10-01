@@ -782,6 +782,24 @@ Oxygen is an independent knob, since the CO₂ term already carries oxygen of it
 
 ---
 
+## Definition of done for v0.2
+
+Four standing gates, one feasibility gate and one scientific criterion (ADR-0033).
+
+1. **Standing gates.** Conservation, determinism, **persistence** (the reference world, unprimed, five seeds × 100k ticks, every seed alive; and over committed births a mean log child/parent cost of zero, ADR-0027), and M1's overlap ceiling, which gravity's wall piles put under load (ADR-0030). Every v0.2 milestone holds all four. One is retired or relaxed only by ADR, never silently. A world that persists only after restarts does not count.
+
+2. **Feasibility.** The population's mean generation at the end of a reference run is at least 50. Below that, nothing selective can be told apart from drift, so this gate is checked before the done-criteria runs. Runs get longer first, since that moves no constant. Then the mass side thickens the world (ambient CO₂ share, `K` below the s₀ ≈ 2.5ρ wall), and every such move re-solves `c₀`. `BROWNIAN_FORCE` stays v0.1's.
+
+3. **Selection, not drift.** v0.2 has no closed form for an organelle's frequency, so its control is a **knockout world**: the same world and seed with one roster type's function switched off and its cost kept. A knocked-out float is weightless and gives no lift. A knocked-out chloroplast has `kChloro = 0` and still weighs. Both still pay their overhead and take their area, so mutation, drift and cost are identical in both worlds and only what selection can see differs.
+
+   For the float and for the chloroplast: five seeds, each run in the real world and in that type's knockout, on the final 0.2.0 world. The statistic is the fraction of the population carrying at least one of the type, time-averaged over the last 10% of the run. The criterion passes when the real world is above its knockout in **every** seed pair. An extinct run is a failed run, not an excluded one.
+
+**Reported, not gated**, and fixed before the runs: the order in which floats and chloroplasts rise (floats first, ADR-0032); carriers' resting depth by composition, and the float : chloroplast area ratio against depth; chloroplast radius against `r* = c/k`, and chloroplast count × radius against depth (ADR-0029); neuron and thruster carrier fractions and the count of sense-to-actuator synapses. These live in the calibration harness and its CSV. The HUD's per-type carrier fraction already shows the order live.
+
+`r_opt` is reported once, on M6's gated world, and then retired: once bodies have organelles, income is no longer `α·r`.
+
+---
+
 ## Milestones
 
 Each milestone is independently runnable and adds exactly one invariant. The ordering exists so that a broken invariant has one possible cause.
