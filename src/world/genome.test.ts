@@ -2,7 +2,13 @@ import {describe, expect, it} from "vitest";
 
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {DELTA_BODY_RADIUS} from "./constants";
-import {BASELINE_GENOME, mutateGenome, type Genome} from "./genome";
+import {
+  BASELINE_GENOME,
+  birthCostCeiling,
+  mutateGenome,
+  type Genome,
+} from "./genome";
+import {bodyAreaOfRadius} from "./organism";
 import {createRngStream} from "./rng";
 
 const SAMPLE_SEEDS = 500;
@@ -136,6 +142,34 @@ describe("mutateGenome", () => {
     const {stream: advanced} = mutateGenome(BASELINE_GENOME, stream);
 
     expect(advanced).not.toEqual(stream);
+  });
+});
+
+describe("birthCostCeiling", () => {
+  it("bounds every child the default mutation operator produces, over many streams and parent radii", () => {
+    // The guarantee the Worst-Case Birth Gate rests on (ADR-0027), checked
+    // where it is made: at default options — an ordinary birth, not
+    // generation 0's scaled founder mutation — no child costs more than
+    // its parent's ceiling.
+    const STREAMS = 20000;
+    let tightest = 0;
+
+    for (let seed = 0; seed < STREAMS; seed++) {
+      const parent: Genome = {
+        ...BASELINE_GENOME,
+        bodyRadius: 0.3 + (seed % 100) * 0.03,
+      };
+      const ceiling = birthCostCeiling(parent);
+      const {genome: child} = mutateGenome(parent, createRngStream(seed));
+      const childArea = bodyAreaOfRadius(child.bodyRadius);
+
+      expect(childArea).toBeLessThanOrEqual(ceiling);
+      tightest = Math.max(tightest, childArea / ceiling);
+    }
+
+    // Not a ceiling at infinity: the largest children drawn come within a
+    // whisker of it, so the gate is not pricing children that never exist.
+    expect(tightest).toBeGreaterThan(0.99);
   });
 });
 

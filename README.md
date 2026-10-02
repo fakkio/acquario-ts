@@ -45,7 +45,7 @@ npm run build      # production build
 - **Selection has real teeth.** Because carbon is finite, the population has a hard ceiling set by the world, not by a tuning constant — and full extinction is a genuinely possible outcome.
 - **Deterministic by construction.** A single master seed drives all randomness, split into independent per-organism streams, so the same seed and build always reproduce the same run.
 
-For the full mechanics — the tick pipeline, the diffusion law, reproduction costs, the calibration method — see [`docs/vision.md`](./docs/vision.md). Vocabulary and terminology live in [`CONTEXT.md`](./CONTEXT.md).
+For the full mechanics — the tick pipeline, the diffusion law, reproduction costs, the calibration method — see [`docs/vision.md`](./docs/vision.md). Vocabulary and terminology live in [`GLOSSARY.md`](./GLOSSARY.md).
 
 ## Contributing
 

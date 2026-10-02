@@ -1,5 +1,7 @@
 # Sublinear organelle effectiveness stands; how specialisation is rewarded is unresolved
 
+> **Superseded by [ADR-0029](./0029-organelles-cost-per-piece-and-v0-2-observes-specialisation.md).** Sublinearity stands, now as the passive law's geometry rather than a declared curve; v0.2 observes specialisation instead of rewarding it, on the corrected axis chloroplast against food intake, and the question reopens in v0.3.
+
 Organelle effectiveness stays **sublinear** in size, as stated in `vision.md`. The mechanism that makes a specialist out-compete a generalist is **not decided**, and is deferred to v0.2 when organelles first exist.
 
 This ADR exists to record a contradiction, not to resolve it.

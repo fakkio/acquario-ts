@@ -86,7 +86,10 @@ describe("applyBrownianMotion", () => {
     }
   });
 
-  it("moves a large body less far than a small one, in inverse proportion to radius", () => {
+  // Stokes–Einstein: the diffusion coefficient goes as 1/r. A random walk's
+  // coefficient goes as the square of its step, so the step itself must go as
+  // 1/√r, not as 1/r.
+  it("moves a large body less far than a small one, in inverse proportion to the square root of radius", () => {
     const small = organismAt(CENTRE_X, CENTRE_Y, 0.6);
     const large = organismAt(CENTRE_X, CENTRE_Y, 1.4);
     const startSmall = positionOf(small);
@@ -97,7 +100,7 @@ describe("applyBrownianMotion", () => {
 
     expect(
       distance(large, startLarge) / distance(small, startSmall),
-    ).toBeCloseTo(0.6 / 1.4, 12);
+    ).toBeCloseTo(Math.sqrt(0.6 / 1.4), 12);
   });
 
   it("advances the organism's own stream, so the next tick draws a new direction", () => {
@@ -199,10 +202,10 @@ describe("applyBrownianMotion", () => {
     const large = meanDisplacement(1.4, 5000);
 
     expect(large).toBeLessThan(small);
-    // Around the 0.6/1.4 the step lengths differ by; loose enough that the
-    // ensemble noise of forty bodies cannot flip it.
-    expect(large / small).toBeGreaterThan(0.3);
-    expect(large / small).toBeLessThan(0.6);
+    // Around the √(0.6/1.4) ≈ 0.65 the step lengths differ by; loose enough
+    // that the ensemble noise of forty bodies (about ±0.075) cannot flip it.
+    expect(large / small).toBeGreaterThan(0.45);
+    expect(large / small).toBeLessThan(0.9);
   });
 });
 

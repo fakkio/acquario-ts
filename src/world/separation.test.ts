@@ -439,9 +439,10 @@ describe("no overlaps after resolution, with motion on", () => {
    *
    * The coefficient is not clean. It wanders between roughly 1.5 and 2.5
    * steps depending on how crowded the world is, and the step that bounds it
-   * belongs to the *smallest* bodies, which move `1/r` faster than the
-   * baseline. At the force this world runs, a crowd at a fifth of the
-   * aquarium's area reaches about `0.24` over three thousand ticks.
+   * belongs to the *smallest* bodies, whose step goes as `1/√r` against the
+   * baseline's. Measured when that step still went as `1/r`, so if anything
+   * an overestimate now: a crowd at a fifth of the aquarium's area reached
+   * about `0.24` over three thousand ticks.
    *
    * So `0.5` is roughly double what the run actually does: deep enough to
    * allow the grazing a live run does, shallow enough that a pass which

@@ -12,7 +12,7 @@ Default label vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `read
 
 ### Domain docs
 
-Single-context layout — `CONTEXT.md` + `docs/adr/` at the repo root, plus `docs/vision.md` for what the world is supposed to do. See `docs/agents/domain.md`.
+Single-context layout — `GLOSSARY.md` + `docs/adr/` at the repo root, plus `docs/vision.md` for what the world is supposed to do. See `docs/agents/domain.md`.
 
 ### Future ideas
 
@@ -20,7 +20,7 @@ Unshaped ideas not yet worth a `vision.md` section, an ADR or a ticket live in `
 
 ### Branching
 
-A feature (an issue set from `/to-tickets`, a milestone) gets its own `feature/<slug>` branch off `develop`; a one-off change commits straight to `develop`. See `docs/agents/branching.md`.
+A feature (an issue set from `/to-tickets`, a milestone) gets its own `feature/<slug>` branch off `develop`; a one-off change commits straight to `develop`. A feature's merge into `develop` adds its entries under `[Unreleased]` in `CHANGELOG.md`. See `docs/agents/branching.md`.
 
 ### Commit messages
 
@@ -32,7 +32,7 @@ One Italian article per milestone in `docs/devlog/`, written from a fragment pil
 
 ### Release process
 
-Semantic Versioning; every pre-1.0 release is a minor bump, cut as a `release/vX.Y.Z` git-flow branch off `develop`. See `docs/agents/release.md`.
+Semantic Versioning; before 1.0 each milestone ships as a patch release and each version of the vision as a minor, cut as a `release/vX.Y.Z` git-flow branch off `develop`. See `docs/agents/release.md`.
 
 ### Quality gates
 

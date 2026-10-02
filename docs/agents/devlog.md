@@ -146,4 +146,4 @@ Never link backward by hand: don't edit a published article to add a pointer to 
 
 ## Language
 
-Italian, per the exception recorded in `CONTEXT.md`. Domain terms stay in their English glossary form.
+Italian, per the exception recorded in `GLOSSARY.md`. Domain terms stay in their English glossary form.

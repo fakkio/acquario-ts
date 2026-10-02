@@ -6,6 +6,7 @@ import {
   DELTA_MITOSIS_ENERGY_THRESHOLD,
   MUTATION_PROBABILITY,
 } from "./constants";
+import {bodyAreaOfRadius} from "./organism";
 import {nextRng, type RngStream} from "./rng";
 
 /**
@@ -24,7 +25,7 @@ export interface Genome {
 /**
  * The single minimal genome generation 0 is independently mutated from
  * (glossary: Baseline Genome). `bodyRadius` is the baseline radius, 1 by
- * definition (`CONTEXT.md`). `mitosisEnergyThreshold` and
+ * definition (`GLOSSARY.md`). `mitosisEnergyThreshold` and
  * `childAllocationRatio` are provisional, measured against the current
  * constants rather than derived — a baseline parent's energy cap is
  * `K_CAP_ENERGY × π ≈ 1257`, so at `0.75` it breeds at about 943, pays
@@ -120,6 +121,24 @@ export function mutateGenome(
     },
     stream: draws.stream(),
   };
+}
+
+/**
+ * The Birth Cost Ceiling (ADR-0027): the largest body area a child of
+ * `genome` can have under `mutateGenome`'s default options, the margin the
+ * Worst-Case Birth Gate prices before anything is drawn. A guarantee the
+ * mutation law makes by construction, never a bound enforced by rejecting
+ * draws above it — that would bring the Birth Sieve back from the other
+ * side.
+ *
+ * In v0.1 it falls out of `mutateRadius`: a child's radius is at most
+ * `r·(1 + δ)`, since its magnitude draw stays below 1. It covers ordinary
+ * births only. Generation 0's scaled founder mutation is not a birth, and
+ * its founders can exceed it. M7 replaces the body with a bound read from
+ * the structural genome; the signature stays.
+ */
+export function birthCostCeiling(genome: Genome): number {
+  return bodyAreaOfRadius(genome.bodyRadius * (1 + DELTA_BODY_RADIUS));
 }
 
 /**

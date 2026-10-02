@@ -2,13 +2,18 @@ import {describe, expect, it} from "vitest";
 
 import {MITOSIS_ENERGY_COST, RHO} from "./constants";
 import {evaluateDeaths} from "./death";
-import {BASELINE_GENOME, mutateGenome, type Genome} from "./genome";
+import {
+  BASELINE_GENOME,
+  birthCostCeiling,
+  mutateGenome,
+  type Genome,
+} from "./genome";
 import {totalCarbon, totalOxygen, type Pools} from "./ledger";
 import {applyMaintenance} from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
 import {Organism, bodyAreaOfRadius, capFor, capForRadius} from "./organism";
 import {createRngStream, deriveChildStream} from "./rng";
-import {organismAt} from "./testing";
+import {openDraws, organismAt} from "./testing";
 
 /**
  * `evaluateMitosis` (step 7) and `appendBirths` (step 12) as the pure
@@ -105,24 +110,6 @@ describe("evaluateMitosis", () => {
       birthLarge?.genome.bodyRadius,
     );
     expect(birthSmall?.rng).toEqual(birthLarge?.rng);
-  });
-
-  it("spends the derivation and mutation draws but never the tangent-angle draw when a physical requirement fails", () => {
-    const seed = 321;
-    const genome = eagerGenome();
-    const organism = organismWith(1, 1, genome, seed);
-    organism.energy = capFor(organism, "energy");
-    // No food at all: the mass-cost requirement fails unconditionally,
-    // whatever the mutated child's area turns out to be.
-    organism.food = 0;
-
-    const derivation = deriveChildStream(createRngStream(seed));
-    const mutation = mutateGenome(genome, derivation.parentStream);
-
-    const birth = evaluateMitosis(organism);
-
-    expect(birth).toBeNull();
-    expect(organism.rng).toEqual(mutation.stream);
   });
 
   it("prices, debits the parent and allocates the child's stores, matching a hand-computed replica of the same draw sequence", () => {
@@ -230,23 +217,16 @@ describe("evaluateMitosis", () => {
   });
 
   it("lets a parent starve itself on its own birth tick, its remains deposited and its child alive, with carbon conserved", () => {
-    const seed = 654;
-    const bodyRadius = 1;
-    const genome = eagerGenome(bodyRadius);
-
-    // Predict the child's mutated area deterministically, from the same
-    // stream state `evaluateMitosis` will consume, so the exact energy cost
-    // it will charge is known up front.
-    const derivation = deriveChildStream(createRngStream(seed));
-    const mutation = mutateGenome(genome, derivation.parentStream);
-    const childArea = bodyAreaOfRadius(mutation.genome.bodyRadius);
-    const energyCost = MITOSIS_ENERGY_COST * childArea;
-
+    // A parent holding exactly the worst-case energy cost, which hands its
+    // child everything left after paying: whatever child the draw makes,
+    // the parent ends the birth at exactly zero energy. Paying alone can
+    // no longer land it there, since no drawn child reaches the ceiling.
+    const genome = {...eagerGenome(1), childAllocationRatio: 1};
     const organism = new Organism({
       x: 5,
       y: 5,
       genome,
-      rng: createRngStream(seed),
+      rng: createRngStream(654),
     });
     organism.energy = 1000;
     organism.food = 1000;
@@ -256,15 +236,15 @@ describe("evaluateMitosis", () => {
 
     // Step 5, then step 7, then step 8 — the tick's own order. Maintenance
     // runs for real, for coverage and realism, but the scenario this test is
-    // about — a parent with *exactly* enough energy to afford mitosis, so
-    // paying for it lands at precisely zero — is set up by assignment rather
-    // than by predicting maintenance's exact float output and hoping an
-    // addition and a subtraction round-trip back to it: `(a + b) - a` is not
-    // guaranteed bit-identical to `b` in IEEE 754, and this landed off by
-    // about `1e-15` the last time a constant moved. Assigning `energyCost`
-    // directly is exact by construction, for any constants.
+    // about — a parent with *exactly* enough energy to clear the gate — is
+    // set up by assignment rather than by predicting maintenance's exact
+    // float output and hoping an addition and a subtraction round-trip back
+    // to it: `(a + b) - a` is not guaranteed bit-identical to `b` in IEEE
+    // 754, and this landed off by about `1e-15` the last time a constant
+    // moved. Assigning the cost directly is exact by construction, for any
+    // constants.
     applyMaintenance(organism);
-    organism.energy = energyCost;
+    organism.energy = MITOSIS_ENERGY_COST * birthCostCeiling(genome);
     const birth = evaluateMitosis(organism);
     const {survivors, remains} = evaluateDeaths([organism]);
 
@@ -279,6 +259,96 @@ describe("evaluateMitosis", () => {
     expect(population).toHaveLength(1);
     expect(totalCarbon(population, pools)).toBeCloseTo(carbonBefore, 9);
     expect(totalOxygen(population, pools)).toBeCloseTo(oxygenBefore, 9);
+  });
+});
+
+describe("the Worst-Case Birth Gate (ADR-0027)", () => {
+  it("commits children that are an unbiased sample of the mutation law, even from marginal parents", () => {
+    // The Birth Sieve's own situation (#40): a parent whose stores sit
+    // around what a child costs, tried again tick after tick as diffusion
+    // tops it up. Under the sieve every failed attempt redraws the child,
+    // so the cheap draws commit first and the committed children shrink by
+    // mechanism. Under the gate no attempt draws until the worst case is
+    // affordable, so whichever child is then drawn is born.
+    const PARENTS = 2000;
+    const MAX_ATTEMPTS = 400;
+    // 0.2% of the worst-case cost per attempt: slow enough that a marginal
+    // parent is tried many times before it can afford a same-sized child.
+    const CLIMB = 0.002;
+    const draw = openDraws(2027);
+    const logRatios: number[] = [];
+
+    for (let i = 0; i < PARENTS; i++) {
+      const parentRadius = 0.6 + draw() * 1.0;
+      const organism = organismWith(5, 5, eagerGenome(parentRadius), i + 1);
+      const parentArea = bodyAreaOfRadius(parentRadius);
+      const marginal = i % 2 === 0 ? "food" : "energy";
+      const unitCost = marginal === "food" ? RHO : MITOSIS_ENERGY_COST;
+      const worstCost = unitCost * birthCostCeiling(organism.genome);
+      // Both caps sit above the worst case's cost, so whichever store is
+      // not the marginal one never binds.
+      organism.energy = capFor(organism, "energy");
+      organism.food = capFor(organism, "food");
+      // Spread from well below a same-sized child to above the worst case.
+      organism[marginal] = worstCost * (0.75 + draw() * 0.4);
+
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        const birth = evaluateMitosis(organism);
+        if (birth) {
+          logRatios.push(
+            Math.log(bodyAreaOfRadius(birth.genome.bodyRadius) / parentArea),
+          );
+          break;
+        }
+        organism[marginal] += CLIMB * worstCost;
+      }
+    }
+
+    const n = logRatios.length;
+    const mean = logRatios.reduce((sum, value) => sum + value, 0) / n;
+    const variance =
+      logRatios.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (n - 1);
+    const standardError = Math.sqrt(variance / n);
+
+    expect(n).toBe(PARENTS);
+    expect(Math.abs(mean)).toBeLessThanOrEqual(4 * standardError);
+  });
+
+  it.each(["food", "energy"] as const)(
+    "returns no birth and draws nothing when %s pays for a same-sized child but not the worst case",
+    (resource) => {
+      const organism = organismWith(5, 5, eagerGenome(), 42);
+      organism.energy = capFor(organism, "energy");
+      organism.food = capFor(organism, "food");
+      const unitCost = resource === "food" ? RHO : MITOSIS_ENERGY_COST;
+      // Halfway between a same-sized child's cost and the ceiling's.
+      organism[resource] =
+        unitCost *
+        ((bodyAreaOfRadius(1) + birthCostCeiling(organism.genome)) / 2);
+      const streamBefore = organism.rng;
+
+      // Every stream tried, so no lucky clone or shrink can sneak through.
+      for (let attempt = 0; attempt < 50; attempt++) {
+        expect(evaluateMitosis(organism)).toBeNull();
+      }
+      expect(organism.rng).toEqual(streamBefore);
+    },
+  );
+
+  it("always commits a parent holding exactly the worst-case costs, whatever the mutation draws", () => {
+    for (let seed = 0; seed < 2000; seed++) {
+      const organism = organismWith(
+        5,
+        5,
+        eagerGenome(0.6 + (seed % 50) * 0.02),
+        seed,
+      );
+      const ceiling = birthCostCeiling(organism.genome);
+      organism.energy = MITOSIS_ENERGY_COST * ceiling;
+      organism.food = RHO * ceiling;
+
+      expect(evaluateMitosis(organism)).not.toBeNull();
+    }
   });
 });
 

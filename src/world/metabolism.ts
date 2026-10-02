@@ -72,7 +72,7 @@ export function applyPassiveExchange(
  * Resolve-phase step 3 (ADR-0006): photosynthesis, the first reaction and
  * the only route by which anything enters the closed system from outside —
  * `CO₂ + light → food + O₂` at 1:1:1 stoichiometry, producing no energy
- * (CONTEXT.md). A purely internal transformation: carbon and oxygen move
+ * (GLOSSARY.md). A purely internal transformation: carbon and oxygen move
  * between an organism's own stores, never through the `Environment`'s
  * `exchange`, so this reaction cannot itself move mass into or out of a
  * pool — only passive exchange (step 2) and, later, respiration (step 4)

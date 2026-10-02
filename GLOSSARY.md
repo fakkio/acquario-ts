@@ -17,8 +17,24 @@ An autonomous individual: a circular body carrying a genome, internal resource s
 _Avoid_: creature, agent, cell, entity
 
 **Organelle**:
-A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1.
+A specialised structure inside a body that provides a capability the minimal organism lacks. None exist in v0.1. From v0.2 a neuron is an organelle; a synapse is not. Each type declares its **Ports**.
 _Avoid_: organ, module, part
+
+**Roster**:
+The set of organelle types shipped so far, and the set an insertion draws its type from. It grows milestone by milestone: v0.2 starts from the neuron alone and ends with the chloroplast, the **Float**, the thruster and the neuron; every other type in `vision.md`'s table is deferred with the version it is expected in.
+_Avoid_: catalogue, palette, organelle list
+
+**Float**:
+From v0.2, the organelle type lighter than the water at the surface. Its only effect is lift: it moves the depth its carrier rests at upward and, placed off-centre, turns the body upright. The passive capability it improves is staying suspended. It has no ports, so its density cannot be regulated.
+_Avoid_: gas vesicle, vesicle (that is storage), swim bladder, balloon
+
+**Chloroplast**:
+From v0.2, the organelle type that fixes carbon: passive photosynthesis run on its own disc, reading light where it sits. It is denser than the water at the floor, so photosynthesis costs lift. It has no ports.
+_Avoid_: photosynthetic organelle, plastid, leaf
+
+**Thruster**:
+From v0.2, the organelle type that pushes the body along its own orientation, from its own position, with a force that scales with its radius. The only type with an orientation and the only **Actuator**. Weightless.
+_Avoid_: flagellum, motor, propeller, muscle
 
 **Minimal Organism**:
 An organism with no organelles, surviving on innate passive capabilities alone. The only kind of organism in v0.1.
@@ -39,20 +55,48 @@ _Avoid_: colony, swarm, agents, creatures
 ### Genetics
 
 **Genome**:
-The complete heritable description of an organism. In v0.1 a flat record of four genes — `bodyRadius`, `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue` — held by the organism and fixed for its life; from v0.2 a `Gene[]`.
+The complete heritable description of an organism. In v0.1 a flat record of four genes — `bodyRadius`, `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue` — held by the organism and fixed for its life; from v0.2 a fixed header of **Organism Genes** plus a `Gene[]` of structural genes.
 _Avoid_: DNA (in code — fine in prose), chromosome
 
 **Mutation**:
-The change a genome undergoes when it is copied at birth. Applied to the child, drawn from the parent's own stream, before the child's area, costs and caps are computed — never to a living organism, whose genome is fixed for its life. Each gene mutates with its own independent probability, so some births are exact clones.
+The change a genome undergoes when it is copied at birth. Applied to the child, drawn from the parent's own stream, before the child's area, costs and caps are computed — never to a living organism, whose genome is fixed for its life. Each **Organism Gene** mutates with its own independent probability; from v0.2 the `Gene[]` instead takes a bounded number of structural events per birth, each one operator applied to one gene. Some births are exact clones.
 _Avoid_: variation, drift (that is what `lineageHue` does), evolution
 
 **Gene**:
 One heritable, independently mutable field of the genome.
 _Avoid_: trait, allele, parameter
 
+**Organism Gene**:
+A gene the organism has exactly once, held in the genome's fixed header rather than in its `Gene[]`: `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue`, and the body-size gene (`bodyRadius` in v0.1, **Cytoplasm Thickness** from v0.2). Never duplicated, deleted or inserted; carries no **Innovation Id**, since it is aligned by name.
+_Avoid_: trait, header field, global gene
+
+**Innovation Id**:
+The stable identifier of a gene in the `Gene[]`, minted once from a monotonic per-world counter when the gene is inserted or split off, and preserved through mutation and inheritance. Identity only: ids are compared for equality and nothing else, so nothing sorts, iterates, draws or branches on an id's value, and evaluation order is the gene's position in the genome. That rule is what keeps a counter advanced in population order from leaking into behaviour.
+_Avoid_: gene id, innovation number, uid
+
+**Structural Gene**:
+From v0.2, an element of the genome's `Gene[]`: an **Organelle Gene** or a **Synapse Gene**, carrying an **Innovation Id**. What insertion, deletion and **Split** act on; **Organism Genes** are never structural.
+_Avoid_: gene (alone, when the distinction matters), module gene, body gene
+
+**Organelle Gene**:
+The structural gene describing one organelle: its type, position, radius and the parameters its type declares, orientation among them for a type that uses one. A neuron is an organelle type, so a neuron is an organelle gene too.
+_Avoid_: organ gene, part gene, neuron gene (as a separate kind)
+
+**Synapse Gene**:
+The structural gene describing one **Synapse**: a source output **Port**, a destination input **Port** and a weight. The one structural gene with no geometry, a relation rather than an object.
+_Avoid_: connection gene, edge, link
+
+**Split**:
+The v0.2 duplication operator, which divides rather than copies: one organelle becomes two whose areas sum to the original's, incoming synapses copied to both, outgoing ones divided between them. Exactly neutral for a neuron, area-conserving for any organelle.
+_Avoid_: duplication (in prose it is fine; the operator is a split), copy, fission, clone
+
 **Body Radius**:
-The gene setting an organism's circular body size. The only multiplicatively mutating gene.
+The radius of an organism's circular body. A gene in v0.1, the only one mutating multiplicatively. From v0.2 derived: the minimum enclosing circle of the body's relaxed organelles plus the **Cytoplasm Thickness**, which is the whole radius of a body with no organelles.
 _Avoid_: size, scale
+
+**Cytoplasm Thickness**:
+From v0.2, the **Organism Gene** giving the width of cytoplasm around a body's organelles: body radius is the organelles' minimum enclosing circle plus this. With no organelles it is the whole body radius, so it inherits v0.1's `bodyRadius` and its multiplicative law.
+_Avoid_: margin, cytoplasm radius, body radius (that is derived)
 
 **Mitosis Energy Threshold**:
 The gene, in `[0, 1]`, giving the fraction of its energy cap an organism must reach before attempting to reproduce.
@@ -113,11 +157,11 @@ Signed diffusion of a resource across the membrane, proportional to perimeter an
 _Avoid_: absorption, uptake, intake, osmosis
 
 **Concentration**:
-An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside. The only quantity the two sides of a membrane can be compared in.
+An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside (from v0.2, `internal ÷` **Cytoplasm Area**, which is the body area when there are no organelles). The only quantity the two sides of a membrane can be compared in.
 _Avoid_: density, level
 
 **Cap**:
-The maximum amount of a resource an organism can hold: `kCap(resource) × bodyArea`, i.e. a maximum internal concentration. Only `kCap/ρ` is physical, since `ρ` alone carries the carbon unit (ADR-0022).
+The maximum amount of a resource an organism can hold: `kCap(resource) × bodyArea` (from v0.2 `× cytoplasmArea`, see **Cytoplasm Area**), i.e. a maximum internal concentration. One per resource, never a shared volume. Only `kCap/ρ` is physical, since `ρ` alone carries the carbon unit (ADR-0022).
 _Avoid_: capacity, limit, storage
 
 **Existence Cost**:
@@ -125,12 +169,24 @@ The flat, size-independent energy an organism pays per unit time simply for bein
 _Avoid_: base cost, overhead, upkeep
 
 **Body Cost**:
-The energy an organism pays per unit time in proportion to its body area.
+The energy an organism pays per unit time in proportion to its body area, `β·area`. From v0.2 charged on the **Cytoplasm Area** only: each organelle pays for its own area at its type's rate (ADR-0029).
 _Avoid_: area cost, maintenance (that is both costs together, not this half)
 
 **Maintenance**:
-The whole energy an organism pays per unit time simply to keep being one: existence cost plus body cost, `c₀ + β·area`. The name of the tick's fifth step, and of the total — never of either half alone.
+The whole energy an organism pays per unit time simply to keep being one: existence cost plus body cost, `c₀ + β·area`. From v0.2 also every organelle's **Organelle Overhead** and area cost and every synapse's overhead, each area paid once at its occupant's rate; **Thrust Cost** is not part of it. The name of the tick's fifth step, and of the total — never of any term alone.
 _Avoid_: upkeep, basal cost, body cost (that is one of its two terms)
+
+**Cytoplasm Area**:
+From v0.2, the part of a body not occupied by organelles: `bodyArea − Σ organelleArea`, strictly positive because **Cytoplasm Thickness** is. What holds the stores, so caps and internal concentrations are taken over it, and what the body cost is charged on.
+_Avoid_: free area, internal capacity, storage area
+
+**Organelle Overhead**:
+The flat energy each organelle pays per unit time for existing, whatever its size, declared per type; a synapse pays a small one of its own. Paid per piece, it is the only thing that bounds how many pieces a body divides its organelle area into, and it sets each type's optimal organelle radius `c_type / k_type` (ADR-0029).
+_Avoid_: organelle upkeep, per-capability cost, existence cost (that is the organism's)
+
+**Thrust Cost**:
+The energy a thruster pays per tick in proportion to the magnitude of the force it produces, `k_thrust × |F|`, so pushing against gravity while standing still costs. The one activity cost in v0.2.
+_Avoid_: movement cost, power, work
 
 **Optimal Radius**:
 The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable in closed form from the world's constants. The prediction v0.1 is validated against.
@@ -161,6 +217,10 @@ _Avoid_: reproduction mode, breeding, sterile
 **Fixed Population**:
 A world constructed with both mortality and fertility off: nothing dies and nothing is born, so the population that was placed is the population that remains. ADR-0015's real instrument, where `α` is measured free of any selection — **Immortal World** alone stopped being sufficient for that the moment mitosis could grow the population.
 _Avoid_: static world, frozen world, immortal world (that is only half of it)
+
+**Reference World**:
+The world a milestone's standing gates run on: its **Baseline Genome**, its laws and its committed constants, unprimed, with mortality and fertility on. Each milestone has its own, and **Persistence** is judged on it; a reference run is one run of it, not a separate term.
+_Avoid_: default world, standard world, test world, baseline world (the **Baseline Genome** is only one of its parts)
 
 **Aquarium**:
 The finite, hard-walled region a world's organisms live in: a width, a height, a surface along the top edge and a floor along the bottom, with no wraparound. The area every external concentration is measured over, and the extent the light gradient runs down.
@@ -212,9 +272,37 @@ _Avoid_: pending organism, child (that is the organism once it exists), egg (res
 Asexual reproduction by budding: the parent pays energy and food-mass, the child is created tangent to it, and the parent does not shrink.
 _Avoid_: division, split, cloning, fission
 
+**Worst-Case Birth Gate**:
+The law that a parent attempts **Mitosis** only when it can already pay for the most expensive child its **Mutation** law could produce, so the draw that follows never fails for lack of means. What makes the children actually born an unbiased sample of the mutation law.
+_Avoid_: affordability check, mass gate (that is the physical requirement alone), birth check
+
+**Birth Cost Ceiling**:
+The bound, guaranteed by the **Mutation** law itself rather than enforced by rejecting draws, on how much more a child can cost than its parent. The margin the **Worst-Case Birth Gate** prices. A constant factor in v0.1; from v0.2 a closed-form bound read from the parent's own genome, because a body that follows its organelles' layout has no constant factor worth pricing (ADR-0028).
+_Avoid_: max child cost, growth cap, mutation cap
+
+**Birth Sieve**:
+The defect the **Worst-Case Birth Gate** removes: drawing a child's mutation, rejecting it when the parent cannot pay, and redrawing later, which filters births towards cheaper children than the mutation law proposes and pushes a lineage downhill by mechanism rather than by selection (#40).
+_Avoid_: size drift, shrinkage, race to small (those are its symptom)
+
+**Persistence**:
+A **Reference World**'s population surviving to the end of a run across every seed. A gate every milestone from v0.2's first on holds, like conservation; a milestone that breaks it retires or relaxes it by ADR, never silently.
+_Avoid_: survival (that is one organism's), viability, stability
+
 **Brownian Motion**:
-The random force applied to every organism, and the only source of movement in v0.1.
+The random force applied to every organism, and the only source of movement in v0.1. From v0.2 joined by **Buoyant Weight** and thrust, and the scale both are calibrated against.
 _Avoid_: drift, jitter, wander, random walk
+
+**Buoyant Weight**:
+From v0.2, the vertical force gravity puts on a body: over its weighing organelles only, each one's area times the difference between its **Organelle Density** and the **Water Density** where it sits, applied at the organelle's own position so it also turns the body. Zero for a body with no organelles, at any depth. It vanishes where the organelles' mean density meets the water's, which is the depth a body rests at without thrust (ADR-0030).
+_Avoid_: gravity (that is the field), mass, buoyancy (alone), sinking force
+
+**Organelle Density**:
+The mass per area an organelle type declares, a constant of the type and never a gene, compared against the **Water Density** to give its share of **Buoyant Weight**. Only a type whose function or cost is its weight declares one; every other type is weightless, like the cytoplasm. Separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area.
+_Avoid_: density (alone), ρ (that is carbon), weight, buoyancy
+
+**Water Density**:
+From v0.2, the aquarium's water profile, rising linearly from the surface to the floor so that composition alone gives a body an interior resting depth. The cytoplasm is water inside the membrane, so it is neutral at every depth and only organelles are weighed against this.
+_Avoid_: stratification (that is the fact that it varies), pycnocline, medium density
 
 **Positional Separation**:
 Collision resolution that displaces overlapping bodies apart along their normal, without impulses or restitution.
@@ -224,6 +312,36 @@ _Avoid_: collision response, bounce, impulse resolution
 The spatial index rebuilt each tick, bucketing organisms by cell index for neighbour queries.
 _Avoid_: spatial hash, quadtree, broadphase
 
+### Nervous system
+
+**Neuron**:
+From v0.2, the organelle type that computes: one input **Port** it integrates over time and one output Port carrying the result. Its size and position mean only cost and space.
+_Avoid_: node, unit, cell
+
+**Synapse**:
+A weighted connection from an output **Port** to an input Port, carrying a **Signal** from one tick to the next. Described by a **Synapse Gene**; not an organelle, and with no geometry.
+_Avoid_: connection, edge, link, wire
+
+**Signal**:
+The value an output **Port** carries on one tick: in `[−1, 1]` from a neuron, in `[0, 1]` or `[−1, 1]` from an **Innate Sense**.
+_Avoid_: activation (that is the function), output (that is the port), impulse, spike
+
+**Port**:
+A named place on an organelle, or on the body, where synapses attach: an input port receives the weighted sum of its synapses, an output port emits one **Signal** per tick. Each type declares its own; a port takes any number of synapses.
+_Avoid_: pin, channel, socket, input/output (alone)
+
+**Innate Sense**:
+An output **Port** of the body itself, present in every organism at no cost: a store over its cap, the light at the body's centre, or which way the body's axis points. The passive version of what a sensor organelle would improve.
+_Avoid_: sensor (reserved for sensor organelles, v0.3+), input neuron, perception
+
+**Actuator**:
+An organelle whose input **Port** turns a **Signal** into an effect on the world. In v0.2 only the thruster.
+_Avoid_: motor, effector, output neuron
+
+**Drive**:
+The signal an **Actuator** acts on when nothing is wired to it, and the offset its wired inputs add to. A thruster with no synapses pushes at its drive.
+_Avoid_: bias (that is the neuron's), baseline, idle level
+
 ### Calibration
 
 **Calibration Harness**:
@@ -231,8 +349,12 @@ The headless script that constructs worlds, runs them and reports the numbers M5
 _Avoid_: benchmark, tuner, calibration test, sweep (that is one of its runs)
 
 **Done-Criteria Run**:
-One of the fifteen runs, five seeds by three baseline genomes, whose gene means decide whether v0.1 met ADR-0011's criteria. An extinct one is a failed one, never an excluded one.
+One of the runs whose outcome decides whether a version met its definition of done: in v0.1 the fifteen runs, five seeds by three baseline genomes, of ADR-0011's criteria; in v0.2 the seed pairs of a world and its **Knockout World** (ADR-0033). An extinct one is a failed one, never an excluded one.
 _Avoid_: acceptance run, validation run, final run, convergence test
+
+**Knockout World**:
+A world identical to another, seed included, except that one roster type has its function switched off and keeps its cost: it is still inserted, still pays its overhead and takes its area. It is v0.2's null model for selection (ADR-0033).
+_Avoid_: control world, null world, ablation, disabled type
 
 **Tenancy**:
 The ratio of the time an organism spends inside the **Bright Band** to its reproductive period: how many births a lineage gets per stay in the light. Low tenancy means a gene mean is reporting geography rather than genetics (ADR-0025).

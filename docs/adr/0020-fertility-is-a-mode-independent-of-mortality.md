@@ -16,7 +16,7 @@ ADR-0015 measures `α` in "a fixed, immortal population with no reproduction and
 
 `conservation.long.test.ts` — M2's own 100k-tick gate — gains `fertility: "off"` alongside its existing `mortality: "off"`, and changes by exactly that one argument. Its fixed-cohort assertions about zero-energy and at-cap counts go on meaning what they meant, running in a world with no birth code in it at all, regardless of what M4 makes the default everywhere else.
 
-`CONTEXT.md` gains **Fixed Population** — a world built with both modes off, ADR-0015's real instrument — and **Immortal World** is corrected to point at it: "immortal" was never sufficient on its own once a population could grow.
+`GLOSSARY.md` gains **Fixed Population** — a world built with both modes off, ADR-0015's real instrument — and **Immortal World** is corrected to point at it: "immortal" was never sufficient on its own once a population could grow.
 
 ## Considered options
 
@@ -28,4 +28,4 @@ ADR-0015 measures `α` in "a fixed, immortal population with no reproduction and
 
 - `WorldOptions` gains `fertility?: FertilityMode`, alongside the existing `mortality?: MortalityMode`, both optional and independently defaulted.
 - `runTick`'s step 7 is skipped entirely — not evaluated and discarded — when `fertility === "off"`, the same shape step 8 already takes for `mortality === "off"`.
-- `CONTEXT.md` gains **Fertility** and **Pending Birth** (ADR-0019's record), and corrects **Immortal World** to describe half of ADR-0015's instrument rather than all of it.
+- `GLOSSARY.md` gains **Fertility** and **Pending Birth** (ADR-0019's record), and corrects **Immortal World** to describe half of ADR-0015's instrument rather than all of it.
