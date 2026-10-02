@@ -79,3 +79,57 @@ Un ottavo. L'ipotesi ovvia è che il gate sia più severo della sieve proprio qu
 Il glossario era più severo dell'ADR che aveva definito il termine.
 
 Il ticket dice "survival", ADR-0027 dice "Survival alone is a weak gate". L'agente ha scritto "survival" ovunque. Il sub-agente della review sugli standard l'ha segnalato come violazione: in `GLOSSARY.md` la voce **Persistence** elenca tra le parole da evitare proprio "survival", perché quella è di un organismo solo. E "population" usata per un conteggio, che il glossario chiama "population size". Corretto tutto, nel test e in `vision.md`. Le parole le aveva scelte la pianificazione, ma a tenerle in ordine è stata la review.
+
+---
+
+Una previsione che era già una misura.
+
+Il ticket #57 chiedeva di scrivere le previsioni prima di lanciare i quindici run, una riga per genoma di partenza. L'agente, scrivendo quella per `r=1.0`, si è accorto che i cinque mondi con quel genoma sono esattamente i cinque della Persistence: stessi seed, stesso genoma, stesso costruttore. La loro sopravvivenza era già stata misurata da #56. L'ha scritto nella previsione stessa: su questa riga non sto prevedendo niente.
+
+---
+
+Previsto su carta, misurato al tick 19.560.
+
+Per il genoma `r=2.5` l'agente ha rifatto un conto a mano prima del run. Fondatori più grandi tengono più carbonio nel corpo, e il carbonio ambiente `s` scende da 1.74 a circa 1.14. Il figlio peggiore chiede cibo per `(1 + δ)² ≈ 1.17` volte l'area del genitore. Quindi all'inizio nessun fondatore può riprodursi, finché non ne muoiono abbastanza da restituire carbonio all'acqua. Previsione: quattro su cinque sopravvivono, e quello che muore muore in questa siccità iniziale.
+
+Il seed 10 si estingue al tick 19.560 con zero nascite. Gli altri quattro passano. È la previsione che è andata meglio, ed è andata bene per il motivo scritto, non per caso.
+
+---
+
+La previsione per `r=1.5` era una deriva leggera verso il basso. I run si sono divisi in due.
+
+Tre seed su cinque crollano a circa 1.15 nei primi 10 mila tick, cioè al livello da cui stanno risalendo i run partiti da 1.0, e poi risalgono anche loro fino a 1.3. Gli altri due restano tra 1.5 e 1.6 per tutto il run. I numeri finali cadevano nella forchetta prevista, la strada no. Una previsione giusta sul punto d'arrivo può essere sbagliata su tutto il resto.
+
+---
+
+Quindici run, ma non quindici mondi indipendenti.
+
+`createPopulation` consuma le estrazioni di un seed nello stesso modo qualunque sia il genoma di partenza. Così il seed 11 ha gli stessi fondatori, in proporzione, sotto `r=1.0`, `r=1.5` e `r=2.5`, quasi nelle stesse posizioni. E il seed 11 finisce primo sia a 1.0 sia a 1.5, il seed 7 ultimo o penultimo. Nessuno l'aveva messo in conto quando ADR-0025 ha scelto "cinque seed per tre genomi".
+
+---
+
+Il verdetto l'ha deciso una riga scritta quando non decideva niente.
+
+In #54 l'agente che ha spostato i done-criteria nel calibration harness ha cambiato una regola, e l'ha dichiarato sul ticket come differenza voluta: un run estinto fa fallire non solo l'accuratezza ma anche la convergenza. Prima la dispersione si calcolava sui sopravvissuti. La motivazione era ADR-0025, "a failed run, not an excluded one", un run fallito e non un run escluso. Sul ticket c'era anche: "On this law the verdict is the same either way", con la legge di allora il verdetto non cambia. Erano tutti estinti.
+
+In #57 i sopravvissuti hanno una dispersione di 0.30 contro lo 0.62 dei genomi di partenza. Con la regola vecchia la convergenza passava. Con quella nuova fallisce, per un solo run, quello morto nella siccità. La regola è stata scritta quando non poteva cambiare niente, e due ticket dopo è l'unica cosa tra PASS e FAIL.
+
+---
+
+Una causa non misurata, la seconda volta nello stesso milestone.
+
+Il commento di `doneCriteria.ts` diceva che una legge in cui i run sopravvivono sarebbe costata più degli 8 minuti e 10 della v0.1, e chiedeva a chi l'avesse misurata di scriverci il numero. Il numero è 88 secondi. L'agente l'ha scritto, e ci ha messo accanto una spiegazione: un mondo sottile di 12–62 organismi costa meno dei mondi della v0.1 prima di morire. Il sub-agente della review sugli standard l'ha fermata: nessuno l'aveva misurata, e gli 8 minuti erano già un limite superiore preso con un secondo run sulla stessa macchina. Nel commento è rimasto il numero.
+
+Come per il boom innescato che arriva a 125 invece che a 1.025: l'ipotesi ovvia scritta come causa, e tolta in review.
+
+---
+
+La nota su dove la misura contraddiceva le previsioni conteneva a sua volta affermazioni contraddette dalla misura.
+
+L'agente aveva scritto che i run da sotto e da sopra "si stanno ancora muovendo verso 1.5 a 100k", e che i seed 10 e 11 erano i più alti. La tabella diceva altro: il seed 7 partito da 2.5 è fermo a 1.8 dal tick 30 mila, due run partiti da 1.0 si muovono appena dopo i 60 mila, e sotto `r=1.0` il seed 10 è terzo. L'ha trovato il sub-agente della review sulla specifica, rileggendo i numeri riga per riga. L'agente aveva arrotondato la tabella nella direzione della propria storia: selezione verso `r_opt`, seed coerenti. Il commento su GitHub è stato corretto, e anche il paragrafo in `vision.md`.
+
+---
+
+`r_opt` va in pensione senza essere stato raggiunto.
+
+Era il numero su cui la v0.1 aveva costruito l'intero criterio scientifico: `r_opt = 2·c₀/α`, previsto su carta, 1.5 raggi base. La sua ultima misura dà accuratezza 6 su 15 e convergenza fallita. Ma è la prima misura in cui qualcuno gli va incontro: i run partiti da 1.0 salgono, quelli partiti da 2.5 scendono, e la deriva non porta in discesa. Dentro i 100 mila tick del protocollo nessuno ci arriva. Con gli organelli il reddito non sarà più `α·r`, e la domanda smette di avere senso prima di avere una risposta.
