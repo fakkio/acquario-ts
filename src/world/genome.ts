@@ -1,7 +1,7 @@
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
-  DELTA_BODY_RADIUS,
   DELTA_CHILD_ALLOCATION_RATIO,
+  DELTA_CYTOPLASM_THICKNESS,
   DELTA_LINEAGE_HUE,
   DELTA_MITOSIS_ENERGY_THRESHOLD,
   MUTATION_PROBABILITY,
@@ -10,22 +10,42 @@ import {bodyAreaOfRadius} from "./organism";
 import {nextRng, type RngStream} from "./rng";
 
 /**
- * The complete heritable description of an organism (glossary: Genome). In
- * v0.1 a flat record of the four genes `docs/vision.md` names, held by
- * `Organism` and fixed for its life: it changes only at birth, through
- * `mutateGenome`, never in place.
+ * A structural gene (glossary: Structural Gene), one entry of a genome's
+ * `genes`. Nothing yet: the Organelle Gene arrives with the first organelle
+ * type (#61). Until then `never` makes "every `genes` is empty" a fact the
+ * compiler enforces rather than a convention.
+ */
+export type Gene = never;
+
+/**
+ * The complete heritable description of an organism (glossary: Genome),
+ * held by `Organism` and fixed for its life: it changes only at birth,
+ * through `mutateGenome`, never in place.
+ *
+ * v0.2's shape (ADR-0028): a fixed header of **Organism Genes**, the genes
+ * an organism has exactly once, plus `genes`, the structural genes, which
+ * grow and shrink as structure evolves. The header is v0.1's four genes
+ * with `cytoplasmThickness` in place of `bodyRadius`: the body is no longer
+ * a gene but a consequence of the layout (`deriveBody`), and with no
+ * organelles the thickness is the whole radius.
+ *
+ * The header's declaration order is its draw order in `mutateGenome`, so
+ * `cytoplasmThickness` sits where `bodyRadius` did.
  */
 export interface Genome {
-  readonly bodyRadius: number;
+  readonly cytoplasmThickness: number;
   readonly mitosisEnergyThreshold: number;
   readonly childAllocationRatio: number;
   readonly lineageHue: number;
+  readonly genes: readonly Gene[];
 }
 
 /**
  * The single minimal genome generation 0 is independently mutated from
- * (glossary: Baseline Genome). `bodyRadius` is the baseline radius, 1 by
- * definition (`GLOSSARY.md`). `mitosisEnergyThreshold` and
+ * (glossary: Baseline Genome). It carries no organelles, so a baseline
+ * organism is v0.1's Minimal Organism (ADR-0028), and its
+ * `cytoplasmThickness` is the baseline radius, 1 by definition
+ * (`GLOSSARY.md`). `mitosisEnergyThreshold` and
  * `childAllocationRatio` are provisional, measured against the current
  * constants rather than derived — a baseline parent's energy cap is
  * `K_CAP_ENERGY × π ≈ 1257`, so at `0.75` it breeds at about 943, pays
@@ -41,10 +61,11 @@ export interface Genome {
  * that satisfies the record's shape and nothing more.
  */
 export const BASELINE_GENOME: Genome = {
-  bodyRadius: BASELINE_BODY_RADIUS,
+  cytoplasmThickness: BASELINE_BODY_RADIUS,
   mitosisEnergyThreshold: 0.75,
   childAllocationRatio: 0.5,
   lineageHue: 0,
+  genes: [],
 };
 
 export interface MutationOptions {
@@ -75,9 +96,12 @@ export interface GenomeMutation {
  * new genome — applied to a child at birth, never to a living organism.
  *
  * Draw order is a law of the world, not an implementation detail: every
- * gene, in the record's own declaration order, takes one probability draw
- * and then its magnitude draw(s), only if that probability draw fires.
+ * header gene, in the record's own declaration order, takes one probability
+ * draw and then its magnitude draw(s), only if that probability draw fires.
  * Reordering it later reseeds every child mutated from this point on.
+ *
+ * `genes` passes through untouched: the structural events that act on it
+ * arrive with #62, after the header and with draws of their own.
  */
 export function mutateGenome(
   genome: Genome,
@@ -88,9 +112,13 @@ export function mutateGenome(
   const scale = options.scale ?? 1;
   const draws = openDraws(stream);
 
-  const bodyRadius = draws.fires(probability)
-    ? mutateRadius(genome.bodyRadius, draws, DELTA_BODY_RADIUS * scale)
-    : genome.bodyRadius;
+  const cytoplasmThickness = draws.fires(probability)
+    ? mutateMultiplicatively(
+        genome.cytoplasmThickness,
+        draws,
+        DELTA_CYTOPLASM_THICKNESS * scale,
+      )
+    : genome.cytoplasmThickness;
 
   const mitosisEnergyThreshold = draws.fires(probability)
     ? clampUnitInterval(
@@ -114,10 +142,11 @@ export function mutateGenome(
 
   return {
     genome: {
-      bodyRadius,
+      cytoplasmThickness,
       mitosisEnergyThreshold,
       childAllocationRatio,
       lineageHue,
+      genes: genome.genes,
     },
     stream: draws.stream(),
   };
@@ -131,31 +160,62 @@ export function mutateGenome(
  * draws above it — that would bring the Birth Sieve back from the other
  * side.
  *
- * In v0.1 it falls out of `mutateRadius`: a child's radius is at most
- * `r·(1 + δ)`, since its magnitude draw stays below 1. It covers ordinary
- * births only. Generation 0's scaled founder mutation is not a birth, and
- * its founders can exceed it. M7 replaces the body with a bound read from
- * the structural genome; the signature stays.
+ * With no structural genes it falls out of `mutateMultiplicatively`: a
+ * child's thickness, and so its whole radius, is at most `t·(1 + δ)`, since
+ * its magnitude draw stays below 1. It covers ordinary births only.
+ * Generation 0's scaled founder mutation is not a birth, and its founders
+ * can exceed it. The structural events add their own terms to the radius
+ * (ADR-0028, #62); the signature stays.
  */
 export function birthCostCeiling(genome: Genome): number {
-  return bodyAreaOfRadius(genome.bodyRadius * (1 + DELTA_BODY_RADIUS));
+  return bodyAreaOfRadius(
+    genome.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
+  );
 }
 
 /**
- * `bodyRadius`'s own law: draw a magnitude `m = 1 + u·δ`, then a second draw
+ * What a genome builds (ADR-0028): the body is derived from the layout,
+ * never inherited as a number of its own. Pure, so mitosis can price a child
+ * from its genome before any `Organism` for it exists.
+ */
+export interface Body {
+  /** The Enclosing Circle's radius plus the Cytoplasm Thickness. */
+  readonly radius: number;
+  /**
+   * The body's area minus every organelle's (glossary: Cytoplasm Area):
+   * the space that holds the stores, so caps, internal concentrations and
+   * `β` read it rather than the whole body (ADR-0029).
+   */
+  readonly cytoplasmArea: number;
+}
+
+/**
+ * Derives the body a genome builds. With no organelles, which is every
+ * genome until #61, the Enclosing Circle is empty: the radius is the
+ * thickness alone and the whole body is cytoplasm, v0.1's Minimal Organism
+ * to the last bit.
+ */
+export function deriveBody(genome: Genome): Body {
+  const radius = genome.cytoplasmThickness;
+  return {radius, cytoplasmArea: bodyAreaOfRadius(radius)};
+}
+
+/**
+ * `cytoplasmThickness`'s law, inherited from v0.1's `bodyRadius`: draw a
+ * magnitude `m = 1 + u·δ`, then a second draw
  * picks `× m` or `÷ m` with equal probability. Symmetric in log space, unlike
  * the obvious additive form `1 + (2u−1)·δ` — `×1.08` then `×0.92` lands at
  * `0.9936`, a free downward drift sitting on top of the signal M5 measures.
  * Log-normal is the textbook fix and is rejected on ADR-0007's grounds, the
  * same grounds `motion.ts` already rejects `cos`/`sin` on: `+ − × ÷` only.
  */
-function mutateRadius(
-  radius: number,
+function mutateMultiplicatively(
+  value: number,
   draws: MutationDraws,
   delta: number,
 ): number {
   const magnitude = 1 + draws.unit() * delta;
-  return draws.unit() < 0.5 ? radius * magnitude : radius / magnitude;
+  return draws.unit() < 0.5 ? value * magnitude : value / magnitude;
 }
 
 /** Clamps rather than rejects, per ADR-0002: `1.0` has to stay reachable and

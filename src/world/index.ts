@@ -7,7 +7,7 @@ export {
   bodyArea,
   bodyAreaOfRadius,
   capFor,
-  capForRadius,
+  capForArea,
   type Founder,
   type OrganismView,
 } from "./organism";

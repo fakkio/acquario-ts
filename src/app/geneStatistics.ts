@@ -6,7 +6,10 @@ export interface GeneStat {
 }
 
 export interface PopulationGeneStatistics {
+  /** The derived body radius, not a gene since M7, but folded with the
+   * genes because it is what the population looks like on screen. */
   readonly bodyRadius: GeneStat;
+  readonly cytoplasmThickness: GeneStat;
   readonly mitosisEnergyThreshold: GeneStat;
   readonly childAllocationRatio: GeneStat;
   readonly lineageHue: GeneStat;
@@ -27,18 +30,22 @@ function stat(values: readonly number[]): GeneStat {
 }
 
 /**
- * Mean ± σ for all four genes, folded here in the App layer rather than
- * behind a reader of the world's — the same call ADR-0015 made for `α`
- * smoothing: a statistic kept in the world would be state crossing tick
- * boundaries with no reader inside a tick, so it would only enter
- * `hashState` for the sake of a HUD row, and a second path to numbers
- * `OrganismView` already carries is a second thing to keep in agreement.
+ * Mean ± σ for all four genes and the derived body radius, folded here in
+ * the App layer rather than behind a reader of the world's — the same call
+ * ADR-0015 made for `α` smoothing: a statistic kept in the world would be
+ * state crossing tick boundaries with no reader inside a tick, so it would
+ * only enter `hashState` for the sake of a HUD row, and a second path to
+ * numbers `OrganismView` already carries is a second thing to keep in
+ * agreement.
  */
 export function foldGeneStatistics(
   population: readonly OrganismView[],
 ): PopulationGeneStatistics {
   return {
     bodyRadius: stat(population.map((organism) => organism.bodyRadius)),
+    cytoplasmThickness: stat(
+      population.map((organism) => organism.cytoplasmThickness),
+    ),
     mitosisEnergyThreshold: stat(
       population.map((organism) => organism.mitosisEnergyThreshold),
     ),

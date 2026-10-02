@@ -1,10 +1,11 @@
 import {describe, expect, it} from "vitest";
 
 import {BASELINE_BODY_RADIUS} from "./aquarium";
-import {DELTA_BODY_RADIUS} from "./constants";
+import {DELTA_CYTOPLASM_THICKNESS} from "./constants";
 import {
   BASELINE_GENOME,
   birthCostCeiling,
+  deriveBody,
   mutateGenome,
   type Genome,
 } from "./genome";
@@ -14,7 +15,7 @@ import {createRngStream} from "./rng";
 const SAMPLE_SEEDS = 500;
 
 describe("mutateGenome", () => {
-  it("mutates bodyRadius by × m or ÷ m with equal probability, m and 1/m both inside [1, 1 + δ]", () => {
+  it("mutates cytoplasmThickness by × m or ÷ m with equal probability, m and 1/m both inside [1, 1 + δ]", () => {
     let up = 0;
     let down = 0;
 
@@ -22,7 +23,8 @@ describe("mutateGenome", () => {
       const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed), {
         probability: 1,
       });
-      const ratio = genome.bodyRadius / BASELINE_GENOME.bodyRadius;
+      const ratio =
+        genome.cytoplasmThickness / BASELINE_GENOME.cytoplasmThickness;
 
       if (ratio > 1) {
         up++;
@@ -36,7 +38,9 @@ describe("mutateGenome", () => {
       // its range — e.g. a ratio of 0.92 has a reciprocal of ~1.087, outside
       // `1 + δ = 1.08`.
       const reciprocalBound = Math.max(ratio, 1 / ratio);
-      expect(reciprocalBound).toBeLessThanOrEqual(1 + DELTA_BODY_RADIUS + 1e-9);
+      expect(reciprocalBound).toBeLessThanOrEqual(
+        1 + DELTA_CYTOPLASM_THICKNESS + 1e-9,
+      );
       expect(reciprocalBound).toBeGreaterThanOrEqual(1);
     }
 
@@ -116,7 +120,7 @@ describe("mutateGenome", () => {
     for (let seed = 0; seed < SAMPLE_SEEDS; seed++) {
       const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed));
       if (
-        genome.bodyRadius === BASELINE_GENOME.bodyRadius &&
+        genome.cytoplasmThickness === BASELINE_GENOME.cytoplasmThickness &&
         genome.mitosisEnergyThreshold ===
           BASELINE_GENOME.mitosisEnergyThreshold &&
         genome.childAllocationRatio === BASELINE_GENOME.childAllocationRatio &&
@@ -157,11 +161,11 @@ describe("birthCostCeiling", () => {
     for (let seed = 0; seed < STREAMS; seed++) {
       const parent: Genome = {
         ...BASELINE_GENOME,
-        bodyRadius: 0.3 + (seed % 100) * 0.03,
+        cytoplasmThickness: 0.3 + (seed % 100) * 0.03,
       };
       const ceiling = birthCostCeiling(parent);
       const {genome: child} = mutateGenome(parent, createRngStream(seed));
-      const childArea = bodyAreaOfRadius(child.bodyRadius);
+      const childArea = bodyAreaOfRadius(deriveBody(child).radius);
 
       expect(childArea).toBeLessThanOrEqual(ceiling);
       tightest = Math.max(tightest, childArea / ceiling);
@@ -173,8 +177,22 @@ describe("birthCostCeiling", () => {
   });
 });
 
+describe("deriveBody", () => {
+  it("gives a genome with no organelles a body exactly as thick as its cytoplasm, all of it cytoplasm", () => {
+    // v0.1's Minimal Organism, bit for bit: the golden hash rests on these
+    // being the same numbers, not close ones.
+    for (const cytoplasmThickness of [0.3, 1, 1.4, 2.5]) {
+      const body = deriveBody({...BASELINE_GENOME, cytoplasmThickness});
+
+      expect(body.radius).toBe(cytoplasmThickness);
+      expect(body.cytoplasmArea).toBe(bodyAreaOfRadius(cytoplasmThickness));
+    }
+  });
+});
+
 describe("BASELINE_GENOME", () => {
-  it("carries the baseline radius", () => {
-    expect(BASELINE_GENOME.bodyRadius).toBe(BASELINE_BODY_RADIUS);
+  it("carries the baseline radius as its thickness, and no organelles", () => {
+    expect(BASELINE_GENOME.cytoplasmThickness).toBe(BASELINE_BODY_RADIUS);
+    expect(BASELINE_GENOME.genes).toEqual([]);
   });
 });

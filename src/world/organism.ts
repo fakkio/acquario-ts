@@ -11,7 +11,9 @@ import {
 } from "./constants";
 import {
   BASELINE_GENOME,
+  deriveBody,
   mutateGenome,
+  type Body,
   type Genome,
   type MutationOptions,
 } from "./genome";
@@ -42,8 +44,9 @@ export const MAX_RADIUS_FACTOR = 1.4;
 
 /**
  * The largest body generation 0 places — no longer, from M4 on, the largest
- * body the world allows. `bodyRadius` is a gene with range `> 0` mutating
- * multiplicatively, so once reproduction exists there is no largest radius
+ * body the world allows. The radius grows from `cytoplasmThickness`, a gene
+ * with range `> 0` mutating multiplicatively (v0.1's `bodyRadius` until M7),
+ * so once reproduction exists there is no largest radius
  * to derive a world-wide ceiling from; the ledger is the only ceiling left,
  * since a single body cannot exceed the carbon budget (`r ≤ √K`, ADR-0012's
  * amendment).
@@ -64,7 +67,15 @@ export const GENERATION_0_MAX_BODY_RADIUS =
 export interface OrganismView {
   readonly x: number;
   readonly y: number;
+  /** The derived body's radius (`deriveBody`), not a gene: what collides,
+   * what is drawn, and what the HUD's body-radius row folds. */
   readonly bodyRadius: number;
+  /** The gene the body radius grows from, on the view from M7 so the HUD
+   * can show it apart from the radius it no longer is. */
+  readonly cytoplasmThickness: number;
+  /** The derived body's Cytoplasm Area, the denominator of every cap and
+   * internal concentration (ADR-0029). */
+  readonly cytoplasmArea: number;
   readonly lineageHue: number;
   /**
    * The two reproduction genes, on the view from M5 so that all four genes
@@ -140,10 +151,10 @@ export const RESOURCES: readonly Resource[] = [
 
 /**
  * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
- * size: `coefficient × bodyArea`. The three diffusibles' coefficients come
- * from `K_CAP`'s own per-resource table, spread in whole rather than listed
- * again here, so a diffusible added later cannot be given a cap in one
- * place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
+ * size: `coefficient × cytoplasmArea` (ADR-0029). The three diffusibles'
+ * coefficients come from `K_CAP`'s own per-resource table, spread in whole
+ * rather than listed again here, so a diffusible added later cannot be
+ * given a cap in one place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
  * outside that table, because its unit is fixed independently by `β = 1`
  * rather than by coincidence of notation.
  */
@@ -159,11 +170,12 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
  *
  * `x`/`y` and `rng` are the state a tick advances. `genome` is fixed for a
  * life: it changes only at birth, through `mutateGenome`, where the child
- * gets its own record — never in place on a living organism. All four genes
- * are readable as getters over it, so every existing read of `bodyRadius`
- * or `lineageHue` — in `grid.ts`, `motion.ts`, `metabolism.ts`,
- * `separation.ts`, `render.ts` and the test fixtures — keeps working
- * untouched, and `OrganismView` is widened rather than reshaped.
+ * gets its own record — never in place on a living organism. All four
+ * header genes are readable as getters over it, and so is the body the
+ * genome builds, derived once at construction because a fixed genome builds
+ * a fixed body. `bodyRadius` stays the name every collision, wall and draw
+ * reads, in `grid.ts`, `motion.ts`, `separation.ts` and `render.ts`; from
+ * M7 it is the derived radius rather than a gene.
  *
  * No rotation and no angular velocity: a circle with no organelles has no
  * visible orientation, and rotation arrives in v0.2 with the organelles whose
@@ -185,11 +197,13 @@ export class Organism {
   oxygen: number;
   carbonDioxide: number;
   food: number;
+  private readonly body: Body;
 
   constructor(init: OrganismInit) {
     this.x = init.x;
     this.y = init.y;
     this.genome = init.genome;
+    this.body = deriveBody(init.genome);
     this.rng = init.rng;
     this.energy = init.energy ?? 0;
     this.oxygen = init.oxygen ?? 0;
@@ -198,7 +212,15 @@ export class Organism {
   }
 
   get bodyRadius(): number {
-    return this.genome.bodyRadius;
+    return this.body.radius;
+  }
+
+  get cytoplasmArea(): number {
+    return this.body.cytoplasmArea;
+  }
+
+  get cytoplasmThickness(): number {
+    return this.genome.cytoplasmThickness;
   }
 
   get lineageHue(): number {
@@ -217,10 +239,10 @@ export class Organism {
 /**
  * The area a body of `bodyRadius` occupies, in the same length unit as the
  * radius itself. The one place that area is computed from a bare radius,
- * so `bodyArea`, `bodyMass` and `capFor` all read it the same way — and so
- * does `mitosis.ts` (ADR-0019), which has to price a child's cost and caps
- * from its mutated `bodyRadius` before any `Organism` for it exists to hand
- * `bodyArea` itself.
+ * so `bodyArea`, `bodyMass` and `deriveBody` all read it the same way — and
+ * so does `mitosis.ts` (ADR-0019), which has to price a child from its
+ * derived body before any `Organism` for it exists to hand `bodyArea`
+ * itself.
  */
 export function bodyAreaOfRadius(bodyRadius: number): number {
   return Math.PI * bodyRadius * bodyRadius;
@@ -258,20 +280,22 @@ export function bodyMass(organism: Organism): number {
   return bodyMassOfRadius(organism.bodyRadius);
 }
 
-/** The maximum amount of `resource` a body of `bodyRadius` can hold — see
- * `bodyAreaOfRadius` for why a radius-only sibling of `capFor` exists. */
-export function capForRadius(bodyRadius: number, resource: Resource): number {
-  return CAP_COEFFICIENT[resource] * bodyAreaOfRadius(bodyRadius);
+/** The maximum amount of `resource` a body with `cytoplasmArea` can hold —
+ * `capFor`'s sibling for a body with no `Organism` yet, a child mitosis is
+ * still pricing from its `deriveBody`. */
+export function capForArea(cytoplasmArea: number, resource: Resource): number {
+  return CAP_COEFFICIENT[resource] * cytoplasmArea;
 }
 
 /** The maximum amount of `resource` this organism can hold right now — a
- * maximum internal concentration, scaled by its own body area. Accepts an
+ * maximum internal concentration, scaled by its own Cytoplasm Area, since
+ * organelles take space that holds no stores (ADR-0029). Accepts an
  * `OrganismView` too; see `bodyArea`. */
 export function capFor(
   organism: Organism | OrganismView,
   resource: Resource,
 ): number {
-  return capForRadius(organism.bodyRadius, resource);
+  return capForArea(organism.cytoplasmArea, resource);
 }
 
 export interface PopulationDraw {
@@ -322,11 +346,12 @@ export function createPopulation(
       scale: GENERATION_0_MUTATION_SCALE,
     });
     const genome: Genome = {...mutated, lineageHue: draws.unit()};
+    const {radius} = deriveBody(genome);
 
     population.push(
       new Organism({
-        x: placeWithin(draws.unit(), AQUARIUM_WIDTH, genome.bodyRadius),
-        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, genome.bodyRadius),
+        x: placeWithin(draws.unit(), AQUARIUM_WIDTH, radius),
+        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, radius),
         genome,
         rng,
       }),
@@ -399,7 +424,10 @@ export function placeFounders(
  * folds in, including the two M4 adds — `mitosisEnergyThreshold` and
  * `childAllocationRatio` — per the rule: what enters the hash is what the
  * next tick reads, and a gene left out is a gene the invariant silently
- * stops covering.
+ * stops covering. `cytoplasmThickness` folds into the slot `bodyRadius`
+ * held, and with no organelles it is the same number, so a world of
+ * Minimal Organisms hashes as it did in M6 (#59). `genes` folds nothing
+ * while it is empty.
  *
  * The four internal stores fold in too, per the rule M2 adds beside
  * `hashState`: what enters the hash is what the next tick *reads*, and
@@ -414,7 +442,7 @@ export function foldPopulation(
     const {genome} = organism;
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(genome.bodyRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmThickness)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}`,
     );
   }
 

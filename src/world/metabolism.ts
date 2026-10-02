@@ -7,7 +7,7 @@ import {
   RESPIRATION_ENERGY_YIELD,
 } from "./constants";
 import type {Environment} from "./environment";
-import {DIFFUSIBLES, bodyArea, capFor, type Organism} from "./organism";
+import {DIFFUSIBLES, capFor, type Organism} from "./organism";
 
 /**
  * The reactions and costs that spend and fill an organism's internal
@@ -16,6 +16,12 @@ import {DIFFUSIBLES, bodyArea, capFor, type Organism} from "./organism";
  * photosynthesis take an `Environment`, since both cross the membrane or
  * read light; respiration and maintenance are purely internal and take
  * none.
+ *
+ * Two areas, never confused (ADR-0029). Every internal concentration is a
+ * store over the **Cytoplasm Area**, the space that holds it, and so is
+ * every cap. What the body meets the world with stays the whole body's:
+ * the perimeter exchange crosses and the diameter photosynthesis projects
+ * toward the light. With no organelles the two areas are the same number.
  */
 
 /**
@@ -55,12 +61,11 @@ export function applyPassiveExchange(
   organism: Organism,
   environment: Environment,
 ): void {
-  const area = bodyArea(organism);
   const perimeter = 2 * Math.PI * organism.bodyRadius;
 
   for (const resource of DIFFUSIBLES) {
     const externalConcentration = environment.concentration(resource, organism);
-    const internalConcentration = organism[resource] / area;
+    const internalConcentration = organism[resource] / organism.cytoplasmArea;
     const flux =
       K_DIFFUSION * perimeter * (externalConcentration - internalConcentration);
 
@@ -100,9 +105,9 @@ export function applyPhotosynthesis(
   organism: Organism,
   environment: Environment,
 ): void {
-  const area = bodyArea(organism);
   const diameter = 2 * organism.bodyRadius;
-  const internalCo2Concentration = organism.carbonDioxide / area;
+  const internalCo2Concentration =
+    organism.carbonDioxide / organism.cytoplasmArea;
   const light = environment.light(organism);
 
   const rate = K_PHOTO * internalCo2Concentration * light * diameter;
@@ -155,7 +160,8 @@ export interface RespirationOutcome {
  * lag instead of the same-tick cycle the milestone promises.
  *
  * The rate follows mass action on *two* internal reactant concentrations —
- * food and O₂ — multiplied by body area rather than by the perimeter-like
+ * food and O₂ — multiplied by the Cytoplasm Area, the volume the reaction
+ * runs in and the stores sit in, rather than by the perimeter-like
  * factor photosynthesis uses. That is what keeps energy income linear in
  * `r`: capacity here grows with area while passive exchange's supply grows
  * only with perimeter, so a larger body's respiration stays supply-limited
@@ -171,7 +177,7 @@ export interface RespirationOutcome {
  * room to hold.
  */
 export function applyRespiration(organism: Organism): RespirationOutcome {
-  const area = bodyArea(organism);
+  const area = organism.cytoplasmArea;
   const foodConcentration = organism.food / area;
   const oxygenConcentration = organism.oxygen / area;
   const rate = K_RESP * foodConcentration * oxygenConcentration * area;
@@ -206,9 +212,11 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
 
 /**
  * Resolve-phase step 5 (ADR-0006): maintenance, the cost of being an
- * organism at all — `c₀ + β·area` (ADR-0009), charged in full every tick to
- * every organism. `c₀` is the flat existence cost that creates a minimum
- * viable body size; `β·area` is the body cost.
+ * organism at all — `c₀ + β·cytoplasmArea` (ADR-0009, ADR-0029), charged in
+ * full every tick to every organism. `c₀` is the flat existence cost that
+ * creates a minimum viable body size; `β·cytoplasmArea` is the body cost,
+ * charged on the cytoplasm alone because each organelle will pay for its
+ * own area at its type's rate.
  *
  * **Unconditional.** This function no longer floors the result at zero
  * (ADR-0017): whether an organism is allowed to fall below zero energy is a
@@ -221,6 +229,6 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
  * silently clamped to something that looks fine.
  */
 export function applyMaintenance(organism: Organism): void {
-  const cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * bodyArea(organism);
+  const cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * organism.cytoplasmArea;
   organism.energy -= cost;
 }

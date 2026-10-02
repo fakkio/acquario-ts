@@ -133,7 +133,12 @@ const updateHud = (currentWorld: World, fps: number): void => {
   // reader — the same call ADR-0015 made for `α` smoothing above.
   const geneStats = foldGeneStatistics(getPopulation(currentWorld));
   hud.setField(
-    "geneBodyRadius",
+    "geneCytoplasmThickness",
+    "Cytoplasm thickness (μ±σ)",
+    formatStat(geneStats.cytoplasmThickness),
+  );
+  hud.setField(
+    "bodyRadius",
     "Body radius (μ±σ)",
     formatStat(geneStats.bodyRadius),
   );

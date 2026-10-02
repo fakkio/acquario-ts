@@ -1,12 +1,17 @@
 import {MITOSIS_ENERGY_COST, RHO} from "./constants";
-import {birthCostCeiling, mutateGenome, type Genome} from "./genome";
+import {
+  birthCostCeiling,
+  deriveBody,
+  mutateGenome,
+  type Genome,
+} from "./genome";
 import {constrainToAquarium} from "./motion";
 import {
   Organism,
   RESOURCES,
   bodyAreaOfRadius,
   capFor,
-  capForRadius,
+  capForArea,
   type Resource,
 } from "./organism";
 import {deriveChildStream, drawUnitVector, type RngStream} from "./rng";
@@ -65,7 +70,8 @@ export interface PendingBirth {
  *    `deriveChildStream` just advanced past the derivation draw, not the
  *    freshly derived child stream, which the child keeps for its own life
  *    from here on untouched by its own birth.
- * 5. **Price and pay**, which cannot fail after step 2. A child the parent
+ * 5. **Price and pay**, from the body the child's genome builds
+ *    (`deriveBody`), which cannot fail after step 2. A child the parent
  *    cannot pay for means the ceiling is broken, and that throws, before
  *    anything is subtracted: returning no birth would reject the draw and
  *    bring the sieve back from the other side.
@@ -95,7 +101,8 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   organism.rng = mutation.stream;
   const childGenome = mutation.genome;
 
-  const childArea = bodyAreaOfRadius(childGenome.bodyRadius);
+  const childBody = deriveBody(childGenome);
+  const childArea = bodyAreaOfRadius(childBody.radius);
   const massCost = mitosisMassCost(childArea);
   const energyCost = mitosisEnergyCost(childArea);
 
@@ -112,7 +119,7 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   // `childAllocationRatio` splits what remains after both costs, across
   // all four resources including energy (ADR-0019). A child that cannot
   // hold its full share receives up to its own caps — computed from its
-  // own mutated area via `capForRadius`, since no `Organism` for it exists
+  // own Cytoplasm Area via `capForArea`, since no `Organism` for it exists
   // yet to hand `capFor` — and the excess simply stays subtracted from
   // nothing: `organism[resource]` only ever loses the granted amount.
   const ratio = organism.genome.childAllocationRatio;
@@ -126,7 +133,7 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
     const desired = ratio * organism[resource];
     const granted = Math.min(
       desired,
-      capForRadius(childGenome.bodyRadius, resource),
+      capForArea(childBody.cytoplasmArea, resource),
     );
     organism[resource] -= granted;
     childStores[resource] = granted;
@@ -139,7 +146,7 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   // direction. Left free to land outside the aquarium — `appendBirths`
   // constrains it at step 12, after step 10's separation has already run
   // for everyone else this tick.
-  const separation = organism.bodyRadius + childGenome.bodyRadius;
+  const separation = organism.bodyRadius + childBody.radius;
 
   return {
     genome: childGenome,

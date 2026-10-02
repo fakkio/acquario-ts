@@ -5,13 +5,14 @@ import {evaluateDeaths} from "./death";
 import {
   BASELINE_GENOME,
   birthCostCeiling,
+  deriveBody,
   mutateGenome,
   type Genome,
 } from "./genome";
 import {totalCarbon, totalOxygen, type Pools} from "./ledger";
 import {applyMaintenance} from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
-import {Organism, bodyAreaOfRadius, capFor, capForRadius} from "./organism";
+import {Organism, bodyAreaOfRadius, capFor, capForArea} from "./organism";
 import {createRngStream, deriveChildStream} from "./rng";
 import {openDraws, organismAt} from "./testing";
 
@@ -29,10 +30,10 @@ const EMPTY_POOLS: Pools = {food: 0, carbonDioxide: 0, oxygen: 0};
 /** A genome that always clears the threshold gate and always splits its
  * remainder evenly, so a test can focus on whichever draw or cost it is
  * actually about. */
-function eagerGenome(bodyRadius = 1): Genome {
+function eagerGenome(cytoplasmThickness = 1): Genome {
   return {
     ...BASELINE_GENOME,
-    bodyRadius,
+    cytoplasmThickness,
     mitosisEnergyThreshold: 0,
     childAllocationRatio: 0.5,
   };
@@ -65,7 +66,7 @@ describe("evaluateMitosis", () => {
   });
 
   it("clears the gate at exactly the threshold", () => {
-    const genome = {...BASELINE_GENOME, bodyRadius: 1};
+    const genome = {...BASELINE_GENOME, cytoplasmThickness: 1};
     const organism = organismWith(5, 5, genome, 42);
     const cap = capFor(organism, "energy");
     organism.energy = genome.mitosisEnergyThreshold * cap;
@@ -87,8 +88,8 @@ describe("evaluateMitosis", () => {
   });
 
   it("gives two births from the same starting stream the same child stream, even when their genomes mutate completely differently", () => {
-    // Same seed, same starting `rng` — but a wildly different `bodyRadius`
-    // changes what `mutateGenome`'s radius law computes (a different
+    // Same seed, same starting `rng` — but a wildly different thickness
+    // changes what `mutateGenome`'s multiplicative law computes (a different
     // magnitude, and its own coin flip for × vs ÷). If derivation ran
     // *after* mutation, or read anything mutation touched, these two
     // children's streams would diverge along with their genomes; pinned
@@ -106,8 +107,8 @@ describe("evaluateMitosis", () => {
 
     expect(birthSmall).not.toBeNull();
     expect(birthLarge).not.toBeNull();
-    expect(birthSmall?.genome.bodyRadius).not.toBe(
-      birthLarge?.genome.bodyRadius,
+    expect(birthSmall?.genome.cytoplasmThickness).not.toBe(
+      birthLarge?.genome.cytoplasmThickness,
     );
     expect(birthSmall?.rng).toEqual(birthLarge?.rng);
   });
@@ -128,7 +129,8 @@ describe("evaluateMitosis", () => {
     const derivation = deriveChildStream(startStream);
     const mutation = mutateGenome(organism.genome, derivation.parentStream);
     const childGenome = mutation.genome;
-    const childArea = bodyAreaOfRadius(childGenome.bodyRadius);
+    const childBody = deriveBody(childGenome);
+    const childArea = bodyAreaOfRadius(childBody.radius);
     const massCost = RHO * childArea;
     const energyCost = MITOSIS_ENERGY_COST * childArea;
     const ratio = organism.genome.childAllocationRatio;
@@ -138,19 +140,19 @@ describe("evaluateMitosis", () => {
 
     const expectedChildFood = Math.min(
       ratio * parentFoodAfterCost,
-      capForRadius(childGenome.bodyRadius, "food"),
+      capForArea(childBody.cytoplasmArea, "food"),
     );
     const expectedChildEnergy = Math.min(
       ratio * parentEnergyAfterCost,
-      capForRadius(childGenome.bodyRadius, "energy"),
+      capForArea(childBody.cytoplasmArea, "energy"),
     );
     const expectedChildOxygen = Math.min(
       ratio * startOxygen,
-      capForRadius(childGenome.bodyRadius, "oxygen"),
+      capForArea(childBody.cytoplasmArea, "oxygen"),
     );
     const expectedChildCo2 = Math.min(
       ratio * startCo2,
-      capForRadius(childGenome.bodyRadius, "carbonDioxide"),
+      capForArea(childBody.cytoplasmArea, "carbonDioxide"),
     );
 
     const birth = evaluateMitosis(organism);
@@ -188,8 +190,9 @@ describe("evaluateMitosis", () => {
       return;
     }
 
-    const childFoodCap = capForRadius(birth.genome.bodyRadius, "food");
-    const childEnergyCap = capForRadius(birth.genome.bodyRadius, "energy");
+    const {cytoplasmArea} = deriveBody(birth.genome);
+    const childFoodCap = capForArea(cytoplasmArea, "food");
+    const childEnergyCap = capForArea(cytoplasmArea, "energy");
     expect(birth.food).toBeLessThanOrEqual(childFoodCap + 1e-9);
     expect(birth.energy).toBeLessThanOrEqual(childEnergyCap + 1e-9);
     // Nothing lost: whatever the child could not hold is still sitting with
@@ -296,7 +299,9 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
         const birth = evaluateMitosis(organism);
         if (birth) {
           logRatios.push(
-            Math.log(bodyAreaOfRadius(birth.genome.bodyRadius) / parentArea),
+            Math.log(
+              bodyAreaOfRadius(deriveBody(birth.genome).radius) / parentArea,
+            ),
           );
           break;
         }
@@ -381,7 +386,7 @@ describe("appendBirths", () => {
 
   it("constructs a child carrying the pending birth's genome, position and stores", () => {
     const birth: PendingBirth = {
-      genome: {...BASELINE_GENOME, bodyRadius: 0.8, lineageHue: 0.2},
+      genome: {...BASELINE_GENOME, cytoplasmThickness: 0.8, lineageHue: 0.2},
       x: 5,
       y: 5,
       rng: createRngStream(99),

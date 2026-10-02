@@ -1,6 +1,5 @@
 import {
   BRIGHT_BAND_DEPTH,
-  bodyArea,
   createWorld,
   getCumulativeBirths,
   getCumulativeDeaths,
@@ -129,7 +128,7 @@ function runLive(seed: number): LiveRun {
     let radiusSum = 0;
 
     for (const organism of population) {
-      const concentration = organism.food / bodyArea(organism);
+      const concentration = organism.food / organism.cytoplasmArea;
       peakFoodOverRho = Math.max(peakFoodOverRho, concentration / RHO);
       peakFoodOverAmbient = Math.max(
         peakFoodOverAmbient,

@@ -67,8 +67,9 @@ function tunable(name: string, committed: number): number {
 }
 
 /**
- * Each diffusible's cap coefficient: a cap of `K_CAP[resource] × bodyArea`
- * is a maximum internal *concentration*, not a bucket size (ADR-0003).
+ * Each diffusible's cap coefficient: a cap of `K_CAP[resource] ×
+ * cytoplasmArea` is a maximum internal *concentration*, not a bucket size
+ * (ADR-0003, taken over the Cytoplasm Area from v0.2 by ADR-0029).
  *
  * Per-resource rather than a single scalar, because `kCap` was never a unit
  * (ADR-0022). It carries `ρ`'s own dimension — carbon per area — so fixing
@@ -414,13 +415,18 @@ export const BODY_COST_COEFFICIENT = 1;
 export const MUTATION_PROBABILITY = tunable("MUTATION_PROBABILITY", 0.25);
 
 /**
- * `bodyRadius`'s multiplicative step size: a mutation applies `× (1 +
+ * `cytoplasmThickness`'s multiplicative step size: a mutation applies `× (1 +
  * u·δ)` or its reciprocal with equal probability. Chosen, together with
  * `GENERATION_0_MUTATION_SCALE`, so that scaling it by 5 reproduces
  * generation 0's `[1/1.4, 1.4]` spread — the range M1 already calibrated —
- * from a single ordinary birth's step.
+ * from a single ordinary birth's step. It was v0.1's `bodyRadius` step, and
+ * the thickness inherits it unchanged (ADR-0028): with no organelles the
+ * thickness is the whole radius.
  */
-export const DELTA_BODY_RADIUS = tunable("DELTA_BODY_RADIUS", 0.08);
+export const DELTA_CYTOPLASM_THICKNESS = tunable(
+  "DELTA_CYTOPLASM_THICKNESS",
+  0.08,
+);
 
 /**
  * `mitosisEnergyThreshold`'s additive step size, clamped to `[0, 1]`. Small
@@ -452,8 +458,8 @@ export const DELTA_LINEAGE_HUE = tunable("DELTA_LINEAGE_HUE", 0.02);
 /**
  * Multiplies every δ above for generation 0 only, so founders spread across
  * the range a lineage would otherwise take many generations to explore.
- * Derived, not picked: `DELTA_BODY_RADIUS × 5 = 0.4` puts founder radii in
- * `[1/1.4, 1.4]` of the baseline, whose top end is exactly
+ * Derived, not picked: `DELTA_CYTOPLASM_THICKNESS × 5 = 0.4` puts founder
+ * radii in `[1/1.4, 1.4]` of the baseline, whose top end is exactly
  * `MAX_RADIUS_FACTOR` — generation 0's spread stays what M1 calibrated it
  * to.
  */

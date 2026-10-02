@@ -32,7 +32,8 @@ import {createRngStream, nextRng, type RngStream} from "./rng";
  * An organism placed by hand. `seed` picks its stream, so a test that cares
  * which numbers a body draws can pin one and a test that only needs a body
  * somewhere can ignore it. The two reproduction genes ride along at
- * `BASELINE_GENOME`'s values; no test in this suite yet cares which.
+ * `BASELINE_GENOME`'s values; no test in this suite yet cares which. It
+ * carries no organelles, so `bodyRadius` is its Cytoplasm Thickness.
  */
 export function organismAt(
   x: number,
@@ -43,7 +44,11 @@ export function organismAt(
   return new Organism({
     x,
     y,
-    genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.5},
+    genome: {
+      ...BASELINE_GENOME,
+      cytoplasmThickness: bodyRadius,
+      lineageHue: 0.5,
+    },
     rng: createRngStream(seed),
   });
 }

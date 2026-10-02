@@ -1190,10 +1190,10 @@ describe("fertility mode (M4)", () => {
 
 describe("generation 0 (M5)", () => {
   const LADDER: readonly Founder[] = [0.8, 1.2, 1.8, 2.6].map(
-    (bodyRadius, i) => ({
+    (cytoplasmThickness, i) => ({
       x: 10 + 10 * i,
       y: 4 + 8 * i,
-      genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.2 * i},
+      genome: {...BASELINE_GENOME, cytoplasmThickness, lineageHue: 0.2 * i},
     }),
   );
 
@@ -1222,7 +1222,9 @@ describe("generation 0 (M5)", () => {
   it("mutates founders from the baseline genome it was given", () => {
     const population = getPopulation(
       createWorld(1234, {
-        generation0: {baselineGenome: {...BASELINE_GENOME, bodyRadius: 2.5}},
+        generation0: {
+          baselineGenome: {...BASELINE_GENOME, cytoplasmThickness: 2.5},
+        },
       }),
     );
 
@@ -1237,7 +1239,9 @@ describe("generation 0 (M5)", () => {
     expect(
       hashAfter(
         createWorld(1234, {
-          generation0: {baselineGenome: {...BASELINE_GENOME, bodyRadius: 2.5}},
+          generation0: {
+            baselineGenome: {...BASELINE_GENOME, cytoplasmThickness: 2.5},
+          },
         }),
         60,
       ),
@@ -1251,7 +1255,9 @@ describe("generation 0 (M5)", () => {
 
     expect(population).toHaveLength(LADDER.length);
     for (const [i, organism] of population.entries()) {
-      expect(organism.bodyRadius).toBe(LADDER[i].genome.bodyRadius);
+      expect(organism.cytoplasmThickness).toBe(
+        LADDER[i].genome.cytoplasmThickness,
+      );
       expect(organism.x).toBe(LADDER[i].x);
       expect(organism.y).toBe(LADDER[i].y);
       expect(organism.lineageHue).toBe(LADDER[i].genome.lineageHue);

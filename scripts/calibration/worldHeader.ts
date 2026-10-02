@@ -47,7 +47,7 @@ export function reportTheWorldMeasured(): void {
   row("bright band", `y ≤ ${num(BRIGHT_BAND_DEPTH)}`);
   row(
     "baseline genome",
-    `r=${num(BASELINE_GENOME.bodyRadius)}, threshold=${num(BASELINE_GENOME.mitosisEnergyThreshold)}, allocation=${num(BASELINE_GENOME.childAllocationRatio)}`,
+    `thickness=${num(BASELINE_GENOME.cytoplasmThickness)}, threshold=${num(BASELINE_GENOME.mitosisEnergyThreshold)}, allocation=${num(BASELINE_GENOME.childAllocationRatio)}`,
   );
 
   // Generation 0's own summed body area is what the ambient concentration
