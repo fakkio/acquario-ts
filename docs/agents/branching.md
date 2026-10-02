@@ -20,3 +20,7 @@ When the two are hard to tell apart, ask the user before cutting a branch.
 ## When a skill says "create a branch for this spec/feature"
 
 `git checkout -b feature/<slug> develop`
+
+## When a skill says "integration branch"
+
+It is the feature's `feature/<slug>` branch. Features merge into `develop` locally, not through a pull request, so `/implement-spec` opens no draft PR: it closes each ticket as `docs/agents/issue-tracker.md` describes.
