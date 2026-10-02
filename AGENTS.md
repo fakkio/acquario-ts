@@ -32,7 +32,7 @@ One Italian article per milestone in `docs/devlog/`, written from a fragment pil
 
 ### Release process
 
-Semantic Versioning; every pre-1.0 release is a minor bump, cut as a `release/vX.Y.Z` git-flow branch off `develop`. See `docs/agents/release.md`.
+Semantic Versioning; before 1.0 each milestone ships as a patch release and each version of the vision as a minor, cut as a `release/vX.Y.Z` git-flow branch off `develop`. See `docs/agents/release.md`.
 
 ### Quality gates
 
