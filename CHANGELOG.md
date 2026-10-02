@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `birthCostCeiling` in the genome module: the largest child area an ordinary birth can produce, the area at `r·(1+δ)` under v0.1's radius law (ADR-0027).
+- An anti-sieve unit test: over committed births from marginal parents, the mean log ratio of child to parent area must be zero within four standard errors, so a reintroduced Birth Sieve fails a test rather than an ecosystem.
+- **Persistence** as a standing long-suite gate: the Reference World, unprimed, seeds 7–11, 100k ticks, every seed alive at the end. Each seed's minimum and final population size is printed, ungated.
+- `npm run done-criteria`: ADR-0025's fifteen done-criteria runs as a Calibration Harness entry point of their own, reported and never gated. On the gated world 14 of 15 runs survive, accuracy fails (6 of 15) and convergence fails on the one extinct run. `r_opt` is retired after this measurement.
+
+### Changed
+
+- An extinct done-criteria run now fails convergence as well as accuracy, instead of dropping out of the spread.
+
+### Removed
+
+- The done-criteria long-suite file, red on purpose since v0.1's verdict. The long suite is green again.
+
+### Fixed
+
+- Every unprimed world going extinct. Mitosis drew the child's mutation first and retried on a failed payment, so only cheap children were born and each generation shrank by mechanism (the Birth Sieve). The Worst-Case Birth Gate replaces it: a parent attempts a birth only when it can already pay, in energy and food, for the most expensive child its mutation law could produce, so the draw cannot fail and the children born are an unbiased sample (ADR-0027). A drawn child above the ceiling now throws.
+
+This is **M6 — Worst-Case Birth Gate**, the first milestone of v0.2.
+
 ## [0.1.0] - 2026-09-26
 
 ### Added

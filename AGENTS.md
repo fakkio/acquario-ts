@@ -20,7 +20,7 @@ Unshaped ideas not yet worth a `vision.md` section, an ADR or a ticket live in `
 
 ### Branching
 
-A feature (an issue set from `/to-tickets`, a milestone) gets its own `feature/<slug>` branch off `develop`; a one-off change commits straight to `develop`. See `docs/agents/branching.md`.
+A feature (an issue set from `/to-tickets`, a milestone) gets its own `feature/<slug>` branch off `develop`; a one-off change commits straight to `develop`. A feature's merge into `develop` adds its entries under `[Unreleased]` in `CHANGELOG.md`. See `docs/agents/branching.md`.
 
 ### Commit messages
 

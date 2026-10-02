@@ -10,6 +10,7 @@ A **feature** is a body of work large enough to be broken into a set of issues b
 - Cut the branch before publishing the spec, or immediately after — always before the first implementation commit lands.
 - Reuse an existing `feature/<slug>` for this feature rather than opening a duplicate.
 - `/implement` commits to whatever branch is checked out — check out `feature/<slug>` first.
+- When the feature merges into `develop`, write its entries under `[Unreleased]` in `CHANGELOG.md` ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) sections), in a `📝: CHANGELOG <slug>` commit right after the merge. The milestone's ADRs and tickets are fresh then; at release time they would have to be rebuilt from the log.
 
 ## One-off — straight on `develop`
 

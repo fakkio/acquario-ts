@@ -17,7 +17,7 @@ Once the branch is open, three operations, always in this order, each its own co
 
 1. **Bump the version.** Set `version` in `package.json` to `X.Y.Z`, then `npm i` so `package-lock.json` picks it up. Commit: `🔼: Bump version to vX.Y.Z`.
 2. **Update dependencies.** `npm update` — bumps everything short of a major release. Commit: `⬆️: npm update`.
-3. **Write the CHANGELOG entry.** Rename the `[Unreleased]` heading in `CHANGELOG.md` to `[X.Y.Z] - YYYY-MM-DD`, filled in from what actually merged into `develop` since the previous release, and open a fresh empty `[Unreleased]` above it. Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Commit: `📝: CHANGELOG vX.Y.Z`.
+3. **Write the CHANGELOG entry.** `[Unreleased]` in `CHANGELOG.md` already holds an entry per feature merged into `develop` (`docs/agents/branching.md`). Check it against what actually merged since the previous release and fill any gap, such as a notable one-off. Then rename its heading to `[X.Y.Z] - YYYY-MM-DD` and open a fresh empty `[Unreleased]` above it. Follow [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Commit: `📝: CHANGELOG vX.Y.Z`.
 
 ## Finishing a release
 
