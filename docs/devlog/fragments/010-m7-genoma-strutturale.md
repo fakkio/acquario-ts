@@ -71,3 +71,25 @@ Il ticket chiedeva di costruire "the default world". Il glossario mette proprio 
 ---
 
 Sul seed 1 il mondo apre con una moria: dei 40 fondatori ne muoiono 32 entro il tick 240, e la prima morte arriva al tick 43, la prima nascita al 125. Sul seed 42 gli stessi due tick, 43 e 125, identici. Qualcosa nella generazione 0 è abbastanza deterministico da non sentire il seed. Da guardare, prima o poi: è la mutazione forzata dei fondatori, o l'equilibrio iniziale?
+
+---
+
+Il frammento sopra prometteva un rosso utile, "la prima volta che il refactor sposta un bit senza volerlo". In #60 il golden hash non è mai diventato rosso, nemmeno una volta. La ragione è meno rassicurante di quanto sembri. Senza organelli la Cytoplasm Area e l'area del corpo sono lo stesso numero, bit per bit: una lettura che sceglie l'area sbagliata produce esattamente lo stesso hash di una che sceglie quella giusta. Il test prova che il refactor non ha rotto niente, non che ogni lettura sia finita dalla parte giusta. Il piano dell'agente, nella mappa HTML, diceva il contrario: "se una lettura sceglie l'area sbagliata, scatta lì". Non può scattare. La scelta dell'area diventa verificabile solo in #61, quando un neurone rende diversi i due numeri.
+
+---
+
+Il ticket elencava tre letture da spostare sulla Cytoplasm Area: concentrazioni, cap, `β`. La respirazione ne nasconde una quarta, dentro il tasso: `K · (cibo/A) · (O₂/A) · A`. Le prime due `A` sono concentrazioni, la terza è il volume in cui la reazione avviene. L'agente l'ha messa sul citoplasma, perché il volume della reazione è quello che contiene gli store. Nessuno l'ha discusso e nessun test se ne sarebbe accorto: oggi le due scelte danno lo stesso numero.
+
+---
+
+L'harness ha le sue copie delle formule della simulazione. `income.ts` ricalcola la manutenzione `c₀ + β·area` a mano, `income.ts` e `live.ts` ricalcolano la concentrazione del cibo. Il ticket nominava l'harness solo per fondatori e scale di spessori. Seguito alla lettera, avrebbe lasciato lo strumento a misurare sull'area del corpo mentre la simulazione paga sul citoplasma: due numeri diversi per la stessa cosa da #61 in poi, in un posto che per scelta non ha test (ADR-0024). L'agente le ha spostate cercando ogni lettura d'area, non seguendo la lista.
+
+In `dark.ts` invece aveva ricalcolato il cap a mano dal raggio del gradino, con un commento: "il fondatore di un gradino non porta organelli". Il revisore Standards di `/code-review` ha notato che la regola "senza organelli lo spessore è tutto il raggio" stava ormai scritta in tre posti, e che #61 dovrà cambiarli tutti insieme. Ora `dark.ts` legge il cap dalla view.
+
+---
+
+`Gene = never`. Il ticket voleva un `Gene[]` "sempre vuoto per ora". L'agente l'ha tipizzato con il tipo che non ha valori: un `genes.push(...)` non compila. Un array vuoto per convenzione diventa vuoto per legge, fino al giorno in cui #61 dichiara l'Organelle Gene e il compilatore indica ogni punto che deve accorgersene.
+
+---
+
+ADR-0028 scrive la forma del genoma come `{ mitosisEnergyThreshold, childAllocationRatio, lineageHue, cytoplasmThickness, genes }`, con lo spessore per ultimo. Il codice lo mette per primo, perché nel codice l'ordine di dichiarazione è l'ordine dei draw e lo spessore deve occupare il posto di `bodyRadius`. Il revisore Standards l'ha segnalato come violazione dell'ADR, il revisore Spec come requisito rispettato ("same position in the draw order"). Hanno ragione tutti e due: l'ADR elenca un insieme, il codice dichiara una sequenza.
