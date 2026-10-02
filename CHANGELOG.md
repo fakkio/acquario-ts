@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-10-02
+
 ### Added
 
 - `birthCostCeiling` in the genome module: the largest child area an ordinary birth can produce, the area at `r·(1+δ)` under v0.1's radius law (ADR-0027).
