@@ -1,5 +1,5 @@
 import {MITOSIS_ENERGY_COST, RHO} from "./constants";
-import {mutateGenome, type Genome} from "./genome";
+import {birthCostCeiling, mutateGenome, type Genome} from "./genome";
 import {constrainToAquarium} from "./motion";
 import {
   Organism,
@@ -37,40 +37,53 @@ export interface PendingBirth {
  * `applyRespiration` and `applyBrownianMotion`, which is what keeps this
  * phase order-independent by construction. Unlike `evaluateDeaths`, this
  * does not partition the population: it is called once per organism and
- * either hands back a `PendingBirth` or does not. A rejected birth can
- * still have spent the parent's stream on the derivation and mutation
- * draws below — see step 4 — so "does not" means the return value, not
- * necessarily the stream.
+ * either hands back a `PendingBirth` or does not. A parent turned away
+ * draws nothing: both gates come before the first draw.
  *
- * The draw order below is a law of the world (see the ticket): reordering
- * it later reseeds every child mutated from this point on.
+ * The draw order below is a law of the world (ADR-0019, amended by
+ * ADR-0027): reordering it later reseeds every child mutated from this
+ * point on.
  *
  * 1. **The threshold gate, with no draws at all.** `energy ≥
  *    mitosisEnergyThreshold × cap(energy)`, read off the parent's own
  *    unmutated genome. An organism that never breeds draws exactly the
  *    numbers it drew before this function existed.
- * 2. **Derive the child's stream, before mutating.** The child's seed is
+ * 2. **The Worst-Case Birth Gate, with no draws either** (ADR-0027). The
+ *    parent must already hold both costs of the most expensive child its
+ *    mutation law could produce, its `birthCostCeiling`. What this gate
+ *    filters is which parents breed, on their own state; the child drawn
+ *    after it is an unbiased sample of the mutation law. Pricing the drawn
+ *    child instead, and turning it away when it costs too much, is the
+ *    Birth Sieve that killed v0.1 (#40).
+ * 3. **Derive the child's stream, before mutating.** The child's seed is
  *    then a function of the parent's state at birth and of nothing else —
  *    adding a fifth gene later, or retuning a δ, does not reseed every
  *    lineage in the world. `createPopulation` derives before drawing for
  *    the same reason.
- * 3. **Mutate the genome**, gene by gene in `mutateGenome`'s own fixed
+ * 4. **Mutate the genome**, gene by gene in `mutateGenome`'s own fixed
  *    declaration order, drawn from the *parent's* stream — the same stream
  *    `deriveChildStream` just advanced past the derivation draw, not the
  *    freshly derived child stream, which the child keeps for its own life
  *    from here on untouched by its own birth.
- * 4. **Price and pay.** If a physical requirement fails, the draws from 2
- *    and 3 are already spent and the child is discarded — no rollback, and
- *    harmless, because ADR-0007 scopes the consequence to the parent's own
- *    lineage.
- * 5. **The tangent angle, last, and only on a committed birth**, so the
- *    rejection-sampling loop's variable draw count never runs on the
- *    failed path.
+ * 5. **Price and pay**, which cannot fail after step 2. A child the parent
+ *    cannot pay for means the ceiling is broken, and that throws, before
+ *    anything is subtracted: returning no birth would reject the draw and
+ *    bring the sieve back from the other side.
+ * 6. **The tangent angle, last**, so its rejection-sampling loop's
+ *    variable draw count shifts nothing drawn before it.
  */
 export function evaluateMitosis(organism: Organism): PendingBirth | null {
   const thresholdEnergy =
     organism.genome.mitosisEnergyThreshold * capFor(organism, "energy");
   if (organism.energy < thresholdEnergy) {
+    return null;
+  }
+
+  const maxChildArea = birthCostCeiling(organism.genome);
+  if (
+    organism.energy < mitosisEnergyCost(maxChildArea) ||
+    organism.food < mitosisMassCost(maxChildArea)
+  ) {
     return null;
   }
 
@@ -83,23 +96,14 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   const childGenome = mutation.genome;
 
   const childArea = bodyAreaOfRadius(childGenome.bodyRadius);
-  // `mitosisMassCost` is forced, not chosen (ADR-0019): `bodyMass` is
-  // `ρ × area`, and death returns exactly that amount, so any other number
-  // breaks the ledger the moment this child is born. Paid from food alone —
-  // ADR-0025's fallback of drawing the remainder from CO₂ was considered at
-  // #36 and rejected: a parent hands its child the same resource it gives
-  // up, food for food, oxygen for oxygen, CO₂ for CO₂, and a cross-type
-  // conversion at the exact moment of birth broke that symmetry for food
-  // alone. See `AMBIENT_CO2_SHARE`'s own comment for how the ambient split
-  // covers the mass gate without it.
-  const massCost = RHO * childArea;
-  // `mitosisEnergyCost` is strictly proportional, with no flat term — see
-  // `MITOSIS_ENERGY_COST`'s own comment for why that asymmetry with
-  // maintenance is load-bearing.
-  const energyCost = MITOSIS_ENERGY_COST * childArea;
+  const massCost = mitosisMassCost(childArea);
+  const energyCost = mitosisEnergyCost(childArea);
 
   if (organism.food < massCost || organism.energy < energyCost) {
-    return null;
+    throw new Error(
+      `Birth Cost Ceiling broken: a child of area ${String(childArea)} ` +
+        `exceeds its parent's ceiling of ${String(maxChildArea)} (ADR-0027)`,
+    );
   }
 
   organism.food -= massCost;
@@ -147,6 +151,34 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
     carbonDioxide: childStores.carbonDioxide,
     food: childStores.food,
   };
+}
+
+/**
+ * `mitosisMassCost` is forced, not chosen (ADR-0019): `bodyMass` is
+ * `ρ × area`, and death returns exactly that amount, so any other number
+ * breaks the ledger the moment this child is born. Paid from food alone —
+ * ADR-0025's fallback of drawing the remainder from CO₂ was considered at
+ * #36 and rejected: a parent hands its child the same resource it gives
+ * up, food for food, oxygen for oxygen, CO₂ for CO₂, and a cross-type
+ * conversion at the exact moment of birth broke that symmetry for food
+ * alone. See `AMBIENT_CO2_SHARE`'s own comment for how the ambient split
+ * covers the mass gate without it.
+ *
+ * One function for the gate and the payment, so the two can never disagree
+ * about what a child costs.
+ */
+function mitosisMassCost(childArea: number): number {
+  return RHO * childArea;
+}
+
+/**
+ * `mitosisEnergyCost` is strictly proportional, with no flat term — see
+ * `MITOSIS_ENERGY_COST`'s own comment for why that asymmetry with
+ * maintenance is load-bearing. Shared by the gate and the payment, like
+ * `mitosisMassCost`.
+ */
+function mitosisEnergyCost(childArea: number): number {
+  return MITOSIS_ENERGY_COST * childArea;
 }
 
 /**
