@@ -29,4 +29,6 @@ The long suite isn't wired into any git hook. Once pre-push testing above is wir
 
 It is meant to be rerun by hand, by a person, whenever a constant is questioned — including long after M5. Its output is plain text, formatted to diff cleanly between runs.
 
-Two things do gate on what it measures, and both assert: #31's conservation-survives-birth run and the done-criteria runs, both in the long suite.
+One thing does gate on what it measures, and it asserts: #31's conservation-survives-birth run, in the long suite.
+
+The done-criteria runs used to be the second, as a long-suite file left red on purpose to record v0.1's verdict. ADR-0027 made them a reported measurement, so they moved into the harness under an entry point of their own, `npm run done-criteria`. Like `calibrate`, it prints its verdict as text (accuracy and convergence, each PASS or FAIL) and exits successfully whatever the numbers say. It is a sibling rather than a section of `calibrate` because fifteen 100k-tick worlds take long enough to slow down every rerun of the instrument. With it gone, every failure in `npm run test:long` means something.

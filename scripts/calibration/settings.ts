@@ -94,8 +94,8 @@ export const WINDOW_TICKS = setting("WINDOW_TICKS", 10_000);
 
 /**
  * The live run: mortal, fertile, generation 0 as the app places it. Shorter
- * than the 100k the done-criteria runs will want, because this one is read
- * by a person waiting at a terminal rather than by a gate — raise it with
+ * than the done-criteria runs' 100k, because this one is read by a person
+ * waiting at a terminal for one world rather than fifteen — raise it with
  * `CALIBRATE_LIVE_TICKS` when the question is what a world does over its
  * whole life rather than whether it starts.
  */
