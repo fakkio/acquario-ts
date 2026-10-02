@@ -788,7 +788,7 @@ Oxygen is an independent knob, since the CO₂ term already carries oxygen of it
 
 Four standing gates, one feasibility gate and one scientific criterion (ADR-0033).
 
-1. **Standing gates.** Conservation, determinism, **persistence** (the reference world, unprimed, five seeds × 100k ticks, every seed alive; and over committed births a mean log child/parent cost of zero, ADR-0027), and M1's overlap ceiling, which gravity's wall piles put under load (ADR-0030). Every v0.2 milestone holds all four. One is retired or relaxed only by ADR, never silently. A world that persists only after restarts does not count.
+1. **Standing gates.** Conservation, determinism, **persistence** (ADR-0027, gated at two levels: a living population in the long suite, where the reference world, unprimed, five seeds × 100k ticks, ends every seed alive; and the absence of bias in a unit test, where committed births have a mean log child/parent cost of zero), and M1's overlap ceiling, which gravity's wall piles put under load (ADR-0030). Every v0.2 milestone holds all four. One is retired or relaxed only by ADR, never silently. A world that persists only after restarts does not count.
 
 2. **Feasibility.** The population's mean generation at the end of a reference run is at least 50. Below that, nothing selective can be told apart from drift, so this gate is checked before the done-criteria runs. Runs get longer first, since that moves no constant. Then the mass side thickens the world (ambient CO₂ share, `K` below the s₀ ≈ 2.5ρ wall), and every such move re-solves `c₀`. `BROWNIAN_FORCE` stays v0.1's.
 

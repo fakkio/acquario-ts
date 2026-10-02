@@ -54,18 +54,26 @@ import {
  * population that grows before it shrinks — instead of a 100k-tick run
  * that would otherwise assert nothing about reproduction at all.
  *
- * **What this gate does not claim.** A mortal population primed this way
- * still runs down toward extinction well before tick 100k, precisely
- * because natural reproduction essentially never re-fires once the
- * initial, artificial food surplus is spent — a pre-existing M3
+ * **What this gate does not claim.** When this was written, a mortal
+ * population primed this way ran down toward extinction well before tick
+ * 100k, because natural reproduction essentially never re-fired once the
+ * initial, artificial food surplus was spent — a pre-existing M3
  * characteristic (`docs/vision.md`'s "total extinction is a genuinely
- * possible outcome") that M4 inherits rather than introduces. So this
+ * possible outcome") that M4 inherited rather than introduced. So this
  * gate does **not** assert the population is non-zero at tick 100k, nor
- * that it avoids collapsing to a handful — both would be false today, for
- * reasons that predate this ticket and belong to M5's calibration pass.
- * What it does assert — conservation, determinism, and that reproduction
- * and death both genuinely happened — is exactly what M4's own code is
- * responsible for.
+ * that it avoids collapsing to a handful.
+ *
+ * M6's Worst-Case Birth Gate (ADR-0027) made that description false, and
+ * #56 re-checked it: on the gated world this primed run booms to a peak of
+ * 125, settles around 75, and keeps breeding to the end: 204 births in
+ * the first 5k ticks, then 14–43 per 5k ticks, with mean `bodyRadius`
+ * climbing from 0.85 to about 1.1. Reproduction re-fires for good once the
+ * surplus is spent. The assertions still stop short of a living population
+ * at tick 100k, because persistence is not this file's to gate: it is
+ * judged on the Reference World, unprimed, in `persistence.long.test.ts`. What this file
+ * asserts — conservation, determinism, and that reproduction and death
+ * both genuinely happened — is exactly what M4's own code is responsible
+ * for.
  *
  * **Ticket #31 asked for more, and hit the same wall harder.** #31 wants
  * this run *unprimed* — a plain `createWorld` start — plus population
@@ -90,6 +98,11 @@ import {
  * `RHO`, which carries the carbon unit), not something this
  * ticket's scope owns, so #31 stays open against this finding instead of
  * being closed on a weakened test.
+ *
+ * Superseded since M6: the wall turned out to be the Birth Sieve, a law
+ * rather than the food side's constants (#40, ADR-0027), and the unprimed
+ * run #31 asked for is now `persistence.long.test.ts`, alive on seeds
+ * 7–11.
  */
 // Roughly 3.9s for this file's whole suite when this comment was written —
 // two full 100k-tick runs, the primed run above plus the determinism repeat
@@ -104,7 +117,8 @@ import {
 // (`AMBIENT_CO2_SHARE`'s own comment in `constants.ts`) is stricter than
 // the one #35 measured against, since #36 declined ADR-0025's CO₂ fallback
 // (see `mitosis.ts`'s own comment) and reproduction is correspondingly
-// harder to come by.
+// harder to come by. #56 measures about 19s for one run on M6's gated
+// world, peaking at 125, an eighth of #36's boom.
 //
 // A real, if latent, risk found along the way and worth recording here
 // rather than only where it was found: `bodyRadius` mutates with no
