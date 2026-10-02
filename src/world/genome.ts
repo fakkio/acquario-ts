@@ -24,7 +24,7 @@ export interface Genome {
 /**
  * The single minimal genome generation 0 is independently mutated from
  * (glossary: Baseline Genome). `bodyRadius` is the baseline radius, 1 by
- * definition (`CONTEXT.md`). `mitosisEnergyThreshold` and
+ * definition (`GLOSSARY.md`). `mitosisEnergyThreshold` and
  * `childAllocationRatio` are provisional, measured against the current
  * constants rather than derived — a baseline parent's energy cap is
  * `K_CAP_ENERGY × π ≈ 1257`, so at `0.75` it breeds at about 943, pays

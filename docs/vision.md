@@ -13,7 +13,7 @@ The goal is not to build predefined species, but to observe the spontaneous emer
 
 Every organism is described by a genome defining its structure, organelles and nervous system.
 
-This document describes **what AcquarioTS is**. The reasoning behind each contested decision — and the alternatives rejected — lives in [`docs/adr/`](./adr/). Vocabulary is defined in [`CONTEXT.md`](../CONTEXT.md).
+This document describes **what AcquarioTS is**. The reasoning behind each contested decision — and the alternatives rejected — lives in [`docs/adr/`](./adr/). Vocabulary is defined in [`GLOSSARY.md`](../GLOSSARY.md).
 
 ---
 
@@ -838,7 +838,7 @@ M0 front-loads pan, zoom, pause and step because they are debugging tooling, use
 | M12 | `feature/abundance`             | mean Generation in the harness; longer runs, then mass-side levers with `c₀` re-solved                                                                                                                                                                                                  | mean Generation ≥ 50 at the end of a reference run                                              |
 | M13 | `feature/selection`             | knockout option in `WorldOptions`; carrier fractions per world in the harness; done-criteria runs                                                                                                                                                                                       | float and chloroplast each beat their knockout world in every one of five seed pairs            |
 
-Where each milestone's grill-with-docs starts. The row in the table above is the entry point; these are the decisions and the background it rests on. `CONTEXT.md` applies to all of them.
+Where each milestone's grill-with-docs starts. The row in the table above is the entry point; these are the decisions and the background it rests on. `GLOSSARY.md` applies to all of them.
 
 | #   | ADRs                                   | `vision.md` sections                                                                                       | Research and experiments                                                                                                                               |
 | --- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |

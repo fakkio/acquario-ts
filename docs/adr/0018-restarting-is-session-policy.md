@@ -4,7 +4,7 @@ When a population goes extinct the App constructs a new `World`; the world never
 
 ## Why the world cannot be the thing that restarts
 
-`CONTEXT.md` defines a world as "One complete simulation run: an aquarium, its pools, its population, and the clock and random streams that advance them. **What a seed determines and a state hash identifies.**" A world that reseeds itself mid-life is no longer identified by its seed, and ADR-0007's guarantee — same seed, same build, same engine, identical run — quietly becomes false in a way that is hard to notice: tick N would belong to a different world than it did last run, and the hash at tick N would be comparing two different aquaria.
+`GLOSSARY.md` defines a world as "One complete simulation run: an aquarium, its pools, its population, and the clock and random streams that advance them. **What a seed determines and a state hash identifies.**" A world that reseeds itself mid-life is no longer identified by its seed, and ADR-0007's guarantee — same seed, same build, same engine, identical run — quietly becomes false in a way that is hard to notice: tick N would belong to a different world than it did last run, and the hash at tick N would be comparing two different aquaria.
 
 Putting the restart in the App costs nothing and changes nothing inside `src/world/`. The render loop already reads `getPopulation(world).length`; noticing that it is zero and rebinding its handle to `createWorld(nextSeed)` is the whole feature. This is the same call ADR-0015 already made for `α` smoothing: "Smoothing belongs to the App layer. A moving average in the world would be state crossing tick boundaries, which means it would have to enter `hashState` for the sake of one HUD row." An auto-restart has exactly that shape.
 
@@ -28,7 +28,7 @@ Auto-restart ships **off** by default in M3, alongside a manual "new world" cont
 
 ## Considered options
 
-**A world that reseeds itself** on empty population: `WorldState.seed` becomes mutable, `hashState` folds a changing seed, the ledger baselines are re-struck inside a tick, and `CONTEXT.md`'s definition of a world is rewritten. Rejected for everything above.
+**A world that reseeds itself** on empty population: `WorldState.seed` becomes mutable, `hashState` folds a changing seed, the ledger baselines are re-struck inside a tick, and `GLOSSARY.md`'s definition of a world is rewritten. Rejected for everything above.
 
 **Drawing the next seed from fresh entropy** (`Date.now()`, `Math.random()`). Rejected: the most interesting thing a run will ever produce is a world that died in a way worth looking at again, and entropy makes that world unreproducible at exactly the moment it matters.
 

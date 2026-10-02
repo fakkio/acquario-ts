@@ -86,7 +86,7 @@ export class ExchangeSettlement {
     carbonDioxide: 1,
     food: 1,
   };
-  // The delta buffer (CONTEXT.md): every grant made this tick, signed the
+  // The delta buffer (GLOSSARY.md): every grant made this tick, signed the
   // same way `exchange`'s `amount` is — positive drawn from the pool,
   // negative vented into it — applied to the pools exactly once, in
   // `commit`.

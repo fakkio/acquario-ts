@@ -291,7 +291,7 @@ describe("the done-criteria runs, and the verdict on v0.1 (#38)", () => {
     expect(Number.isFinite(populationStdev(allocations))).toBe(true);
   });
 
-  // `lineageHue` is a neutral marker (CONTEXT.md): it had better *not*
+  // `lineageHue` is a neutral marker (GLOSSARY.md): it had better *not*
   // converge. A collapse toward one hue across independently seeded runs
   // would mean something is wrong with the mutation operator, not right
   // with selection — so this checks the opposite direction from every

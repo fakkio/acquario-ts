@@ -113,7 +113,7 @@ export type Resource = "energy" | "oxygen" | "carbonDioxide" | "food";
 /**
  * The three resources that cross the membrane and have a pool — `Resource`
  * minus `energy`, which is produced and spent but never exchanged with the
- * world (CONTEXT.md). The `Environment` seam (ADR-0005) is typed against
+ * world (GLOSSARY.md). The `Environment` seam (ADR-0005) is typed against
  * this subtype rather than `Resource`, so "energy is never exchanged" is a
  * fact the compiler enforces rather than a comment somebody has to
  * remember.

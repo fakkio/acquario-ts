@@ -18,7 +18,7 @@ Log-normal sampling is the textbook answer to "symmetric multiplicative noise", 
 
 ## Why lineageHue moved to [0, 1)
 
-`docs/vision.md` and `CONTEXT.md` both specified `[0, 1)` from the start; only the code disagreed, drawing `unit() * 360` and rendering degrees directly. The render layer is the only place that has ever cared about degrees, so it is the only place that now multiplies by 360 when it builds an `hsl()`/`hsla()` string. The genome itself stays unitless, consistent with every other gene, and a wrapping drift is simpler modulo 1 than modulo 360.
+`docs/vision.md` and `GLOSSARY.md` both specified `[0, 1)` from the start; only the code disagreed, drawing `unit() * 360` and rendering degrees directly. The render layer is the only place that has ever cared about degrees, so it is the only place that now multiplies by 360 when it builds an `hsl()`/`hsla()` string. The genome itself stays unitless, consistent with every other gene, and a wrapping drift is simpler modulo 1 than modulo 360.
 
 ## Considered options
 
