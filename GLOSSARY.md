@@ -218,6 +218,10 @@ _Avoid_: reproduction mode, breeding, sterile
 A world constructed with both mortality and fertility off: nothing dies and nothing is born, so the population that was placed is the population that remains. ADR-0015's real instrument, where `α` is measured free of any selection — **Immortal World** alone stopped being sufficient for that the moment mitosis could grow the population.
 _Avoid_: static world, frozen world, immortal world (that is only half of it)
 
+**Reference World**:
+The world a milestone's standing gates run on: its **Baseline Genome**, its laws and its committed constants, unprimed, with mortality and fertility on. Each milestone has its own, and **Persistence** is judged on it; a reference run is one run of it, not a separate term.
+_Avoid_: default world, standard world, test world, baseline world (the **Baseline Genome** is only one of its parts)
+
 **Aquarium**:
 The finite, hard-walled region a world's organisms live in: a width, a height, a surface along the top edge and a floor along the bottom, with no wraparound. The area every external concentration is measured over, and the extent the light gradient runs down.
 _Avoid_: tank, arena, canvas, box, world (that is the whole run)
@@ -281,7 +285,7 @@ The defect the **Worst-Case Birth Gate** removes: drawing a child's mutation, re
 _Avoid_: size drift, shrinkage, race to small (those are its symptom)
 
 **Persistence**:
-An unprimed world's population surviving to the end of a run across every seed. A gate every milestone from v0.2's first on holds, like conservation; a milestone that breaks it retires or relaxes it by ADR, never silently.
+A **Reference World**'s population surviving to the end of a run across every seed. A gate every milestone from v0.2's first on holds, like conservation; a milestone that breaks it retires or relaxes it by ADR, never silently.
 _Avoid_: survival (that is one organism's), viability, stability
 
 **Brownian Motion**:
