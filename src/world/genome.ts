@@ -6,6 +6,7 @@ import {
   DELTA_MITOSIS_ENERGY_THRESHOLD,
   MUTATION_PROBABILITY,
 } from "./constants";
+import {bodyAreaOfRadius} from "./organism";
 import {nextRng, type RngStream} from "./rng";
 
 /**
@@ -120,6 +121,24 @@ export function mutateGenome(
     },
     stream: draws.stream(),
   };
+}
+
+/**
+ * The Birth Cost Ceiling (ADR-0027): the largest body area a child of
+ * `genome` can have under `mutateGenome`'s default options, the margin the
+ * Worst-Case Birth Gate prices before anything is drawn. A guarantee the
+ * mutation law makes by construction, never a bound enforced by rejecting
+ * draws above it — that would bring the Birth Sieve back from the other
+ * side.
+ *
+ * In v0.1 it falls out of `mutateRadius`: a child's radius is at most
+ * `r·(1 + δ)`, since its magnitude draw stays below 1. It covers ordinary
+ * births only. Generation 0's scaled founder mutation is not a birth, and
+ * its founders can exceed it. M7 replaces the body with a bound read from
+ * the structural genome; the signature stays.
+ */
+export function birthCostCeiling(genome: Genome): number {
+  return bodyAreaOfRadius(genome.bodyRadius * (1 + DELTA_BODY_RADIUS));
 }
 
 /**

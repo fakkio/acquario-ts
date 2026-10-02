@@ -1,22 +1,10 @@
-import {
-  AQUARIUM_AREA,
-  AQUARIUM_HEIGHT,
-  AQUARIUM_WIDTH,
-  BASELINE_GENOME,
-  BRIGHT_BAND_DEPTH,
-  bodyArea,
-  createWorld,
-  getPoolLevels,
-  getPopulation,
-} from "../src/world";
-import {ambientCarbon} from "./calibration/worlds";
 import * as constants from "../src/world/constants";
 import {reportAlpha} from "./calibration/alpha";
 import {reportDarkBand} from "./calibration/dark";
 import {reportIncome} from "./calibration/income";
 import {reportLiveWorld} from "./calibration/live";
-import {heading, note, num, rendered, row, table} from "./calibration/report";
-import {SEED, overrideNames} from "./calibration/settings";
+import {heading, note, num, rendered, row} from "./calibration/report";
+import {reportTheWorldMeasured} from "./calibration/worldHeader";
 
 /**
  * `npm run calibrate` — M5's instrument (ADR-0024).
@@ -27,8 +15,11 @@ import {SEED, overrideNames} from "./calibration/settings";
  * **It is not a gate.** It asserts nothing: no number it measures can make
  * it fail, however unwelcome that number is. A test that prints instead of
  * asserting is a test that can never fail, and a suite holding one has a
- * permanently green square in it. The gates are the reopened #31 and the
- * done-criteria runs, both in the long suite, both assertions.
+ * permanently green square in it. The gate on what it measures is the
+ * reopened #31, in the long suite, an assertion. The done-criteria runs
+ * were the other gate until ADR-0027 made them a reported measurement: they
+ * are an entry point of this harness now, `npm run done-criteria`, and
+ * assert nothing either.
  *
  * It can still crash — on an `ACQUARIO_` name that is not a constant, or a
  * ladder too wide for the aquarium. That is the instrument being broken
@@ -50,76 +41,6 @@ import {SEED, overrideNames} from "./calibration/settings";
  * `calibration/settings.ts`). The sweep that loops those child processes is
  * #36's; what lands here is the door it drives.
  */
-
-/** Everything in `constants.ts` that is a plain number, so the report can
- * state the world it measured without a hand-maintained list that drifts
- * from the module beside it. */
-function scalarConstants(): readonly (readonly [string, number])[] {
-  return Object.entries(constants)
-    .filter((entry): entry is [string, number] => typeof entry[1] === "number")
-    .sort(([left], [right]) => left.localeCompare(right));
-}
-
-function reportTheWorldMeasured(): void {
-  heading("The world these numbers are about");
-  const overrides = overrideNames();
-  row(
-    "constants overridden",
-    overrides.length === 0
-      ? "none — every value below is the committed one"
-      : overrides.join(", "),
-  );
-  row(
-    "aquarium",
-    `${num(AQUARIUM_WIDTH)} × ${num(AQUARIUM_HEIGHT)} baseline radii`,
-  );
-  row("bright band", `y ≤ ${num(BRIGHT_BAND_DEPTH)}`);
-  row(
-    "baseline genome",
-    `r=${num(BASELINE_GENOME.bodyRadius)}, threshold=${num(BASELINE_GENOME.mitosisEnergyThreshold)}, allocation=${num(BASELINE_GENOME.childAllocationRatio)}`,
-  );
-
-  // Generation 0's own summed body area is what the ambient concentration
-  // falls out of, so it is read off a real world rather than assumed at the
-  // baseline: the founders are mutated, and their areas are not π each.
-  const world = createWorld(SEED);
-  const totalBodyArea = getPopulation(world).reduce(
-    (sum, organism) => sum + bodyArea(organism),
-    0,
-  );
-  const ambient = ambientCarbon(getPoolLevels(world));
-
-  row("generation 0 body area A", num(totalBodyArea));
-  row("ambient carbon s", num(ambient));
-  row(
-    "s / ρ",
-    `${num(ambient / constants.RHO)}  (ADR-0022: a same-sized child needs ≥ 1)`,
-  );
-  // ADR-0022's closed-form ceiling, run forwards from the budget in force.
-  // `K` here is `CARBON_BUDGET_BASELINE_ORGANISMS` itself, not `K·π`: the
-  // `·π` in vision.md's `s = (K·π − A)/(A + aquariumArea)` is what turns the
-  // "K baseline organisms" count into an amount of carbon, and it appears
-  // nowhere in the N_max formula that inverts it.
-  const rOptCeiling =
-    constants.CARBON_BUDGET_BASELINE_ORGANISMS / (2 * 1.5 ** 2) -
-    AQUARIUM_AREA / (2 * Math.PI * 1.5 ** 2);
-  row(
-    "N_max at r = 1.5",
-    `${num(rOptCeiling)}  (ADR-0022: K/(2r²) − aquariumArea/(2π r²))`,
-  );
-
-  table(
-    ["constant", "value"],
-    scalarConstants().map(([name, value]) => [name, num(value, 6)]),
-  );
-  table(
-    ["K_CAP", "value"],
-    Object.entries(constants.K_CAP).map(([name, value]) => [
-      name,
-      num(value, 6),
-    ]),
-  );
-}
 
 function main(): void {
   heading("AcquarioTS calibration harness");
@@ -163,9 +84,9 @@ function main(): void {
   );
   note("");
   note(
-    "  A gate reading here is a reading, not a verdict: the gates assert in the long",
+    "  A gate reading here is a reading, not a verdict: the verdict on v0.1 is #38's,",
   );
-  note("  suite, and the verdict on v0.1 is #38's.");
+  note("  and the done-criteria runs are `npm run done-criteria`'s.");
 
   console.log(rendered().trimEnd());
 }
