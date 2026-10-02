@@ -94,6 +94,10 @@ _Avoid_: duplication (in prose it is fine; the operator is a split), copy, fissi
 The radius of an organism's circular body. A gene in v0.1, the only one mutating multiplicatively. From v0.2 derived: the minimum enclosing circle of the body's relaxed organelles plus the **Cytoplasm Thickness**, which is the whole radius of a body with no organelles.
 _Avoid_: size, scale
 
+**Enclosing Circle**:
+From v0.2, the smallest circle containing every organelle of a body once relaxed apart; the body is centred on it and its radius plus the **Cytoplasm Thickness** is the **Body Radius**. Empty, of radius zero, in a body with no organelles. An inserted organelle is born inside it, never in the cytoplasm around it.
+_Avoid_: MEC (in prose; fine in formulas), bounding circle, hull, layout radius
+
 **Cytoplasm Thickness**:
 From v0.2, the **Organism Gene** giving the width of cytoplasm around a body's organelles: body radius is the organelles' minimum enclosing circle plus this. With no organelles it is the whole body radius, so it inherits v0.1's `bodyRadius` and its multiplicative law.
 _Avoid_: margin, cytoplasm radius, body radius (that is derived)
