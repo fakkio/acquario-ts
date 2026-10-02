@@ -133,3 +133,9 @@ L'agente aveva scritto che i run da sotto e da sopra "si stanno ancora muovendo 
 `r_opt` va in pensione senza essere stato raggiunto.
 
 Era il numero su cui la v0.1 aveva costruito l'intero criterio scientifico: `r_opt = 2·c₀/α`, previsto su carta, 1.5 raggi base. La sua ultima misura dà accuratezza 6 su 15 e convergenza fallita. Ma è la prima misura in cui qualcuno gli va incontro: i run partiti da 1.0 salgono, quelli partiti da 2.5 scendono, e la deriva non porta in discesa. Dentro i 100 mila tick del protocollo nessuno ci arriva. Con gli organelli il reddito non sarà più `α·r`, e la domanda smette di avere senso prima di avere una risposta.
+
+---
+
+> Una chiusura, il difetto era la sieve non la teoria.
+
+Fabio, alla domanda se vedere `r_opt` andare in pensione con 6 run su 15, ma con i run che gli vanno incontro, fosse una chiusura o una cosa lasciata a metà. Nessun rimpianto per il numero mai raggiunto: la previsione su carta non era sbagliata, era il mondo che non la lasciava misurare.
