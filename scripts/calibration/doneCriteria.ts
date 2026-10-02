@@ -47,10 +47,9 @@ import {runTicksWatching} from "./worlds";
  *
  * Measured wall-clock for all fifteen on v0.1's law: 8m10s on #54's own
  * machine, the first few minutes shared with a stray second run, so an
- * upper bound. Cheap because every run dies by tick 37k and an empty world's
- * ticks cost almost nothing. A law under which the runs survive pays for
- * every tick of all 100k, and will cost more; the run that first measures
- * one should write its number here.
+ * upper bound, with every run extinct by tick 37k. On the gated world: 88s
+ * on #57's own machine, with nothing else running, fourteen of fifteen runs
+ * alive at 100k and final populations of 12–62.
  */
 
 const TICKS = 100_000;
