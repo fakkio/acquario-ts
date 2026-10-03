@@ -93,3 +93,45 @@ In `dark.ts` invece aveva ricalcolato il cap a mano dal raggio del gradino, con 
 ---
 
 ADR-0028 scrive la forma del genoma come `{ mitosisEnergyThreshold, childAllocationRatio, lineageHue, cytoplasmThickness, genes }`, con lo spessore per ultimo. Il codice lo mette per primo, perché nel codice l'ordine di dichiarazione è l'ordine dei draw e lo spessore deve occupare il posto di `bodyRadius`. Il revisore Standards l'ha segnalato come violazione dell'ADR, il revisore Spec come requisito rispettato ("same position in the draw order"). Hanno ragione tutti e due: l'ADR elenca un insieme, il codice dichiara una sequenza.
+
+---
+
+Il contratto di ADR-0028 dice che un evento che aggiunge `Δd` di diametro, o sposta un organello di `d`, allarga l'Enclosing Circle al massimo di `Δd + d`, "however far the relaxation pushes". L'algoritmo era lasciato al ticket. Quello che l'agente ha scritto non cerca un rilassamento bello e poi spera che rispetti il contratto: costruisce il contratto e basta.
+
+A ogni giro c'è un **colpevole**, il disco con più sovrapposizioni, e due mosse possibili. La spinta allontana tutti gli altri dal colpevole della stessa distanza, la sua sovrapposizione più profonda. Lo scivolamento sposta solo il colpevole, verso l'esterno, fino al primo posto libero. Si tiene la mossa che lascia il cerchio più piccolo.
+
+Ognuna salva il caso che l'altra perde. Un organello che cresce si sovrappone ai vicini al massimo di quanto è cresciuto, e la spinta li allontana proprio di quello. Se invece lo si facesse scivolare, attraverserebbe mezzo corpo. Un organello inserito al centro di uno grande si sovrappone per tutto il raggio del grande, e spingere via tutto di quella misura gonfierebbe il corpo. Scivolando verso il bordo, il cerchio cresce al massimo di `2·r_new`.
+
+---
+
+La spinta non avvicina mai due dischi, e la ragione è una riga di analisi convessa: la mappa `p ↦ p + s·û`, che allontana ogni punto dal centro della stessa distanza `s`, è il gradiente della funzione convessa `|p|²/2 + s·|p|`, e il gradiente di una funzione così non accorcia nessuna distanza. Quindi la spinta toglie le sovrapposizioni del colpevole senza crearne di nuove fra gli altri. È la frase che fa terminare il ciclo: a ogni giro il numero di coppie sovrapposte scende.
+
+---
+
+Il codice del layout è passato verde al primo colpo, sedici test su sedici. L'agente non si è fidato. Ha tolto lo scivolamento e ha rilanciato: è caduto il test dell'inserimento, solo quello. Ha rimesso lo scivolamento e tolto la spinta: sono caduti crescita e spostamento, solo quelli. Un test di proprietà che non hai mai visto rosso potrebbe passare anche con la funzione vuota. Rompere apposta il codice per vedere quale test si accorge di cosa è il modo più rapido di sapere che i test misurano davvero il contratto.
+
+---
+
+Il piano metteva il rilassamento dei fondatori dentro `deriveBody`, e il ticket diceva la stessa cosa: "the body-derivation function ... relaxes overlapping organelles apart". Vero, ma solo a metà. ADR-0034 vuole che il genoma contenga già il layout rilassato e ricentrato, "with nothing left for construction to fix". Così com'era, un fondatore scritto a mano con i neuroni uno sopra l'altro teneva nel genoma le posizioni sovrapposte, le piegava nell'hash e le passava ai figli. Era proprio l'alternativa che ADR-0034 scarta.
+
+L'hanno trovato tutti e due i revisori di `/code-review`, Standards e Spec, ognuno per conto suo. Il piano era dell'agente, la frase incompleta era del ticket, scritto da un altro agente con l'ADR sotto mano. È la seconda volta in M7 che un ticket uscito da `/to-tickets` dice qualcosa di vero e incompleto rispetto ai documenti da cui nasce: la prima era il "default world" di #59.
+
+---
+
+Il test che doveva provare "il genoma del fondatore è il suo corpo" confrontava le due liste con `toEqual`, e falliva. Differenze all'ultima cifra: `-0.10546916309558063` contro `-0.10546916309558085`. Ricentrare un layout già centrato lo sposta comunque, perché il centro del suo Enclosing Circle non torna `0` ma un `1e-16` di arrotondamento. È deterministico e non fa danni, ma l'idempotenza su cui contava il piano ("rilassarlo di nuovo non sposta niente") vale solo fino all'ultimo bit. In #62 ogni nascita ricentra il layout del figlio: la deriva sarà di qualche `1e-16` per generazione.
+
+---
+
+La regola sugli Innovation Id dice che niente ordina gli id per valore. Il test che controlla che i fondatori li ricevano in ordine di piazzamento fa proprio quello: `[...ids].sort((a, b) => a - b)`, e confronta. Con un commento che si scusa: lo legge solo per controllare il contatore, mai per mettere in fila i geni. Per verificare che un valore non conta, bisogna guardarlo.
+
+---
+
+Il ceiling è arrivato con un ticket di anticipo. #61 non doveva toccarlo: il Birth Cost Ceiling strutturale è di #62. Ma un figlio eredita i neuroni del genitore tali e quali, e con il ceiling di M6, `π·(t·(1+δ))²`, il primo genitore con un neurone avrebbe fatto scattare il `throw` della mitosi alla prima nascita. L'agente l'ha visto nel piano, prima di scrivere codice, e ha aggiunto il raggio dell'Enclosing Circle del genitore: è la formula di ADR-0028 senza il termine degli eventi strutturali. Con un `Gene[]` vuoto il raggio è zero, e il ceiling resta quello di v0.1 bit per bit.
+
+---
+
+Per vedere il nuovo look l'agente ha fatto girare l'app con 40 fondatori carichi di neuroni, attraverso una patch locale a `main.ts` mai committata. I neuroni di quella prova avevano raggio da 0.1 a 0.2. Quelli veri nasceranno a `r_new = 0.05`: allo zoom di partenza, 14 pixel per unità, fanno 0.7 pixel di raggio. I "small grey dots" decisi per lo schermo in #50 saranno puntini sotto il pixel, visibili solo zoomando. Da ricordare quando #63 farà comparire i primi neuroni in un mondo vero.
+
+---
+
+L'effetto di morte dura 300 millisecondi. La prima raffica di dodici screenshot, uno ogni 70 millisecondi, non ne ha preso nessuno. La seconda prova ha letto il contatore Deaths dell'HUD ogni 15 millisecondi e ha scattato 60 millisecondi dopo il primo cambio. Lo screenshot mostra un corpo scuro che svanisce dentro il suo anello, contro la parete di destra. Per fotografare la morte bisogna aspettarla.
