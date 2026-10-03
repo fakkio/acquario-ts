@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 
-import {enclosingCircle, relax, type Disc} from "./layout";
+import {enclosingCircle, makeRoom, relax, type Disc} from "./layout";
 
 const EXACT = 12;
 
@@ -292,5 +292,55 @@ describe("relax", () => {
       const relaxed = relax([{x: 0, y: 0, radius: 0.05}]);
       expect(enclosingCircle(relaxed).radius).toBe(0.05);
     });
+  });
+});
+
+describe("makeRoom", () => {
+  it("clears a disc's worth of room without making any two discs overlap", () => {
+    const unit = seededUnit(17);
+
+    for (let trial = 0; trial < TRIALS; trial++) {
+      const before = relax(randomLayout(unit, 1 + Math.floor(unit() * 12)));
+      const room = {
+        ...pointInside(unit, enclosingCircle(before)),
+        radius: unit() * 0.4,
+      };
+      const cleared = makeRoom(before, room);
+
+      expect(deepestOverlap(cleared)).toBeLessThanOrEqual(SLACK);
+      expect(deepestOverlap([room, ...cleared])).toBeLessThanOrEqual(SLACK);
+    }
+  });
+
+  it("grows the Enclosing Circle by at most the room's growth past the disc it replaces", () => {
+    // A Split's case: one organelle of a relaxed layout swells into the
+    // room its two pieces need, and the others make way for it.
+    const unit = seededUnit(19);
+
+    for (let trial = 0; trial < TRIALS; trial++) {
+      const before = relax(randomLayout(unit, 2 + Math.floor(unit() * 12)));
+      const target = Math.floor(unit() * before.length);
+      const swelling = unit() * 0.2;
+      const room = {
+        ...before[target],
+        radius: before[target].radius + swelling,
+      };
+      const cleared = makeRoom(
+        before.filter((_, i) => i !== target),
+        room,
+      );
+
+      expect(enclosingCircle([room, ...cleared]).radius).toBeLessThanOrEqual(
+        enclosingCircle(before).radius + swelling + SLACK,
+      );
+    }
+  });
+
+  it("moves nothing when the room overlaps nothing", () => {
+    const free = [
+      {x: 0, y: 0, radius: 0.2},
+      {x: 0.4, y: 0, radius: 0.2},
+    ];
+    expect(makeRoom(free, {x: 0, y: 0.5, radius: 0.1})).toEqual(free);
   });
 });

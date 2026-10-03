@@ -497,9 +497,46 @@ export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
  * M7's structural constants (ADR-0028, ADR-0034), the ones the neuron's
  * declaration names (`organelles.ts`). Lengths are in baseline radii, like
  * every length in the world. Persistence on the Reference World arbitrates
- * them (#63), and the rest of the structural law's constants arrive with it
- * (#62).
+ * them (#63): if it fails, `MAX_STRUCTURAL_EVENTS` moves first, then
+ * `R_NEW`, and no world constant moves.
  */
+
+/**
+ * `M_max`, the most structural events one birth can draw: `n ~
+ * Binomial(M_max, p)`, so the structural mutations a birth undergoes are
+ * bounded and do not grow with the genome (ADR-0028). The Birth Cost
+ * Ceiling prices `M_max` worst-case events, so it is the first constant
+ * persistence lowers.
+ */
+export const MAX_STRUCTURAL_EVENTS = tunable("MAX_STRUCTURAL_EVENTS", 2);
+
+/** `p`, each of the `M_max` trials' chance of becoming an event. At 2 and
+ * 0.25, a birth draws no event 56% of the time, one 38%, two 6%. */
+export const STRUCTURAL_EVENT_PROBABILITY = tunable(
+  "STRUCTURAL_EVENT_PROBABILITY",
+  0.25,
+);
+
+/**
+ * The structural operators' rate weights: an event picks its operator in
+ * proportion to them, before it picks a target. #58's starting values, not
+ * derived: insertion and deletion weigh the same, so structure does not
+ * accumulate from a rate imbalance alone, and half of all events reshape an
+ * organelle rather than add or remove one. The rates set how often each
+ * event happens, never how far one can grow the body, so the Birth Cost
+ * Ceiling does not read them.
+ */
+export const PARAMETER_CHANGE_WEIGHT = tunable("PARAMETER_CHANGE_WEIGHT", 0.5);
+export const INSERTION_WEIGHT = tunable("INSERTION_WEIGHT", 0.2);
+export const DELETION_WEIGHT = tunable("DELETION_WEIGHT", 0.2);
+export const SPLIT_WEIGHT = tunable("SPLIT_WEIGHT", 0.1);
+
+/**
+ * `w`, the half-width of a Split's triangular bell, `f = 0.5 + (u₁ + u₂ −
+ * 1)·w` (ADR-0028): at 0.3 the larger piece takes between 50% and 80% of
+ * the area, never more, with no truncation needed.
+ */
+export const SPLIT_HALF_WIDTH = tunable("SPLIT_HALF_WIDTH", 0.3);
 
 /** The radius an inserted organelle is born at, one for every type. Small,
  * so an insertion grows the Enclosing Circle by at most `2·r_new`. */

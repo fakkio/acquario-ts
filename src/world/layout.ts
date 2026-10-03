@@ -2,8 +2,8 @@
  * The geometry of a body's organelles (ADR-0028, ADR-0034): the **Enclosing
  * Circle** and the relaxation that pushes overlapping organelles apart. Pure
  * functions over discs, with no idea what an organelle is or what a genome
- * holds, so the genome module can build a body from them and the structural
- * mutation law (#62) can compose its operators from the same pieces.
+ * holds, so the genome module can build a body from them and compose the
+ * structural mutation law's operators from the same pieces.
  *
  * Arithmetic and square roots only, per ADR-0007, and every loop runs in the
  * order it was handed — the genome's — with no shuffle and nothing drawn.
@@ -103,8 +103,8 @@ export function enclosingCircle(discs: readonly Disc[]): Disc {
  * the count of overlapping pairs falls each round and the loop ends.
  *
  * An event that touches two discs at once, a Split, is not covered by one
- * round of this rule: its operator will need the push on its own, to clear
- * room around the organelle before the pieces are placed (#62).
+ * round of this rule: its operator clears room for its pieces with the push
+ * alone first (`makeRoom`), and leaves this nothing to do.
  */
 export function relax<T extends Disc>(discs: readonly T[]): T[] {
   let layout = [...discs];
@@ -130,7 +130,7 @@ export function relax<T extends Disc>(discs: readonly T[]): T[] {
         continue;
       }
       for (const candidate of [
-        pushAway(layout, culprit, deepestOverlapOf(layout, culprit)),
+        pushAway(layout, layout[culprit], deepestOverlapOf(layout, culprit)),
         slideOut(layout, culprit),
       ]) {
         const radius = enclosingCircle(candidate).radius;
@@ -145,18 +145,38 @@ export function relax<T extends Disc>(discs: readonly T[]): T[] {
 }
 
 /**
- * Moves every disc but `centre` straight away from it by `distance`: the
- * push move of `relax`. Never brings two discs closer, so it creates no
- * overlap among the discs it moves.
+ * Clears `room`, a disc that is not one of `discs`, by pushing every disc
+ * straight away from its centre by the deepest overlap any of them has with
+ * it: `relax`'s push, around a disc the layout does not hold yet. The
+ * Split's first move (ADR-0028), which swells an organelle into the circle
+ * its two pieces will fill and has the others make way.
+ *
+ * On a layout with no overlaps it creates none, and moves each disc by at
+ * most how far `room` reaches past the disc it replaces, so the Enclosing
+ * Circle grows by no more than that. A room that overlaps nothing moves
+ * nothing.
+ */
+export function makeRoom<T extends Disc>(discs: readonly T[], room: Disc): T[] {
+  let deepest = 0;
+  for (const disc of discs) {
+    deepest = Math.max(deepest, overlap(room, disc));
+  }
+  return pushAway(discs, room, deepest);
+}
+
+/**
+ * Moves every disc but `origin` itself straight away from `origin`'s centre
+ * by `distance`: the push move of `relax`, where `origin` is one of the
+ * discs, and of `makeRoom`, where it is not. Never brings two discs closer,
+ * so it creates no overlap among the discs it moves.
  */
 function pushAway<T extends Disc>(
   discs: readonly T[],
-  centre: number,
+  origin: Disc,
   distance: number,
 ): T[] {
-  const origin = discs[centre];
-  return discs.map((disc, i) => {
-    if (i === centre || distance <= 0) {
+  return discs.map((disc) => {
+    if (disc === origin || distance <= 0) {
       return disc;
     }
     const direction = unitVector(disc.x - origin.x, disc.y - origin.y);

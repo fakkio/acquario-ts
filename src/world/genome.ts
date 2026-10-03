@@ -1,15 +1,27 @@
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
+  DELETION_WEIGHT,
   DELTA_CHILD_ALLOCATION_RATIO,
   DELTA_CYTOPLASM_THICKNESS,
   DELTA_LINEAGE_HUE,
   DELTA_MITOSIS_ENERGY_THRESHOLD,
+  INSERTION_WEIGHT,
+  MAX_STRUCTURAL_EVENTS,
   MUTATION_PROBABILITY,
+  PARAMETER_CHANGE_WEIGHT,
+  R_NEW,
+  SPLIT_HALF_WIDTH,
+  SPLIT_WEIGHT,
+  STRUCTURAL_EVENT_PROBABILITY,
 } from "./constants";
-import {enclosingCircle, relax} from "./layout";
-import type {OrganelleType} from "./organelles";
+import {enclosingCircle, makeRoom, relax} from "./layout";
+import {
+  ORGANELLE_TYPES,
+  type OrganelleType,
+  type ParameterLaw,
+} from "./organelles";
 import {bodyAreaOfRadius} from "./organism";
-import {nextRng, type RngStream} from "./rng";
+import {drawUnitVector, nextRng, type RngStream} from "./rng";
 
 /**
  * The structural gene describing one organelle (glossary: Organelle Gene):
@@ -23,6 +35,12 @@ export interface OrganelleGene {
    * Identity only (glossary: Innovation Id), minted once from the world's
    * counter: compared for equality and nothing else, so nothing sorts,
    * iterates, draws or branches on its value.
+   *
+   * A gene a child's structural events create carries a provisional,
+   * child-local id until the world mints it: negative, `-1, -2, …` in the
+   * order its events created them, so it can never be taken for a minted
+   * one (`FIRST_INNOVATION_ID` and up). The world mints it when the pending
+   * birth is committed (#63).
    */
   readonly innovationId: number;
   readonly radius: number;
@@ -105,9 +123,59 @@ export interface MutationOptions {
    * Multiplies every gene's δ. Defaults to 1. Generation 0 scales it by
    * `GENERATION_0_MUTATION_SCALE` so founders spread across the range M1
    * calibrated, rather than the small step one ordinary birth takes.
+   * Header only, like `probability`: the structural events have their own
+   * rates below.
    */
   readonly scale?: number;
+  /**
+   * The world's roster, the organelle types an insertion draws from
+   * (ADR-0032). Given, the structural events run after the header: an
+   * empty roster disables insertion, and with no organelles every other
+   * operator too, so then they draw nothing at all. Omitted, they do not
+   * run and `genes` passes through untouched, the header-only law mitosis
+   * and generation 0 keep until the world's roster is wired in (#63).
+   * Omitting it is a stopgap, not a third mode: #63 makes it required here
+   * and in `birthCostCeiling` together, since a roster given to one and not
+   * the other either breaks the ceiling or overprices it silently.
+   */
+  readonly roster?: readonly OrganelleType[];
+  /**
+   * Each of the `MAX_STRUCTURAL_EVENTS` trials' chance of becoming an event,
+   * `p` in `n ~ Binomial(M_max, p)`. Defaults to
+   * `STRUCTURAL_EVENT_PROBABILITY`. Neither this nor `operatorWeights`
+   * moves the Birth Cost Ceiling, which prices the worst case whatever the
+   * rates, so a test can force any mix of events and still hold every
+   * child to it.
+   */
+  readonly eventProbability?: number;
+  /** The structural operators' rate weights. Defaults to
+   * `OPERATOR_WEIGHTS`. */
+  readonly operatorWeights?: OperatorWeights;
 }
+
+/**
+ * The structural operators M7 knows (ADR-0028), in the order an event's
+ * operator draw walks their weights: part of the law, like the header's
+ * draw order. The weight change and the synapse insertion are M11's.
+ */
+const OPERATORS = [
+  "parameterChange",
+  "insertion",
+  "deletion",
+  "split",
+] as const;
+
+export type StructuralOperator = (typeof OPERATORS)[number];
+
+/** How often an event picks each operator, in proportion. */
+export type OperatorWeights = Readonly<Record<StructuralOperator, number>>;
+
+export const OPERATOR_WEIGHTS: OperatorWeights = {
+  parameterChange: PARAMETER_CHANGE_WEIGHT,
+  insertion: INSERTION_WEIGHT,
+  deletion: DELETION_WEIGHT,
+  split: SPLIT_WEIGHT,
+};
 
 export interface GenomeMutation {
   readonly genome: Genome;
@@ -123,10 +191,10 @@ export interface GenomeMutation {
  * Draw order is a law of the world, not an implementation detail: every
  * header gene, in the record's own declaration order, takes one probability
  * draw and then its magnitude draw(s), only if that probability draw fires.
- * Reordering it later reseeds every child mutated from this point on.
- *
- * `genes` passes through untouched: the structural events that act on it
- * arrive with #62, after the header and with draws of their own.
+ * The structural events follow the header (`mutateStructure`), so a genome
+ * with no organelles under an empty roster draws exactly what v0.1's did.
+ * Reordering any of it later reseeds every child mutated from this point
+ * on.
  */
 export function mutateGenome(
   genome: Genome,
@@ -165,13 +233,23 @@ export function mutateGenome(
       )
     : genome.lineageHue;
 
+  const genes =
+    options.roster === undefined
+      ? genome.genes
+      : mutateStructure(genome.genes, draws, {
+          roster: options.roster,
+          eventProbability:
+            options.eventProbability ?? STRUCTURAL_EVENT_PROBABILITY,
+          weights: options.operatorWeights ?? OPERATOR_WEIGHTS,
+        });
+
   return {
     genome: {
       cytoplasmThickness,
       mitosisEnergyThreshold,
       childAllocationRatio,
       lineageHue,
-      genes: genome.genes,
+      genes,
     },
     stream: draws.stream(),
   };
@@ -185,20 +263,37 @@ export function mutateGenome(
  * draws above it — that would bring the Birth Sieve back from the other
  * side.
  *
- * ADR-0028's `π·R_max²`, with `R_max` the parent's Enclosing Circle plus
- * the largest thickness `mutateMultiplicatively` can draw, `t·(1 + δ)`,
- * since its magnitude draw stays below 1. A child inherits its parent's
- * layout unchanged until the structural events exist, so its Enclosing
- * Circle is its parent's; those events add their `M_max · maxEventGrowth`
- * term to the radius (#62), and the signature stays. With no organelles the
- * circle is empty and this is v0.1's ceiling exactly.
+ * ADR-0028's `π·R_max²`, with `R_max = enclosing radius + M_max ·
+ * maxEventGrowth + t·(1 + δ)`: the parent's Enclosing Circle, the most its
+ * structural events can grow it (`maxStructuralGrowth`), and the largest
+ * thickness `mutateMultiplicatively` can draw, since its magnitude draw
+ * stays below 1. `maxEventGrowth` counts only the operators with a valid
+ * target in the parent's genome (ADR-0034), so with no organelles and an
+ * empty roster this is v0.1's ceiling exactly.
+ *
+ * The bound is read off the parent's own genome. A later event acts on a
+ * genome an earlier one changed, an organelle grown a step or newly
+ * splittable; the slack the operators leave (a size step or a split moves
+ * the circle by half what is priced) covers that at `M_max = 2`, and the
+ * property test in `genome.test.ts` is what says so for the constants a
+ * sweep tries.
+ *
+ * `roster` is the one the child's mutation runs with. Omitted, the
+ * structural events do not run (`MutationOptions.roster`) and nothing is
+ * priced for them.
  *
  * It covers ordinary births only. Generation 0's scaled founder mutation is
  * not a birth, and its founders can exceed it.
  */
-export function birthCostCeiling(genome: Genome): number {
+export function birthCostCeiling(
+  genome: Genome,
+  roster?: readonly OrganelleType[],
+): number {
+  const structural =
+    roster === undefined ? 0 : maxStructuralGrowth(genome.genes, roster);
   return bodyAreaOfRadius(
     deriveBody(genome).enclosingRadius +
+      structural +
       genome.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
   );
 }
@@ -260,6 +355,361 @@ export function deriveBody(genome: Genome): Body {
   };
 }
 
+interface StructuralLaw {
+  readonly roster: readonly OrganelleType[];
+  readonly eventProbability: number;
+  readonly weights: OperatorWeights;
+}
+
+/**
+ * The structural half of the mutation law (ADR-0028, ADR-0034): `n ~
+ * Binomial(M_max, p)` events, drawn as `M_max` trials up front, then each
+ * event in turn. An event draws its operator by weight, then a target
+ * uniformly among the genes that operator can act on. With no valid target
+ * it does nothing, having drawn only its operator, and is not redrawn, so
+ * the law never becomes a rejection sampler.
+ *
+ * The layout is relaxed after every event, since the relaxation contract is
+ * stated per event, and recentred on its Enclosing Circle once all of them
+ * are applied: the relaxed, recentred layout is what the child's genome
+ * holds. A child no event touched keeps its parent's genes as they are.
+ *
+ * With an empty roster and no organelles no operator can ever find a
+ * target, and this draws nothing at all, so a world with an empty roster
+ * draws exactly the numbers M6 drew.
+ */
+function mutateStructure(
+  genes: readonly Gene[],
+  draws: MutationDraws,
+  law: StructuralLaw,
+): readonly Gene[] {
+  if (law.roster.length === 0 && genes.length === 0) {
+    return genes;
+  }
+
+  let events = 0;
+  for (let trial = 0; trial < MAX_STRUCTURAL_EVENTS; trial++) {
+    if (draws.fires(law.eventProbability)) {
+      events++;
+    }
+  }
+
+  let nextProvisionalId = -1;
+  const provisionalId = (): number => nextProvisionalId--;
+  let layout = genes;
+  let touched = false;
+  for (let event = 0; event < events; event++) {
+    const operator = pickOperator(draws.unit(), law.weights);
+    const changed = applyEvent(
+      operator,
+      layout,
+      law.roster,
+      draws,
+      provisionalId,
+    );
+    if (changed !== null) {
+      layout = relax(changed);
+      touched = true;
+    }
+  }
+
+  if (!touched) {
+    return genes;
+  }
+  const centre = enclosingCircle(layout);
+  return layout.map((gene) => ({
+    ...gene,
+    x: gene.x - centre.x,
+    y: gene.y - centre.y,
+  }));
+}
+
+/** The operator a draw `u` picks, walking the weights in `OPERATORS`'
+ * order. */
+function pickOperator(u: number, weights: OperatorWeights): StructuralOperator {
+  let total = 0;
+  for (const operator of OPERATORS) {
+    total += weights[operator];
+  }
+  let remaining = u * total;
+  let picked: StructuralOperator = OPERATORS[0];
+  for (const operator of OPERATORS) {
+    if (weights[operator] > 0) {
+      // The last operator with any weight also takes the hair rounding can
+      // leave `u·total` past the running sum.
+      picked = operator;
+      if (remaining < weights[operator]) {
+        return operator;
+      }
+      remaining -= weights[operator];
+    }
+  }
+  return picked;
+}
+
+/**
+ * One structural event, before relaxation: the layout it leaves, or `null`
+ * when its operator has no valid target and it does nothing.
+ */
+function applyEvent(
+  operator: StructuralOperator,
+  layout: readonly Gene[],
+  roster: readonly OrganelleType[],
+  draws: MutationDraws,
+  provisionalId: () => number,
+): Gene[] | null {
+  switch (operator) {
+    case "parameterChange": {
+      const targets = indicesWhere(
+        layout,
+        (gene) => ORGANELLE_TYPES[gene.type].parameters.length > 0,
+      );
+      if (targets.length === 0) {
+        return null;
+      }
+      const index = targets[draws.index(targets.length)];
+      const gene = layout[index];
+      const {parameters} = ORGANELLE_TYPES[gene.type];
+      const {law} = parameters[draws.index(parameters.length)];
+      return replaceAt(layout, index, [changeParameter(gene, law, draws)]);
+    }
+
+    case "insertion": {
+      if (roster.length === 0) {
+        return null;
+      }
+      const type = roster[draws.index(roster.length)];
+      // An empty Enclosing Circle is a point at the origin, and the first
+      // organelle is born there without a draw (ADR-0034).
+      const circle = enclosingCircle(layout);
+      const offset =
+        layout.length === 0 ? {x: 0, y: 0} : draws.pointInUnitDisc();
+      return [
+        ...layout,
+        {
+          type,
+          innovationId: provisionalId(),
+          radius: R_NEW,
+          x: circle.x + offset.x * circle.radius,
+          y: circle.y + offset.y * circle.radius,
+        },
+      ];
+    }
+
+    case "deletion": {
+      if (layout.length === 0) {
+        return null;
+      }
+      return replaceAt(layout, draws.index(layout.length), []);
+    }
+
+    case "split": {
+      const targets = indicesWhere(layout, isSplitTarget);
+      if (targets.length === 0) {
+        return null;
+      }
+      return split(
+        layout,
+        targets[draws.index(targets.length)],
+        draws,
+        provisionalId,
+      );
+    }
+  }
+}
+
+/**
+ * One parameter of one organelle, moved by the law its type declares
+ * (ADR-0028's closed menu): the symmetric multiplicative law is the
+ * radius's, clamped up to its floor (ADR-0034), and the Cartesian step is
+ * the position's, uniform over a disc of `δ` of the organelle's own radius.
+ */
+function changeParameter(
+  gene: Gene,
+  law: ParameterLaw,
+  draws: MutationDraws,
+): Gene {
+  switch (law.kind) {
+    case "symmetricMultiplicative":
+      return {
+        ...gene,
+        radius: Math.max(
+          law.floor,
+          mutateMultiplicatively(gene.radius, draws, law.delta),
+        ),
+      };
+    case "cartesianStep": {
+      const step = draws.pointInUnitDisc();
+      const reach = law.delta * gene.radius;
+      return {
+        ...gene,
+        x: gene.x + step.x * reach,
+        y: gene.y + step.y * reach,
+      };
+    }
+  }
+}
+
+/**
+ * A Split (ADR-0028): the organelle at `index` becomes two, of areas `f·A`
+ * and `(1−f)·A` with `f = 0.5 + (u₁ + u₂ − 1)·w`, conserving its area. The
+ * pieces lie tangent along a drawn direction, filling the circle of radius
+ * `r·(√f + √(1−f))` centred where the organelle was, and the other
+ * organelles first make way for that circle (`makeRoom`). That circle is at
+ * most `√2·r`, so the Enclosing Circle grows by at most `(√2 − 1)·r`,
+ * inside the `2(√2 − 1)·r` the ceiling prices.
+ *
+ * The first piece keeps the original's id and its place in the genome; the
+ * second gets a new id and the place right after it.
+ */
+function split(
+  layout: readonly Gene[],
+  index: number,
+  draws: MutationDraws,
+  provisionalId: () => number,
+): Gene[] {
+  const gene = layout[index];
+  const f = 0.5 + (draws.unit() + draws.unit() - 1) * SPLIT_HALF_WIDTH;
+  const direction = draws.unitVector();
+  const firstRadius = gene.radius * Math.sqrt(f);
+  const secondRadius = gene.radius * Math.sqrt(1 - f);
+  const room = {x: gene.x, y: gene.y, radius: firstRadius + secondRadius};
+  const others = makeRoom(replaceAt(layout, index, []), room);
+
+  const first: Gene = {
+    ...gene,
+    radius: firstRadius,
+    x: gene.x - direction.x * secondRadius,
+    y: gene.y - direction.y * secondRadius,
+  };
+  const second: Gene = {
+    ...gene,
+    innovationId: provisionalId(),
+    radius: secondRadius,
+    x: gene.x + direction.x * firstRadius,
+    y: gene.y + direction.y * firstRadius,
+  };
+  return [...others.slice(0, index), first, second, ...others.slice(index)];
+}
+
+/**
+ * Whether a Split can act on this organelle: only if its smaller piece, at
+ * the bell's most uneven `f = 0.5 − w`, still reaches its type's radius
+ * floor. Clamping that piece up would add the area a split exists to
+ * conserve (ADR-0034).
+ */
+function isSplitTarget(gene: Gene): boolean {
+  return (
+    gene.radius * Math.sqrt(0.5 - SPLIT_HALF_WIDTH) >= radiusFloor(gene.type)
+  );
+}
+
+/** A type's radius floor, read off its declared radius law: 0 for a type
+ * that declares none. */
+function radiusFloor(type: OrganelleType): number {
+  for (const {name, law} of ORGANELLE_TYPES[type].parameters) {
+    if (name === "radius" && law.kind === "symmetricMultiplicative") {
+      return law.floor;
+    }
+  }
+  return 0;
+}
+
+/**
+ * The most one event can grow the Enclosing Circle of `genes`, over the
+ * operators with a valid target there (ADR-0028, ADR-0034), read off each
+ * type's declared laws rather than found by trying mutations:
+ *
+ * - insertion, with a non-empty roster: `2·r_new`, or `r_new` into an empty
+ *   circle;
+ * - a symmetric multiplicative radius: twice the largest step it can take,
+ *   `2·δ·r` above its floor;
+ * - a Cartesian step: `δ·r`;
+ * - a Split of a valid target: `2(√2 − 1)·r`;
+ * - a deletion grows nothing.
+ */
+function maxEventGrowth(
+  genes: readonly Gene[],
+  roster: readonly OrganelleType[],
+): number {
+  let growth = 0;
+  if (roster.length > 0) {
+    growth = genes.length === 0 ? R_NEW : 2 * R_NEW;
+  }
+  for (const gene of genes) {
+    for (const {law} of ORGANELLE_TYPES[gene.type].parameters) {
+      growth = Math.max(growth, lawGrowth(gene.radius, law));
+    }
+    if (isSplitTarget(gene)) {
+      growth = Math.max(growth, 2 * (Math.SQRT2 - 1) * gene.radius);
+    }
+  }
+  return growth;
+}
+
+/** The most one step of `law` on an organelle of `radius` can grow the
+ * Enclosing Circle. */
+function lawGrowth(radius: number, law: ParameterLaw): number {
+  switch (law.kind) {
+    case "symmetricMultiplicative":
+      return 2 * (Math.max(radius * (1 + law.delta), law.floor) - radius);
+    case "cartesianStep":
+      return law.delta * radius;
+  }
+}
+
+/**
+ * The most a child's structural events can grow its parent's Enclosing
+ * Circle: `M_max` times the parent's worst event. An empty circle is the
+ * one exception, priced as ADR-0034 states it: only the first event can
+ * find it empty, at `r_new`, and every later one acts on a body holding one
+ * organelle of `r_new`, of whichever roster type prices worst.
+ */
+function maxStructuralGrowth(
+  genes: readonly Gene[],
+  roster: readonly OrganelleType[],
+): number {
+  const first = maxEventGrowth(genes, roster);
+  if (genes.length > 0 || roster.length === 0 || MAX_STRUCTURAL_EVENTS < 1) {
+    return Math.max(0, MAX_STRUCTURAL_EVENTS) * first;
+  }
+
+  let later = 0;
+  for (const type of roster) {
+    later = Math.max(
+      later,
+      maxEventGrowth(
+        [{type, innovationId: 0, radius: R_NEW, x: 0, y: 0}],
+        roster,
+      ),
+    );
+  }
+  return first + (MAX_STRUCTURAL_EVENTS - 1) * later;
+}
+
+function indicesWhere(
+  genes: readonly Gene[],
+  valid: (gene: Gene) => boolean,
+): number[] {
+  const indices: number[] = [];
+  for (let i = 0; i < genes.length; i++) {
+    if (valid(genes[i])) {
+      indices.push(i);
+    }
+  }
+  return indices;
+}
+
+/** `genes` with the entry at `index` replaced by `replacement`, which may
+ * be empty. */
+function replaceAt(
+  genes: readonly Gene[],
+  index: number,
+  replacement: readonly Gene[],
+): Gene[] {
+  return [...genes.slice(0, index), ...replacement, ...genes.slice(index + 1)];
+}
+
 /**
  * `cytoplasmThickness`'s law, inherited from v0.1's `bodyRadius`: draw a
  * magnitude `m = 1 + u·δ`, then a second draw
@@ -295,6 +745,13 @@ interface MutationDraws {
   unit(): number;
   /** A draw remapped to `[-1, 1)`, for the two additive genes. */
   signed(): number;
+  /** A uniform index into `count` entries, from one draw. */
+  index(count: number): number;
+  /** A uniform point inside the unit disc, by rejection from its bounding
+   * square: arithmetic only (ADR-0007), at a varying number of draws. */
+  pointInUnitDisc(): {x: number; y: number};
+  /** A uniform direction, by `drawUnitVector`'s own rejection. */
+  unitVector(): {x: number; y: number};
   /** Whether this gene's probability draw fires — consumes exactly one
    * draw whether or not it does. */
   fires(probability: number): boolean;
@@ -314,6 +771,23 @@ function openDraws(stream: RngStream): MutationDraws {
     unit,
     signed(): number {
       return unit() * 2 - 1;
+    },
+    index(count: number): number {
+      return Math.floor(unit() * count);
+    },
+    pointInUnitDisc(): {x: number; y: number} {
+      for (;;) {
+        const x = unit() * 2 - 1;
+        const y = unit() * 2 - 1;
+        if (x * x + y * y <= 1) {
+          return {x, y};
+        }
+      }
+    },
+    unitVector(): {x: number; y: number} {
+      const direction = drawUnitVector(current);
+      current = direction.stream;
+      return {x: direction.x, y: direction.y};
     },
     fires(probability: number): boolean {
       return unit() < probability;
