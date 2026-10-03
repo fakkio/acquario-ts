@@ -25,6 +25,7 @@ import {
   bodyArea,
   capFor,
   createPopulation,
+  placeFounders,
   type Founder,
   type Organism,
 } from "./organism";
@@ -1324,5 +1325,155 @@ describe("generation 0 (M5)", () => {
       expect(organism.mitosisEnergyThreshold).toBeGreaterThanOrEqual(0);
       expect(organism.childAllocationRatio).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+describe("a body with neurons (M7)", () => {
+  // Founders spread across the bright band, each carrying a small cluster of
+  // neurons, overlapping on purpose so the body relaxes them apart. No
+  // mutation can create a neuron yet (#62), so children inherit them as they
+  // are, and every carrier in this world descends from one of these.
+  const CARRIERS: readonly Founder[] = Array.from({length: 12}, (_, i) => ({
+    x: 4 + 6.5 * i,
+    y: 3 + (i % 3) * 2,
+    genome: {
+      ...BASELINE_GENOME,
+      lineageHue: i / 12,
+      genes: Array.from({length: 1 + (i % 4)}, (_, k) => ({
+        type: "neuron" as const,
+        x: 0.03 * k,
+        y: 0,
+        radius: 0.05 + 0.02 * k,
+      })),
+    },
+  }));
+  const BARE: readonly Founder[] = CARRIERS.map((founder) => ({
+    ...founder,
+    genome: {...founder.genome, genes: []},
+  }));
+
+  const run = (founders: readonly Founder[], ticks: number) => {
+    let world = createWorld(1234, {generation0: {founders}});
+    for (let tick = 0; tick < ticks; tick++) {
+      ({world} = advance(world, FIXED_DT_MS));
+    }
+    return world;
+  };
+
+  it("mints every founder's Innovation Ids once, distinct, in placement order", () => {
+    const ids = getPopulation(
+      createWorld(1234, {generation0: {founders: CARRIERS}}),
+    )
+      .flatMap((organism) => organism.organelles)
+      .map((organelle) => organelle.innovationId);
+    const expectedCount = CARRIERS.reduce(
+      (sum, founder) => sum + founder.genome.genes.length,
+      0,
+    );
+
+    expect(ids).toHaveLength(expectedCount);
+    expect(new Set(ids).size).toBe(expectedCount);
+    // The counter advances in placement order; this reads it only to check
+    // that, never to rank genes (glossary: Innovation Id).
+    expect(ids).toEqual([...ids].sort((a, b) => a - b));
+  });
+
+  it("hands out each founder's organelles relaxed apart, inside a body grown around them", () => {
+    for (const organism of getPopulation(
+      createWorld(1234, {generation0: {founders: CARRIERS}}),
+    )) {
+      const organelleArea = organism.organelles.reduce(
+        (sum, organelle) => sum + Math.PI * organelle.radius ** 2,
+        0,
+      );
+      expect(organism.bodyRadius).toBeGreaterThan(organism.cytoplasmThickness);
+      expect(organism.cytoplasmArea).toBeCloseTo(
+        bodyArea(organism) - organelleArea,
+        12,
+      );
+      for (const organelle of organism.organelles) {
+        expect(
+          Math.hypot(organelle.x, organelle.y) + organelle.radius,
+        ).toBeLessThanOrEqual(
+          organism.bodyRadius - organism.cytoplasmThickness + 1e-9,
+        );
+      }
+    }
+  });
+
+  it("starts carriers at diffusive equilibrium over their Cytoplasm Area", () => {
+    const world = createWorld(1234, {generation0: {founders: CARRIERS}});
+    const pools = getPoolLevels(world);
+
+    for (const organism of getPopulation(world)) {
+      for (const resource of DIFFUSIBLES) {
+        expect(organism[resource] / organism.cytoplasmArea).toBeCloseTo(
+          pools[resource] / AQUARIUM_AREA,
+          12,
+        );
+      }
+    }
+  });
+
+  it("breeds carriers whose children inherit their neurons, holding carbon and oxygen", () => {
+    const world = run(CARRIERS, 1500);
+
+    expect(getCumulativeBirths(world)).toBeGreaterThan(0);
+    expect(Math.abs(getCarbonDrift(world))).toBeLessThan(1e-9);
+    expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
+
+    const foundingIds = new Set(
+      getPopulation(createWorld(1234, {generation0: {founders: CARRIERS}}))
+        .flatMap((organism) => organism.organelles)
+        .map((organelle) => organelle.innovationId),
+    );
+    for (const organism of getPopulation(world)) {
+      for (const organelle of organism.organelles) {
+        expect(foundingIds.has(organelle.innovationId)).toBe(true);
+      }
+    }
+  });
+
+  it("reaches the same hash at tick N in two runs from the same carriers", () => {
+    expect(hashState(run(CARRIERS, 300))).toBe(hashState(run(CARRIERS, 300)));
+  });
+
+  it("folds the organelles into the hash, so carriers and bare twins hash apart", () => {
+    expect(
+      hashState(createWorld(1234, {generation0: {founders: CARRIERS}})),
+    ).not.toBe(hashState(createWorld(1234, {generation0: {founders: BARE}})));
+  });
+});
+
+describe("placeFounders (M7)", () => {
+  it("stores each founder's layout relaxed and recentred, so its genome holds the body it builds (ADR-0034)", () => {
+    const {population} = placeFounders(createRngStream(1234), [
+      {
+        x: 20,
+        y: 5,
+        genome: {
+          ...BASELINE_GENOME,
+          genes: [
+            {type: "neuron", x: 3, y: 3, radius: 0.2},
+            {type: "neuron", x: 3.05, y: 3, radius: 0.15},
+            {type: "neuron", x: 3, y: 3.05, radius: 0.1},
+          ],
+        },
+      },
+    ]);
+    const founder = population[0];
+
+    // Equal to rounding: recentring a layout already centred moves it by
+    // the last bits of a centre that computes to ~1e-16 rather than 0.
+    expect(founder.genome.genes).toHaveLength(founder.organelles.length);
+    for (const [i, gene] of founder.genome.genes.entries()) {
+      const organelle = founder.organelles[i];
+      expect(gene.innovationId).toBe(organelle.innovationId);
+      expect(gene.radius).toBe(organelle.radius);
+      expect(gene.x).toBeCloseTo(organelle.x, 12);
+      expect(gene.y).toBeCloseTo(organelle.y, 12);
+    }
+    // And the stored layout is no longer the one the caller wrote down.
+    expect(founder.genome.genes[0]?.x).not.toBe(3);
   });
 });

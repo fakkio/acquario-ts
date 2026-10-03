@@ -6,16 +6,41 @@ import {
   DELTA_MITOSIS_ENERGY_THRESHOLD,
   MUTATION_PROBABILITY,
 } from "./constants";
+import {enclosingCircle, relax} from "./layout";
+import type {OrganelleType} from "./organelles";
 import {bodyAreaOfRadius} from "./organism";
 import {nextRng, type RngStream} from "./rng";
 
 /**
- * A structural gene (glossary: Structural Gene), one entry of a genome's
- * `genes`. Nothing yet: the Organelle Gene arrives with the first organelle
- * type (#61). Until then `never` makes "every `genes` is empty" a fact the
- * compiler enforces rather than a convention.
+ * The structural gene describing one organelle (glossary: Organelle Gene):
+ * its type, its Innovation Id, its radius and its position in the genome's
+ * frame. A type's further parameters join it when a type declares one (M8
+ * on); the neuron declares only radius and position (`organelles.ts`).
  */
-export type Gene = never;
+export interface OrganelleGene {
+  readonly type: OrganelleType;
+  /**
+   * Identity only (glossary: Innovation Id), minted once from the world's
+   * counter: compared for equality and nothing else, so nothing sorts,
+   * iterates, draws or branches on its value.
+   */
+  readonly innovationId: number;
+  readonly radius: number;
+  readonly x: number;
+  readonly y: number;
+}
+
+/**
+ * An Organelle Gene before the world has minted its Innovation Id: how a
+ * caller describes a founder's organelles (`placeFounders`).
+ */
+export type OrganelleGeneDraft = Omit<OrganelleGene, "innovationId">;
+
+/**
+ * A structural gene (glossary: Structural Gene), one entry of a genome's
+ * `genes`. Only the Organelle Gene until synapses arrive (M11).
+ */
+export type Gene = OrganelleGene;
 
 /**
  * The complete heritable description of an organism (glossary: Genome),
@@ -160,16 +185,21 @@ export function mutateGenome(
  * draws above it — that would bring the Birth Sieve back from the other
  * side.
  *
- * With no structural genes it falls out of `mutateMultiplicatively`: a
- * child's thickness, and so its whole radius, is at most `t·(1 + δ)`, since
- * its magnitude draw stays below 1. It covers ordinary births only.
- * Generation 0's scaled founder mutation is not a birth, and its founders
- * can exceed it. The structural events add their own terms to the radius
- * (ADR-0028, #62); the signature stays.
+ * ADR-0028's `π·R_max²`, with `R_max` the parent's Enclosing Circle plus
+ * the largest thickness `mutateMultiplicatively` can draw, `t·(1 + δ)`,
+ * since its magnitude draw stays below 1. A child inherits its parent's
+ * layout unchanged until the structural events exist, so its Enclosing
+ * Circle is its parent's; those events add their `M_max · maxEventGrowth`
+ * term to the radius (#62), and the signature stays. With no organelles the
+ * circle is empty and this is v0.1's ceiling exactly.
+ *
+ * It covers ordinary births only. Generation 0's scaled founder mutation is
+ * not a birth, and its founders can exceed it.
  */
 export function birthCostCeiling(genome: Genome): number {
   return bodyAreaOfRadius(
-    genome.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
+    deriveBody(genome).enclosingRadius +
+      genome.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
   );
 }
 
@@ -187,17 +217,47 @@ export interface Body {
    * `β` read it rather than the whole body (ADR-0029).
    */
   readonly cytoplasmArea: number;
+  /** The Enclosing Circle's radius, 0 with no organelles. */
+  readonly enclosingRadius: number;
+  /**
+   * The organelles, in genome order, relaxed apart and positioned relative
+   * to the Enclosing Circle's centre, which is the body's centre: an
+   * organelle sits in the world at the organism's position plus its own,
+   * with no rotation until the first torque (M8).
+   */
+  readonly organelles: readonly OrganelleGene[];
 }
 
 /**
- * Derives the body a genome builds. With no organelles, which is every
- * genome until #61, the Enclosing Circle is empty: the radius is the
+ * Derives the body a genome builds (ADR-0028): the organelles relaxed apart
+ * (`relax`), their Enclosing Circle, and the cytoplasm wrapped around it.
+ * A genome in the world already holds a relaxed, recentred layout
+ * (ADR-0034), and relaxing it again moves nothing; the relaxation here is
+ * what puts a hand-written layout into that form (`placeFounders`).
+ *
+ * With no organelles the Enclosing Circle is empty: the radius is the
  * thickness alone and the whole body is cytoplasm, v0.1's Minimal Organism
  * to the last bit.
  */
 export function deriveBody(genome: Genome): Body {
-  const radius = genome.cytoplasmThickness;
-  return {radius, cytoplasmArea: bodyAreaOfRadius(radius)};
+  const relaxed = relax(genome.genes);
+  const circle = enclosingCircle(relaxed);
+  const radius = circle.radius + genome.cytoplasmThickness;
+  let organelleArea = 0;
+  for (const gene of relaxed) {
+    organelleArea += bodyAreaOfRadius(gene.radius);
+  }
+
+  return {
+    radius,
+    cytoplasmArea: bodyAreaOfRadius(radius) - organelleArea,
+    enclosingRadius: circle.radius,
+    organelles: relaxed.map((gene) => ({
+      ...gene,
+      x: gene.x - circle.x,
+      y: gene.y - circle.y,
+    })),
+  };
 }
 
 /**

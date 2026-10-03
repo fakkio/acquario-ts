@@ -12,6 +12,7 @@ function organismView(overrides: Partial<OrganismView>): OrganismView {
     bodyRadius: 1,
     cytoplasmThickness: 1,
     cytoplasmArea: Math.PI,
+    organelles: [],
     lineageHue: 0,
     mitosisEnergyThreshold: 0.75,
     childAllocationRatio: 0.5,

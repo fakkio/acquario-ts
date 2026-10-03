@@ -494,6 +494,45 @@ export const GENERATION_0_MUTATION_SCALE = tunable(
 export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
 
 /**
+ * M7's structural constants (ADR-0028, ADR-0034), the ones the neuron's
+ * declaration names (`organelles.ts`). Lengths are in baseline radii, like
+ * every length in the world. Persistence on the Reference World arbitrates
+ * them (#63), and the rest of the structural law's constants arrive with it
+ * (#62).
+ */
+
+/** The radius an inserted organelle is born at, one for every type. Small,
+ * so an insertion grows the Enclosing Circle by at most `2·r_new`. */
+export const R_NEW = tunable("R_NEW", 0.05);
+
+/**
+ * The floor organelle radius clamps at under its size law (ADR-0034), and
+ * below which a Split piece makes its organelle no valid target. Half the
+ * birth radius: room to shrink, with a neuron resting at the floor doing no
+ * harm.
+ */
+export const R_MIN = tunable("R_MIN", R_NEW / 2);
+
+/** An organelle radius's symmetric multiplicative step, `× (1 + u·δ)` or its
+ * reciprocal: the same law and the same step as `cytoplasmThickness`. */
+export const DELTA_ORGANELLE_RADIUS = tunable("DELTA_ORGANELLE_RADIUS", 0.08);
+
+/** An organelle position's Cartesian step, at most this many of the
+ * organelle's own radii, so a small organelle moves a small distance. */
+export const DELTA_ORGANELLE_POSITION = tunable(
+  "DELTA_ORGANELLE_POSITION",
+  0.5,
+);
+
+/**
+ * The neuron's Organelle Overhead `c_neuron` (ADR-0029), per tick, whatever
+ * its size. Provisional at a hundredth of `c₀`: small enough for M11's
+ * near-neutral structure, large enough to bite. Its value is chosen in the
+ * harness later in M7 (#66).
+ */
+export const C_NEURON = tunable("C_NEURON", 0.01 * EXISTENCE_COST);
+
+/**
  * Last, once every `tunable` above has registered its name: an
  * `ACQUARIO_`-prefixed variable that matched nothing is a typo, or a
  * constant somebody expected to be reachable and is not, and either way

@@ -7,7 +7,8 @@ import {
   RESPIRATION_ENERGY_YIELD,
 } from "./constants";
 import type {Environment} from "./environment";
-import {DIFFUSIBLES, capFor, type Organism} from "./organism";
+import {ORGANELLE_TYPES} from "./organelles";
+import {DIFFUSIBLES, bodyAreaOfRadius, capFor, type Organism} from "./organism";
 
 /**
  * The reactions and costs that spend and fill an organism's internal
@@ -212,11 +213,13 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
 
 /**
  * Resolve-phase step 5 (ADR-0006): maintenance, the cost of being an
- * organism at all — `c₀ + β·cytoplasmArea` (ADR-0009, ADR-0029), charged in
- * full every tick to every organism. `c₀` is the flat existence cost that
- * creates a minimum viable body size; `β·cytoplasmArea` is the body cost,
- * charged on the cytoplasm alone because each organelle will pay for its
- * own area at its type's rate.
+ * organism at all — `c₀ + β·cytoplasmArea + Σ (c_type + β_type·aᵢ)`
+ * (ADR-0009, ADR-0029), charged in full every tick to every organism. `c₀`
+ * is the flat existence cost that creates a minimum viable body size;
+ * `β·cytoplasmArea` is the body cost, charged on the cytoplasm alone because
+ * each organelle pays for its own area at its type's rate, plus its type's
+ * Organelle Overhead, both read off the type's declaration. Every area is
+ * paid once, at its occupant's rate.
  *
  * **Unconditional.** This function no longer floors the result at zero
  * (ADR-0017): whether an organism is allowed to fall below zero energy is a
@@ -229,6 +232,11 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
  * silently clamped to something that looks fine.
  */
 export function applyMaintenance(organism: Organism): void {
-  const cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * organism.cytoplasmArea;
+  let cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * organism.cytoplasmArea;
+  for (const organelle of organism.organelles) {
+    const type = ORGANELLE_TYPES[organelle.type];
+    cost +=
+      type.overhead + type.tissueCost * bodyAreaOfRadius(organelle.radius);
+  }
   organism.energy -= cost;
 }

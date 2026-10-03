@@ -206,6 +206,16 @@ interface WorldState {
    * `hashState` for the same reason `cumulativeDeaths` does.
    */
   readonly cumulativeBirths: number;
+  /**
+   * The world's Innovation Id counter (ADR-0028): the next id a new
+   * structural gene receives, advancing monotonically. Generation 0 mints
+   * its founders' ids from it, and from #63 the commit step mints each
+   * child's new genes in birth order. Part of the world's own state, yet
+   * deliberately **not** folded into `hashState`: an id's value never
+   * reaches behaviour, and every id minted is folded through the gene that
+   * holds it (`foldPopulation`).
+   */
+  readonly nextInnovationId: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -222,7 +232,7 @@ export interface AdvanceResult {
 }
 
 export function createWorld(seed: number, options: WorldOptions = {}): World {
-  const {population, stream} = placeGeneration0(
+  const {population, stream, nextInnovationId} = placeGeneration0(
     createRngStream(seed),
     options.generation0,
   );
@@ -247,6 +257,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     measuredAlpha: NO_ENERGY_PRODUCED,
     cumulativeDeaths: 0,
     cumulativeBirths: 0,
+    nextInnovationId,
   });
 }
 

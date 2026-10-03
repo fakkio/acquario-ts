@@ -8,7 +8,9 @@ import {
   deriveBody,
   mutateGenome,
   type Genome,
+  type OrganelleGene,
 } from "./genome";
+import {enclosingCircle} from "./layout";
 import {bodyAreaOfRadius} from "./organism";
 import {createRngStream} from "./rng";
 
@@ -175,6 +177,33 @@ describe("birthCostCeiling", () => {
     // whisker of it, so the gate is not pricing children that never exist.
     expect(tightest).toBeGreaterThan(0.99);
   });
+
+  it("bounds every child of a parent carrying neurons, which it inherits unchanged until #62", () => {
+    const STREAMS = 2000;
+
+    for (let seed = 0; seed < STREAMS; seed++) {
+      const parent: Genome = {
+        ...BASELINE_GENOME,
+        cytoplasmThickness: 0.3 + (seed % 50) * 0.05,
+        genes: neurons(1 + (seed % 7), 0.05 + (seed % 3) * 0.1),
+      };
+      const ceiling = birthCostCeiling(parent);
+      const {genome: child} = mutateGenome(parent, createRngStream(seed), {
+        probability: 1,
+      });
+
+      expect(bodyAreaOfRadius(deriveBody(child).radius)).toBeLessThanOrEqual(
+        ceiling,
+      );
+    }
+  });
+
+  it("prices v0.1's ceiling exactly for a genome with no organelles", () => {
+    const thickness = 1.3;
+    expect(
+      birthCostCeiling({...BASELINE_GENOME, cytoplasmThickness: thickness}),
+    ).toBe(bodyAreaOfRadius(thickness * (1 + DELTA_CYTOPLASM_THICKNESS)));
+  });
 });
 
 describe("deriveBody", () => {
@@ -186,6 +215,73 @@ describe("deriveBody", () => {
 
       expect(body.radius).toBe(cytoplasmThickness);
       expect(body.cytoplasmArea).toBe(bodyAreaOfRadius(cytoplasmThickness));
+      expect(body.organelles).toEqual([]);
+    }
+  });
+
+  it("wraps the cytoplasm around the Enclosing Circle of the organelles", () => {
+    // Two tangent neurons of radius 0.1 side by side: their Enclosing Circle
+    // has radius 0.2, so a thickness of 0.5 gives a body of radius 0.7.
+    const body = deriveBody({
+      ...BASELINE_GENOME,
+      cytoplasmThickness: 0.5,
+      genes: [neuron(1, -0.1, 0, 0.1), neuron(2, 0.1, 0, 0.1)],
+    });
+
+    expect(body.radius).toBeCloseTo(0.7, 12);
+    expect(body.enclosingRadius).toBeCloseTo(0.2, 12);
+  });
+
+  it("leaves as cytoplasm the body's area minus every organelle's", () => {
+    const body = deriveBody({
+      ...BASELINE_GENOME,
+      cytoplasmThickness: 0.5,
+      genes: [neuron(1, -0.1, 0, 0.1), neuron(2, 0.1, 0, 0.1)],
+    });
+
+    expect(body.cytoplasmArea).toBeCloseTo(
+      Math.PI * 0.7 * 0.7 - 2 * Math.PI * 0.1 * 0.1,
+      12,
+    );
+  });
+
+  it("centres the organelles on their Enclosing Circle, wherever the genome put them", () => {
+    const body = deriveBody({
+      ...BASELINE_GENOME,
+      genes: [
+        neuron(1, 3, 2, 0.1),
+        neuron(2, 3.4, 2, 0.2),
+        neuron(3, 3, 2.5, 0.05),
+      ],
+    });
+    const circle = enclosingCircle(body.organelles);
+
+    expect(circle.x).toBeCloseTo(0, 12);
+    expect(circle.y).toBeCloseTo(0, 12);
+  });
+
+  it("relaxes overlapping organelles apart, keeping each one's type, id and radius", () => {
+    const genes = [
+      neuron(4, 0, 0, 0.2),
+      neuron(9, 0.05, 0, 0.15),
+      neuron(2, 0, 0.05, 0.1),
+    ];
+    const {organelles} = deriveBody({...BASELINE_GENOME, genes});
+    const identity = ({type, innovationId, radius}: OrganelleGene) => ({
+      type,
+      innovationId,
+      radius,
+    });
+
+    expect(organelles.map(identity)).toEqual(genes.map(identity));
+    for (let i = 0; i < organelles.length; i++) {
+      for (let j = i + 1; j < organelles.length; j++) {
+        const a = organelles[i];
+        const b = organelles[j];
+        expect(Math.hypot(a.x - b.x, a.y - b.y)).toBeGreaterThanOrEqual(
+          a.radius + b.radius - 1e-9,
+        );
+      }
     }
   });
 });
@@ -196,3 +292,19 @@ describe("BASELINE_GENOME", () => {
     expect(BASELINE_GENOME.genes).toEqual([]);
   });
 });
+
+function neuron(
+  innovationId: number,
+  x: number,
+  y: number,
+  radius: number,
+): OrganelleGene {
+  return {type: "neuron", innovationId, x, y, radius};
+}
+
+/** `count` tangent neurons of one radius in a row, for a parent to carry. */
+function neurons(count: number, radius: number): OrganelleGene[] {
+  return Array.from({length: count}, (_, i) =>
+    neuron(i + 1, i * 2 * radius, 0, radius),
+  );
+}

@@ -1,3 +1,4 @@
+import {drawBody} from "./bodyGlyph";
 import type {Camera} from "./camera";
 import type {DeathEffects} from "./deathEffects";
 import {
@@ -7,7 +8,6 @@ import {
   getGridOccupancy,
   getPopulation,
   lightAt,
-  type OrganismView,
   type World,
 } from "../world";
 
@@ -39,13 +39,6 @@ const WATER_LIGHTNESS_SURFACE = 32;
  * stops in RGB space regardless, so more stops than the eye can tell apart
  * buys nothing. */
 const GRADIENT_STOPS = 20;
-
-/** Lightness at zero energy and at a full store, in percent — the range a
- * body's brightness maps its energy fraction into (M2, ADR-0010). A
- * starving body never goes fully black: it stays a dim, legible ghost of
- * its lineage hue rather than vanishing into the background. */
-const BODY_LIGHTNESS_FLOOR = 12;
-const BODY_LIGHTNESS_FULL = 55;
 
 const GRID_STROKE = "hsla(50, 90%, 70%, 0.22)";
 const GRID_OCCUPIED_FILL = "hsla(50, 90%, 70%, 0.10)";
@@ -120,10 +113,12 @@ export function renderWorld(
 
   const population = getPopulation(world);
   for (const organism of population) {
-    ctx.fillStyle = bodyFillFor(organism);
-    ctx.beginPath();
-    ctx.arc(organism.x, organism.y, organism.bodyRadius, 0, 2 * Math.PI);
-    ctx.fill();
+    drawBody(
+      ctx,
+      organism,
+      organism.energy / capFor(organism, "energy"),
+      worldScale,
+    );
   }
 
   // Recorded and drawn last, over the bodies and the wall alike: the ring
@@ -138,25 +133,6 @@ export function renderWorld(
   ctx.strokeRect(0, 0, AQUARIUM_WIDTH, AQUARIUM_HEIGHT);
 
   options.deathEffects.draw(ctx, worldScale, options.nowMs);
-}
-
-/**
- * Untested per ADR-0013's TDD boundary, like everything else that draws.
- *
- * A body's fill colour: `lineageHue` converted from the genome's `[0, 1)`
- * unit to the degrees `hsl()` expects, brightness carrying the energy
- * fraction linearly between `BODY_LIGHTNESS_FLOOR` and `BODY_LIGHTNESS_FULL`.
- * No perceptual compression the way `waterFillAt` applies to light — the
- * energy fraction is already linear in `[0, 1]`, with no orders-of-magnitude
- * spread to compress.
- */
-function bodyFillFor(organism: OrganismView): string {
-  const energyFraction = organism.energy / capFor(organism, "energy");
-  const lightness =
-    BODY_LIGHTNESS_FLOOR +
-    (BODY_LIGHTNESS_FULL - BODY_LIGHTNESS_FLOOR) * energyFraction;
-
-  return `hsl(${String(organism.lineageHue * 360)}, 70%, ${String(lightness)}%)`;
 }
 
 /**

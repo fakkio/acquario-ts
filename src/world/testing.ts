@@ -54,6 +54,44 @@ export function organismAt(
 }
 
 /**
+ * An organism carrying one neuron per entry of `neuronRadii`, laid in a row
+ * and tangent so no relaxation moves them, inside a cytoplasm of
+ * `thickness`. `organismAt`'s sibling for the tests that need a body whose
+ * Cytoplasm Area is not its whole area.
+ */
+export function carrierAt(
+  x: number,
+  y: number,
+  neuronRadii: readonly number[],
+  thickness = BASELINE_BODY_RADIUS,
+): Organism {
+  let edge = 0;
+  const genes = neuronRadii.map((radius, i) => {
+    const gene = {
+      type: "neuron" as const,
+      innovationId: i + 1,
+      radius,
+      x: edge + radius,
+      y: 0,
+    };
+    edge += 2 * radius;
+    return gene;
+  });
+
+  return new Organism({
+    x,
+    y,
+    genome: {
+      ...BASELINE_GENOME,
+      cytoplasmThickness: thickness,
+      lineageHue: 0.5,
+      genes,
+    },
+    rng: createRngStream(11),
+  });
+}
+
+/**
  * Seeded Fisher-Yates, so the permutation is a real shuffle and still the
  * same one on every run. Mutates and returns the array it is handed.
  */
