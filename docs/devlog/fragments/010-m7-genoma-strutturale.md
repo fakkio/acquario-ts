@@ -135,3 +135,37 @@ Per vedere il nuovo look l'agente ha fatto girare l'app con 40 fondatori carichi
 ---
 
 L'effetto di morte dura 300 millisecondi. La prima raffica di dodici screenshot, uno ogni 70 millisecondi, non ne ha preso nessuno. La seconda prova ha letto il contatore Deaths dell'HUD ogni 15 millisecondi e ha scattato 60 millisecondi dopo il primo cambio. Lo screenshot mostra un corpo scuro che svanisce dentro il suo anello, contro la parete di destra. Per fotografare la morte bisogna aspettarla.
+
+---
+
+Il frammento di #61 prevedeva una deriva di qualche `1e-16` per generazione, perché in #62 ogni nascita avrebbe ricentrato il layout del figlio. Non succede. L'agente ha deciso che un figlio su cui nessun evento strutturale agisce tiene i geni del genitore così come sono, lo stesso array, senza ricentrarli. Con `M_max = 2` e `p = 0.25` è il 56% delle nascite. La deriva resta solo sui figli che qualcosa ha davvero cambiato, e lì la ricentratura serve comunque.
+
+---
+
+Il ticket scriveva il ceiling come `M_max · maxEventGrowth`, con "un inserimento in un Enclosing Circle vuoto conta `r_new`". Letta alla lettera, per un corpo senza organelli fa `2·r_new`. ADR-0034 dice un'altra cosa: `r_new` per il primo evento, `2·r_new` per ogni evento dopo, perché solo il primo può trovare il cerchio vuoto. Totale `3·r_new`. L'agente ha seguito l'ADR, il revisore Spec ha segnalato la differenza come imprecisione del ticket.
+
+Poi l'agente ha misurato. Su 20 000 stream con ogni prova trasformata in evento, il figlio peggiore di un corpo vuoto cresce esattamente di `2·r_new`: due neuroni inseriti uno dentro l'altro finiscono tangenti, e il loro cerchio ha raggio `2·r_new`, non `3·r_new`. La formula "sbagliata" del ticket era il caso peggiore reale. Quella giusta, quella dell'ADR, prezza un terzo in più di quanto un figlio possa mai costare.
+
+---
+
+Il ceiling prezza il caso peggiore di ogni operatore, e i figli veri ne usano circa la metà. Uno split sposta il cerchio di `(√2 − 1)·r`, e il prezzo è il doppio. Un passo di raggio lo sposta di `δ·r`, e il prezzo è `2·δ·r`. Sui genitori con organelli il figlio peggiore misurato usa fra il 43% e il 50% di quanto il genitore deve tenere da parte. L'agente l'ha scoperto sabotando il proprio codice: ha dimezzato il termine strutturale del ceiling per vedere se il test di proprietà se ne accorgeva. Se n'è accorto solo per il corpo vuoto. Per tutti gli altri genitori il test passava anche a metà prezzo.
+
+Il rischio che ADR-0028 chiedeva di tenere d'occhio è proprio questo: un genitore che deve tenere da parte molto più di quanto pagherà nasce più tardi, e persistence ne soffre. #63 lo misurerà sul mondo vero.
+
+---
+
+Quel margine è anche l'unica garanzia di una cosa che la formula non copre. Il ceiling si legge dal genoma del genitore, ma il secondo evento agisce su un genoma che il primo ha già cambiato: un organello cresciuto di un passo, o diventato abbastanza grande da potersi dividere. La formula non lo prezza. Con `M_max = 2` il mezzo prezzo avanzato dal primo evento lo copre, e il test di proprietà lo conferma, ma è una conferma e non una dimostrazione. L'agente l'ha scritto nel commento del ceiling: uno sweep che alza `M_max` deve far girare quel test.
+
+---
+
+Il ticket diceva "wiring into mitosis and the world is the next ticket's". Ma la firma di `mutateGenome` doveva già prendere il roster, e la mitosi la chiama. L'agente ha reso il roster opzionale: se manca, la legge strutturale non gira e il ceiling non la prezza, così la mitosi resta identica e il golden hash non si muove. Il revisore Spec l'ha chiamato per quello che è, un terzo modo nascosto fra "roster vuoto" e "roster pieno". Se #63 passa il roster al ceiling e non alla mutazione, la mitosi prezza eventi che non succedono mai. Se fa il contrario, la mitosi lancia un errore. Il commento nel codice ora dice che è un ripiego temporaneo, e che #63 lo rende obbligatorio in tutte e due le funzioni insieme.
+
+---
+
+I geni che un figlio crea nascono con un id provvisorio, negativo: `-1`, `-2`, nell'ordine in cui gli eventi li creano. Il conio vero spetta a #63, quando la nascita viene registrata nel mondo. La regola dice che niente decide qualcosa in base al valore di un id. Il passo di conio dovrà distinguere un id provvisorio da uno coniato guardandone il segno. È la seconda eccezione in due ticket, dopo il `sort` del test sui fondatori, e anche stavolta il valore si guarda solo per dire che non conta.
+
+---
+
+> cos'è questo golden hash che mi mostri ogni volta?
+
+Quattro ticket, quattro mappe HTML, e in ognuna il golden hash compariva come una notizia: invariato, `d22057a8`. Le mappe le scrive l'agente, e scrivendole ripeteva un termine nato in #59 come se chi le legge sapesse già cosa vuol dire. Il golden hash è l'impronta dell'intero mondo di M6 a un seed e a un tick fissi, registrata prima che M7 toccasse una riga. Se resta uguale, il refactor non ha spostato un bit in un mondo senza neuroni. Per l'agente era il controllo più importante di ogni ticket. Per chi leggeva la mappa era una sigla di otto caratteri senza spiegazione.
