@@ -27,6 +27,7 @@ import {
   getMeasuredAlpha,
   getOxygenDrift,
   getBrightAlpha,
+  getPoolCapacities,
   getPoolLevels,
   getPopulation,
   getSeed,
@@ -108,9 +109,26 @@ const updateHud = (currentWorld: World, fps: number): void => {
   );
 
   const pools = getPoolLevels(currentWorld);
-  hud.setField("poolFood", "Pool food", pools.food.toFixed(2));
-  hud.setField("poolCO2", "Pool CO₂", pools.carbonDioxide.toFixed(2));
-  hud.setField("poolO2", "Pool O₂", pools.oxygen.toFixed(2));
+  // Each level beside the most it can hold: the world's starting carbon (or
+  // oxygen), since a pool has no cap of its own.
+  const capacities = getPoolCapacities(currentWorld);
+  const formatPool = (level: number, capacity: number): string =>
+    `${level.toFixed(2)} / ${capacity.toFixed(0)}`;
+  hud.setField(
+    "poolFood",
+    "Pool food",
+    formatPool(pools.food, capacities.food),
+  );
+  hud.setField(
+    "poolCO2",
+    "Pool CO₂",
+    formatPool(pools.carbonDioxide, capacities.carbonDioxide),
+  );
+  hud.setField(
+    "poolO2",
+    "Pool O₂",
+    formatPool(pools.oxygen, capacities.oxygen),
+  );
   hud.setField(
     "carbonDrift",
     "Carbon drift",

@@ -654,6 +654,22 @@ export function getPoolLevels(world: World): Pools {
   return toState(world).pools;
 }
 
+/**
+ * The most each pool can ever hold, for the HUD to read a level against: a
+ * pool has no cap of its own, but food and CO₂ cannot exceed the carbon the
+ * world started with, nor O₂ the oxygen it started with (ADR-0001's closed
+ * ledger). Constant for the life of a world.
+ */
+export function getPoolCapacities(world: World): Pools {
+  const state = toState(world);
+
+  return {
+    food: state.initialTotalCarbon,
+    carbonDioxide: state.initialTotalCarbon,
+    oxygen: state.initialTotalOxygen,
+  };
+}
+
 /** `(current − initial) / initial`. Reads as 0 while a ledger holds and as
  * a fraction the moment it does not — the shared shape behind
  * `getCarbonDrift` and `getOxygenDrift`, stating conservation as drift

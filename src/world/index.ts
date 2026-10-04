@@ -31,6 +31,7 @@ export {
   getGridOccupancy,
   getMeasuredAlpha,
   getOxygenDrift,
+  getPoolCapacities,
   getPoolLevels,
   getPopulation,
   getSeed,
