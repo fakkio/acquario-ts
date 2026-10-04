@@ -34,6 +34,7 @@ import {
   getWorstPenetration,
   getZeroEnergyCount,
   DEFAULT_ROSTER,
+  type TickFlows,
   type World,
 } from "./world";
 
@@ -83,6 +84,8 @@ const world = createWorld(masterSeed, {roster: ROSTER});
 let latestWorld = world;
 let showGrid = false;
 let selection: Selection = NO_SELECTION;
+// What the last tick did to the selected organism's stores, for the inspector.
+let selectedFlows: TickFlows | null = null;
 // On by default from M5 (ADR-0018): M4's worlds could never breed, so a
 // restart showed nothing; M5's calibrated constants are what makes leaving
 // the tab open show a sequence of worlds rather than one dead aquarium.
@@ -221,6 +224,7 @@ const restart = (): void => {
   latestWorld = newWorld;
   // The old world's organisms are gone; a selection would point at nothing.
   selection = NO_SELECTION;
+  selectedFlows = null;
   // A fresh world's own α has produced nothing yet; carrying the last
   // world's smoothed reading across the restart would flash a stale number.
   smoothedAlpha = 0;
@@ -231,8 +235,10 @@ const restart = (): void => {
 
 const loop = createRenderLoop({
   world,
-  onAdvance: (nextWorld, fps) => {
+  trace: () => (selection.kind === "alive" ? selection.organism : undefined),
+  onAdvance: (nextWorld, fps, flows) => {
     latestWorld = nextWorld;
+    selectedFlows = flows;
     updateHud(nextWorld, fps);
     if (isRestartDue(getPopulation(nextWorld).length, autoRestart)) {
       restart();
@@ -266,7 +272,7 @@ const animate = (nowMs: number): void => {
     getTick(latestWorld),
     nowMs,
   );
-  inspector.render(selection);
+  inspector.render(selection, selectedFlows);
   repaint(nowMs);
   requestAnimationFrame(animate);
 };
@@ -327,11 +333,13 @@ canvas.addEventListener("mouseup", (event) => {
   );
   const picked = pickOrganism(getPopulation(latestWorld), point.x, point.y);
   selection = picked ? {kind: "alive", organism: picked} : NO_SELECTION;
+  selectedFlows = null;
   repaint();
 });
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     selection = NO_SELECTION;
+    selectedFlows = null;
     repaint();
   }
 });

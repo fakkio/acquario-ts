@@ -25,6 +25,7 @@ import {
   type PendingBirth,
 } from "./mitosis";
 import {DEFAULT_ROSTER, type OrganelleType} from "./organelles";
+import {FlowTracer, type TickFlows} from "./tickFlows";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -247,6 +248,17 @@ function toState(world: World): WorldState {
 export interface AdvanceResult {
   readonly world: World;
   readonly ticksRun: number;
+  /**
+   * What the last tick run did to `options.trace`'s stores, or null when no
+   * organism was asked for, none ran, or the organism is not in the world.
+   * A readout for the inspector: asking for it changes nothing a tick does.
+   */
+  readonly flows: TickFlows | null;
+}
+
+export interface AdvanceOptions {
+  /** The one organism whose per-step flows `advance` reports. */
+  readonly trace?: OrganismView;
 }
 
 export function createWorld(seed: number, options: WorldOptions = {}): World {
@@ -316,7 +328,7 @@ function placeGeneration0(
  * named below with the milestone that fills it, so later work has a place
  * to land rather than a decision to re-make.
  */
-function runTick(state: WorldState): WorldState {
+function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   // ---- Read: sample the environment into a snapshot ----------------
   // 1. Snapshot concentrations and light. `state.pools` is already an
   //    immutable record, so building the tick's `ExchangeSettlement` from
@@ -338,12 +350,16 @@ function runTick(state: WorldState): WorldState {
   //    in — only the `Environment` it is given each time does.
   const requestEnvironment = settlement.requestPass();
   for (const organism of state.population) {
+    tracer.start(organism);
     applyPassiveExchange(organism, requestEnvironment);
+    tracer.end("exchange", organism);
   }
   settlement.settle();
   const grantEnvironment = settlement.grantPass();
   for (const organism of state.population) {
+    tracer.start(organism);
     applyPassiveExchange(organism, grantEnvironment);
+    tracer.end("exchange", organism);
   }
   // 3. Photosynthesis: CO₂ + light → food + O₂, no energy produced. Runs
   //    after both exchange sub-passes above, against the same
@@ -351,7 +367,9 @@ function runTick(state: WorldState): WorldState {
   //    last tick's, and reads light off the same seam even though the
   //    reaction never calls `exchange` itself.
   for (const organism of state.population) {
+    tracer.start(organism);
     applyPhotosynthesis(organism, grantEnvironment);
+    tracer.end("photosynthesis", organism);
   }
   // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
   //    so an illuminated organism nets light → energy within this tick
@@ -359,14 +377,19 @@ function runTick(state: WorldState): WorldState {
   //    Every outcome is kept, not just applied, so this tick's population
   //    mean `α` (ADR-0015) can be struck below without a second pass over
   //    the population.
-  const respirationOutcomes = state.population.map((organism) =>
-    applyRespiration(organism),
-  );
+  const respirationOutcomes = state.population.map((organism) => {
+    tracer.start(organism);
+    const outcome = applyRespiration(organism);
+    tracer.end("respiration", organism);
+    return outcome;
+  });
   // 5. Maintenance: c₀ + β·area, charged in full and unconditionally
   //    (ADR-0017) — whether the result is allowed to go below zero is this
   //    world's mortality mode, not this reaction's business.
   for (const organism of state.population) {
+    tracer.start(organism);
     applyMaintenance(organism);
+    tracer.end("maintenance", organism);
   }
   // Immortal floor (ADR-0017), not one of ADR-0006's numbered steps: only
   // in a world constructed with `mortality: "off"` does energy stop here
@@ -399,7 +422,12 @@ function runTick(state: WorldState): WorldState {
   const births: readonly PendingBirth[] =
     state.fertility === "on"
       ? state.population
-          .map((organism) => evaluateMitosis(organism, state.roster))
+          .map((organism) => {
+            tracer.start(organism);
+            const birth = evaluateMitosis(organism, state.roster);
+            tracer.end("mitosis", organism);
+            return birth;
+          })
           .filter((birth): birth is PendingBirth => birth !== null)
       : NO_BIRTHS;
   // 8. Evaluate death: `energy <= 0` condemns an organism (ADR-0017), and
@@ -524,7 +552,11 @@ function meanMeasuredAlpha(
   };
 }
 
-export function advance(world: World, elapsedMs: number): AdvanceResult {
+export function advance(
+  world: World,
+  elapsedMs: number,
+  options: AdvanceOptions = {},
+): AdvanceResult {
   const state = toState(world);
   const maxAccumulatorMs = MAX_TICKS_PER_ADVANCE * FIXED_DT_MS;
   const accumulatorMs = Math.min(
@@ -535,8 +567,19 @@ export function advance(world: World, elapsedMs: number): AdvanceResult {
   const ticksRun = Math.floor((accumulatorMs + EPSILON_MS) / FIXED_DT_MS);
 
   let ticked = state;
+  let flows: TickFlows | null = null;
   for (let i = 0; i < ticksRun; i++) {
-    ticked = runTick(ticked);
+    // A fresh tracer per tick, so `flows` is the last tick's alone. A
+    // view is an `Organism` handed out narrowed, so identity finds it.
+    const tracer = new FlowTracer(
+      options.trace === undefined
+        ? undefined
+        : ticked.population.find(
+            (organism) => organism === (options.trace as unknown),
+          ),
+    );
+    ticked = runTick(ticked, tracer);
+    flows = tracer.flows();
   }
 
   return {
@@ -545,6 +588,7 @@ export function advance(world: World, elapsedMs: number): AdvanceResult {
       accumulatorMs: Math.max(0, accumulatorMs - ticksRun * FIXED_DT_MS),
     }),
     ticksRun,
+    flows,
   };
 }
 

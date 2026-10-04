@@ -4,6 +4,7 @@ import {
   maintenanceBreakdown,
   type OrganismView,
   type Resource,
+  type TickFlows,
 } from "../world";
 import type {Selection} from "./selection";
 
@@ -17,10 +18,35 @@ import type {Selection} from "./selection";
 export interface Inspector {
   /** Redraws the panel for this frame's selection. Cheap when nothing
    * changed: the organelle table is only rebuilt for a new organism. */
-  render(selection: Selection): void;
+  render(selection: Selection, flows: TickFlows | null): void;
 }
 
 const fixed = (value: number, digits = 3): string => value.toFixed(digits);
+
+const signed = (value: number): string =>
+  `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(3)}`;
+
+/** The steps of a tick, in the order they run, with the label the panel gives them. */
+const FLOW_STEPS = [
+  ["exchange", "exchange"],
+  ["photosynthesis", "photosynthesis"],
+  ["respiration", "respiration"],
+  ["maintenance", "maintenance"],
+  ["mitosis", "mitosis"],
+] as const;
+
+/** What the last tick did to one store, one term per step that touched it. */
+const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
+  if (!flows) {
+    return "";
+  }
+
+  const terms = FLOW_STEPS.filter(([step]) => flows[step][resource] !== 0).map(
+    ([step, label]) => `${signed(flows[step][resource])} ${label}`,
+  );
+
+  return terms.length === 0 ? "  (no change)" : `  ${terms.join("  ")}`;
+};
 
 /** A store against its cap, with how full it is: `937.000/1000.000 (94%)`. */
 const store = (organism: OrganismView, resource: Resource): string => {
@@ -93,7 +119,7 @@ export function mountInspector(): Inspector {
   };
 
   return {
-    render(selection) {
+    render(selection, flows) {
       if (selection.kind === "none") {
         container.style.display = "none";
         tableFor = null;
@@ -135,11 +161,11 @@ export function mountInspector(): Inspector {
         `  organelle overheads ${fixed(maintenance.organelleOverheads, 5)}`,
         `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
         "",
-        "Stores",
-        `  energy ${store(organism, "energy")}`,
-        `  food   ${store(organism, "food")}`,
-        `  O₂     ${store(organism, "oxygen")}`,
-        `  CO₂    ${store(organism, "carbonDioxide")}`,
+        flows ? "Stores (last tick)" : "Stores",
+        `  energy ${store(organism, "energy")}${flowsOf(flows, "energy")}`,
+        `  food   ${store(organism, "food")}${flowsOf(flows, "food")}`,
+        `  O₂     ${store(organism, "oxygen")}${flowsOf(flows, "oxygen")}`,
+        `  CO₂    ${store(organism, "carbonDioxide")}${flowsOf(flows, "carbonDioxide")}`,
         "",
         `Organelles (${String(organism.organelles.length)})`,
       ].join("\n");

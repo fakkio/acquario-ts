@@ -18,6 +18,7 @@ export {
   type OrganismView,
   type Resource,
 } from "./organism";
+export {type StoreDeltas, type TickFlows} from "./tickFlows";
 export {createRngStream, deriveChildStream, type RngStream} from "./rng";
 export {
   advance,
@@ -37,6 +38,8 @@ export {
   getWorstPenetration,
   getZeroEnergyCount,
   hashState,
+  type AdvanceOptions,
+  type AdvanceResult,
   type FertilityMode,
   type Generation0,
   type MortalityMode,
