@@ -169,3 +169,35 @@ I geni che un figlio crea nascono con un id provvisorio, negativo: `-1`, `-2`, n
 > cos'è questo golden hash che mi mostri ogni volta?
 
 Quattro ticket, quattro mappe HTML, e in ognuna il golden hash compariva come una notizia: invariato, `d22057a8`. Le mappe le scrive l'agente, e scrivendole ripeteva un termine nato in #59 come se chi le legge sapesse già cosa vuol dire. Il golden hash è l'impronta dell'intero mondo di M6 a un seed e a un tick fissi, registrata prima che M7 toccasse una riga. Se resta uguale, il refactor non ha spostato un bit in un mondo senza neuroni. Per l'agente era il controllo più importante di ogni ticket. Per chi leggeva la mappa era una sigla di otto caratteri senza spiegazione.
+
+---
+
+Prima della corsa, in un commento sul ticket, l'agente aveva scritto la previsione: con `M_max = 2` e `r_new = 0.05` il ceiling di un genitore senza organelli cresce di circa il 30% in area, la persistence regge su 2-4 seed su 5, e se fallisce basta `M_max = 1`. Il risultato: tutte e cinque le seed estinte, e con `M_max = 1` ancora tutte e cinque. Non 2-4 su 5. Zero.
+
+---
+
+Il dato che rende il fallimento strano è un altro: non era un mondo che moriva più in fretta, era un mondo in cui non nasceva **nessuno**. Zero nascite, mai, in 37 000 tick. Il Worst-Case Birth Gate non si apriva per nessun genitore, e la popolazione dei fondatori si consumava fino all'ultimo organismo. A M6 la persistence passava con minimi di 4-9 su 40: il margine era già sottile, e il 30% in più di massa da avere in tasca lo ha chiuso del tutto.
+
+---
+
+Lo sweep ha mostrato una scogliera, non una pendenza. Con `M_max = 1`: `r_new = 0.05` estinto su 5 seed, 0.04 su 2, 0.03 regge ma una seed scende a un solo organismo, 0.02 e meno tornano ai minimi di M6. Fra 0.04 e 0.02 un mondo passa da morto a sano. Non c'è un valore a metà in cui "va un po' peggio".
+
+---
+
+L'agente ha scelto `r_new = 0.02` con `M_max = 1`. Il criterio è un'euristica semplice: il valore più grande che mantiene i minimi di M6. Ma c'è un prezzo che nessuno aveva messo in conto nella grill. Un neurone nato a 0.02 ha raggio 0.02 su un corpo di raggio 1, a 14 pixel per unità sono 0.3 pixel. Invisibile. L'unica prova a occhio che il mondo funziona è una riga di percentuale nel HUD.
+
+---
+
+Un test di M7 che prima passava ha smesso di passare, e non per un bug. "I portatori figliano e i figli ereditano i neuroni" dava zero nascite, perché i neuroni di quei fondatori (raggio fino a 0.11) alzavano il ceiling e i genitori non avevano il cibo per pagarlo. L'agente ha impiegato un po' a capirlo: la guardia era il cibo, non l'energia (energia 1400 contro una soglia di 1000, cibo 3-5 contro una massa da pagare molto più alta). Ha rimpicciolito i neuroni del test a 0.03. Il test controlla l'ereditarietà, non il gate, e la modifica lo dice nel commento.
+
+---
+
+Il revisore Spec ha trovato un buco vero: "il test anti-sieve di M6 è verde col neurone nel roster" era soddisfatto solo a parole, perché il test girava ancora con roster vuoto. L'agente non poteva ripetere lo stesso test col neurone, perché con un'inserzione la media del log-rapporto di area figlio/genitore non è più zero. Ha scritto un test diverso, a coppie: un genitore marginale, ritentato finché il gate si apre, deve ottenere esattamente il figlio che il suo stream avrebbe dato al primo tentativo. È più forte dell'originale e non dipende da una media.
+
+---
+
+Il passo di conio guarda il segno di un id. La regola dice che niente decide in base al valore, e il revisore Spec l'ha segnalato di nuovo. L'agente non ha trovato un'alternativa senza cambiare la forma del gene, e ha scelto di nominare l'eccezione: un `isProvisional(id)` con un commento che dice che è l'unico punto in cui si guarda il segno, e che nomina la convenzione, non un ordinamento.
+
+---
+
+Il ripiego di #62, il roster opzionale che il revisore aveva chiamato "terzo modo nascosto", è rimasto opzionale nella mutazione e obbligatorio nel ceiling. Nell'app e nel mondo non è raggiungibile: mitosi e generazione 0 lo danno sempre. Resta solo per i test che esercitano l'header da solo (34 chiamate). Il commento ora dice questo, invece di promettere un'obbligatorietà che nessuno ha costruito.
