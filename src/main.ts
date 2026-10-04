@@ -113,7 +113,7 @@ const updateHud = (currentWorld: World, fps: number): void => {
   // oxygen), since a pool has no cap of its own.
   const capacities = getPoolCapacities(currentWorld);
   const formatPool = (level: number, capacity: number): string =>
-    `${level.toFixed(2)} / ${capacity.toFixed(0)}`;
+    `${level.toFixed(2)} / ${capacity.toFixed(0)} (${((level / capacity) * 100).toFixed(0)}%)`;
   hud.setField(
     "poolFood",
     "Pool food",
