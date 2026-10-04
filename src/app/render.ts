@@ -8,6 +8,7 @@ import {
   getGridOccupancy,
   getPopulation,
   lightAt,
+  type OrganismView,
   type World,
 } from "../world";
 
@@ -44,6 +45,12 @@ const GRID_STROKE = "hsla(50, 90%, 70%, 0.22)";
 const GRID_OCCUPIED_FILL = "hsla(50, 90%, 70%, 0.10)";
 const GRID_WIDTH_PX = 1;
 
+const SELECTION_STROKE = "hsl(50, 100%, 70%)";
+const SELECTION_WIDTH_PX = 2;
+/** The ring's gap from the body, in screen pixels, so it clears the body's
+ * edge at any zoom. */
+const SELECTION_GAP_PX = 3;
+
 export interface RenderOptions {
   /** Whether the uniform grid's debug overlay is drawn over the water. */
   readonly showGrid: boolean;
@@ -53,6 +60,26 @@ export interface RenderOptions {
   readonly deathEffects: DeathEffects;
   /** Wall-clock time this frame is drawn at — `deathEffects`' only clock. */
   readonly nowMs: number;
+  /** The organism the inspector follows, drawn with a highlight ring. */
+  readonly selected?: OrganismView;
+}
+
+/**
+ * Where a canvas pixel falls in world space, the inverse of the transform
+ * `renderWorld` draws under. Lives here because only the render layer knows
+ * `PIXELS_PER_UNIT`.
+ */
+export function screenToWorld(
+  camera: Camera,
+  screenX: number,
+  screenY: number,
+): {readonly x: number; readonly y: number} {
+  const worldScale = camera.scale * PIXELS_PER_UNIT;
+
+  return {
+    x: (screenX - camera.offsetX) / worldScale,
+    y: (screenY - camera.offsetY) / worldScale,
+  };
 }
 
 /**
@@ -119,6 +146,20 @@ export function renderWorld(
       organism.energy / capFor(organism, "energy"),
       worldScale,
     );
+  }
+
+  if (options.selected && population.includes(options.selected)) {
+    ctx.strokeStyle = SELECTION_STROKE;
+    ctx.lineWidth = SELECTION_WIDTH_PX / worldScale;
+    ctx.beginPath();
+    ctx.arc(
+      options.selected.x,
+      options.selected.y,
+      options.selected.bodyRadius + SELECTION_GAP_PX / worldScale,
+      0,
+      2 * Math.PI,
+    );
+    ctx.stroke();
   }
 
   // Recorded and drawn last, over the bodies and the wall alike: the ring

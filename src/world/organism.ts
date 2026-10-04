@@ -84,6 +84,10 @@ export interface OrganismView {
    * position relative to the body's centre (`Body.organelles`). */
   readonly organelles: readonly OrganelleGene[];
   readonly lineageHue: number;
+  /** How many births separate this organism from generation 0's founders,
+   * which are 0. Read by the inspector only: no tick reads it, so it stays
+   * out of the state hash. */
+  readonly generation: number;
   /**
    * The two reproduction genes, on the view from M5 so that all four genes
    * can be read where the statistics over them are computed — the HUD and
@@ -105,6 +109,8 @@ export interface OrganismInit {
   readonly y: number;
   readonly genome: Genome;
   readonly rng: RngStream;
+  /** The parent's Generation plus one for a child; defaults to 0, a founder's. */
+  readonly generation?: number;
   /**
    * The four internal resource stores, all defaulting to 0. Left optional
    * here rather than required: placement (`createPopulation`) does not know
@@ -204,6 +210,7 @@ export class Organism {
   oxygen: number;
   carbonDioxide: number;
   food: number;
+  readonly generation: number;
   private readonly body: Body;
 
   constructor(init: OrganismInit) {
@@ -212,6 +219,7 @@ export class Organism {
     this.genome = init.genome;
     this.body = deriveBody(init.genome);
     this.rng = init.rng;
+    this.generation = init.generation ?? 0;
     this.energy = init.energy ?? 0;
     this.oxygen = init.oxygen ?? 0;
     this.carbonDioxide = init.carbonDioxide ?? 0;

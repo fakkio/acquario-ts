@@ -32,6 +32,8 @@ export interface PendingBirth {
   readonly x: number;
   readonly y: number;
   readonly rng: RngStream;
+  /** The parent's Generation plus one. */
+  readonly generation: number;
   readonly energy: number;
   readonly oxygen: number;
   readonly carbonDioxide: number;
@@ -160,6 +162,7 @@ export function evaluateMitosis(
     x: organism.x + direction.x * separation,
     y: organism.y + direction.y * separation,
     rng: childStream,
+    generation: organism.generation + 1,
     energy: childStores.energy,
     oxygen: childStores.oxygen,
     carbonDioxide: childStores.carbonDioxide,
@@ -247,6 +250,7 @@ export function appendBirths(
       y: birth.y,
       genome: birth.genome,
       rng: birth.rng,
+      generation: birth.generation,
       energy: birth.energy,
       oxygen: birth.oxygen,
       carbonDioxide: birth.carbonDioxide,

@@ -557,6 +557,7 @@ describe("mintBirths", () => {
     x: 5,
     y: 5,
     rng: createRngStream(1),
+    generation: 0,
     energy: 0,
     oxygen: 0,
     carbonDioxide: 0,
@@ -585,6 +586,37 @@ describe("mintBirths", () => {
   });
 });
 
+describe("Generation", () => {
+  const readyParent = (generation: number) => {
+    const organism = new Organism({
+      x: 5,
+      y: 5,
+      genome: {...BASELINE_GENOME, mitosisEnergyThreshold: 0.1},
+      rng: createRngStream(8),
+      generation,
+    });
+    organism.energy = capFor(organism, "energy");
+    organism.food = capFor(organism, "food");
+    organism.oxygen = capFor(organism, "oxygen");
+    organism.carbonDioxide = capFor(organism, "carbonDioxide");
+    return organism;
+  };
+
+  it("is 0 for an organism built without one, a founder's", () => {
+    expect(organismAt(0, 0).generation).toBe(0);
+  });
+
+  it("is the parent's plus one on the pending birth and on the child it becomes", () => {
+    for (const generation of [0, 3]) {
+      const birth = evaluateMitosis(readyParent(generation), []);
+      expect(birth?.generation).toBe(generation + 1);
+
+      const [child] = appendBirths([], birth ? [birth] : []);
+      expect(child.generation).toBe(generation + 1);
+    }
+  });
+});
+
 describe("appendBirths", () => {
   it("returns the same population reference when there are no pending births", () => {
     const population = [organismAt(0, 0)];
@@ -598,6 +630,7 @@ describe("appendBirths", () => {
       x: 5,
       y: 5,
       rng: createRngStream(99),
+      generation: 0,
       energy: 10,
       oxygen: 1,
       carbonDioxide: 2,
@@ -620,6 +653,7 @@ describe("appendBirths", () => {
       x: -5,
       y: 5,
       rng: createRngStream(1),
+      generation: 0,
       energy: 0,
       oxygen: 0,
       carbonDioxide: 0,
@@ -638,6 +672,7 @@ describe("appendBirths", () => {
       x: 2,
       y: 2,
       rng: createRngStream(2),
+      generation: 0,
       energy: 0,
       oxygen: 0,
       carbonDioxide: 0,
@@ -656,6 +691,7 @@ describe("appendBirths", () => {
       x: i,
       y: i,
       rng: createRngStream(i),
+      generation: 0,
       energy: i,
       oxygen: 0,
       carbonDioxide: 0,

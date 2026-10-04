@@ -8,7 +8,13 @@ import {
 } from "./constants";
 import type {Environment} from "./environment";
 import {ORGANELLE_TYPES} from "./organelles";
-import {DIFFUSIBLES, bodyAreaOfRadius, capFor, type Organism} from "./organism";
+import {
+  DIFFUSIBLES,
+  bodyAreaOfRadius,
+  capFor,
+  type Organism,
+  type OrganismView,
+} from "./organism";
 
 /**
  * The reactions and costs that spend and fill an organism's internal
@@ -232,11 +238,44 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
  * silently clamped to something that looks fine.
  */
 export function applyMaintenance(organism: Organism): void {
-  let cost = EXISTENCE_COST + BODY_COST_COEFFICIENT * organism.cytoplasmArea;
+  organism.energy -= maintenanceBreakdown(organism).total;
+}
+
+/**
+ * What maintenance charges, split the way the inspector shows it: `c₀`, the
+ * cytoplasm's body cost, and the organelles' summed overheads and tissue.
+ * `total` is accumulated in the order the tick has always charged it, so the
+ * breakdown the screen shows and the cost `applyMaintenance` subtracts are
+ * the same number to the last bit, and M6's hash is untouched.
+ */
+export interface MaintenanceBreakdown {
+  readonly existence: number;
+  readonly cytoplasm: number;
+  readonly organelleOverheads: number;
+  readonly organelleTissue: number;
+  readonly total: number;
+}
+
+export function maintenanceBreakdown(
+  organism: Pick<OrganismView, "cytoplasmArea" | "organelles">,
+): MaintenanceBreakdown {
+  const cytoplasm = BODY_COST_COEFFICIENT * organism.cytoplasmArea;
+  let total = EXISTENCE_COST + cytoplasm;
+  let organelleOverheads = 0;
+  let organelleTissue = 0;
   for (const organelle of organism.organelles) {
     const type = ORGANELLE_TYPES[organelle.type];
-    cost +=
-      type.overhead + type.tissueCost * bodyAreaOfRadius(organelle.radius);
+    const tissue = type.tissueCost * bodyAreaOfRadius(organelle.radius);
+    total += type.overhead + tissue;
+    organelleOverheads += type.overhead;
+    organelleTissue += tissue;
   }
-  organism.energy -= cost;
+
+  return {
+    existence: EXISTENCE_COST,
+    cytoplasm,
+    organelleOverheads,
+    organelleTissue,
+    total,
+  };
 }

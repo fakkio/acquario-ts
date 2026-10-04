@@ -13,6 +13,7 @@ import {
 import type {Environment, Vec2} from "./environment";
 import {
   applyMaintenance,
+  maintenanceBreakdown,
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
@@ -508,6 +509,53 @@ describe("applyRespiration", () => {
     // substance of "nets light into energy within a single tick".
     expect(organism.food).toBeLessThan(foodAfterPhotosynthesis);
     expect(organism.oxygen).toBeLessThan(oxygenAfterPhotosynthesis);
+  });
+});
+
+describe("maintenanceBreakdown", () => {
+  it("sums to exactly what the tick charges, with and without neurons", () => {
+    for (const organism of [
+      organismAt(0, 0, 1.3),
+      carrierAt(0, 0, [0.1]),
+      carrierAt(0, 0, [0.05, 0.05, 0.3, 0.1]),
+    ]) {
+      organism.energy = 100;
+      const breakdown = maintenanceBreakdown(organism);
+
+      applyMaintenance(organism);
+
+      expect(organism.energy).toBe(100 - breakdown.total);
+      expect(breakdown.total).toBeCloseTo(
+        breakdown.existence +
+          breakdown.cytoplasm +
+          breakdown.organelleOverheads +
+          breakdown.organelleTissue,
+        12,
+      );
+    }
+  });
+
+  it("splits a body with neurons into c₀, the cytoplasm's cost and the neurons' overheads and tissue", () => {
+    const organism = carrierAt(0, 0, [0.1, 0.2]);
+    const breakdown = maintenanceBreakdown(organism);
+
+    expect(breakdown.existence).toBe(EXISTENCE_COST);
+    expect(breakdown.cytoplasm).toBeCloseTo(
+      BODY_COST_COEFFICIENT * organism.cytoplasmArea,
+      12,
+    );
+    expect(breakdown.organelleOverheads).toBeCloseTo(2 * C_NEURON, 12);
+    expect(breakdown.organelleTissue).toBeCloseTo(
+      BODY_COST_COEFFICIENT * Math.PI * (0.1 * 0.1 + 0.2 * 0.2),
+      12,
+    );
+  });
+
+  it("has no organelle terms for a body without organelles", () => {
+    const breakdown = maintenanceBreakdown(organismAt(0, 0, 1));
+
+    expect(breakdown.organelleOverheads).toBe(0);
+    expect(breakdown.organelleTissue).toBe(0);
   });
 });
 

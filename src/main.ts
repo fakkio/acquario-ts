@@ -9,8 +9,15 @@ import {
   type GeneStat,
 } from "./app/geneStatistics";
 import {mountHud} from "./app/hud";
-import {frameAquarium, renderWorld} from "./app/render";
+import {mountInspector} from "./app/inspector";
+import {frameAquarium, renderWorld, screenToWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
+import {
+  NO_SELECTION,
+  pickOrganism,
+  updateSelection,
+  type Selection,
+} from "./app/selection";
 import {createSession, isRestartDue} from "./app/session";
 import {
   createWorld,
@@ -75,6 +82,7 @@ const session = createSession(masterSeed);
 const world = createWorld(masterSeed, {roster: ROSTER});
 let latestWorld = world;
 let showGrid = false;
+let selection: Selection = NO_SELECTION;
 // On by default from M5 (ADR-0018): M4's worlds could never breed, so a
 // restart showed nothing; M5's calibrated constants are what makes leaving
 // the tab open show a sequence of worlds rather than one dead aquarium.
@@ -198,6 +206,7 @@ const repaint = (nowMs: number = performance.now()): void => {
     showGrid,
     deathEffects,
     nowMs,
+    selected: selection.kind === "alive" ? selection.organism : undefined,
   });
 };
 
@@ -210,6 +219,8 @@ const restart = (): void => {
   const newWorld = createWorld(session.nextWorldSeed(), {roster: ROSTER});
   loop.setWorld(newWorld);
   latestWorld = newWorld;
+  // The old world's organisms are gone; a selection would point at nothing.
+  selection = NO_SELECTION;
   // A fresh world's own α has produced nothing yet; carrying the last
   // world's smoothed reading across the restart would flash a stale number.
   smoothedAlpha = 0;
@@ -247,7 +258,15 @@ window.addEventListener("resize", () => {
 // (above) deliberately does not repaint any more — this loop is the sole
 // caller of `repaint` now, so a tick landing and an animation frame firing
 // can never double-draw the same frame.
+const inspector = mountInspector();
 const animate = (nowMs: number): void => {
+  selection = updateSelection(
+    selection,
+    getPopulation(latestWorld),
+    getTick(latestWorld),
+    nowMs,
+  );
+  inspector.render(selection);
   repaint(nowMs);
   requestAnimationFrame(animate);
 };
@@ -281,4 +300,38 @@ controls.autoRestartButton.addEventListener("click", () => {
   controls.autoRestartButton.textContent = autoRestart
     ? "Auto-restart: on"
     : "Auto-restart: off";
+});
+
+// A click selects, a drag pans (the camera owns drags): the two are told
+// apart by how far the pointer travelled between press and release.
+const CLICK_MAX_TRAVEL_PX = 4;
+let pressX = 0;
+let pressY = 0;
+canvas.addEventListener("mousedown", (event) => {
+  pressX = event.clientX;
+  pressY = event.clientY;
+});
+canvas.addEventListener("mouseup", (event) => {
+  if (
+    Math.hypot(event.clientX - pressX, event.clientY - pressY) >
+    CLICK_MAX_TRAVEL_PX
+  ) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const point = screenToWorld(
+    camera.getCamera(),
+    event.clientX - rect.left,
+    event.clientY - rect.top,
+  );
+  const picked = pickOrganism(getPopulation(latestWorld), point.x, point.y);
+  selection = picked ? {kind: "alive", organism: picked} : NO_SELECTION;
+  repaint();
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    selection = NO_SELECTION;
+    repaint();
+  }
 });

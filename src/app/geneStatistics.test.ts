@@ -14,6 +14,7 @@ function organismView(overrides: Partial<OrganismView>): OrganismView {
     cytoplasmArea: Math.PI,
     organelles: [],
     lineageHue: 0,
+    generation: 0,
     mitosisEnergyThreshold: 0.75,
     childAllocationRatio: 0.5,
     energy: 0,
