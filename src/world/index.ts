@@ -16,6 +16,7 @@ export {
   capForArea,
   type Founder,
   type OrganismView,
+  type Resource,
 } from "./organism";
 export {createRngStream, deriveChildStream, type RngStream} from "./rng";
 export {

@@ -1,7 +1,9 @@
 import {
   bodyAreaOfRadius,
+  capFor,
   maintenanceBreakdown,
   type OrganismView,
+  type Resource,
 } from "../world";
 import type {Selection} from "./selection";
 
@@ -19,6 +21,15 @@ export interface Inspector {
 }
 
 const fixed = (value: number, digits = 3): string => value.toFixed(digits);
+
+/** A store against its cap, with how full it is: `937.000/1000.000 (94%)`. */
+const store = (organism: OrganismView, resource: Resource): string => {
+  const cap = capFor(organism, resource);
+  return `${fixed(organism[resource])}/${fixed(cap)} (${(
+    (organism[resource] / cap) *
+    100
+  ).toFixed(0)}%)`;
+};
 
 export function mountInspector(): Inspector {
   const container = document.createElement("div");
@@ -125,8 +136,10 @@ export function mountInspector(): Inspector {
         `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
         "",
         "Stores",
-        `  energy ${fixed(organism.energy)}  food ${fixed(organism.food)}`,
-        `  O₂ ${fixed(organism.oxygen)}  CO₂ ${fixed(organism.carbonDioxide)}`,
+        `  energy ${store(organism, "energy")}`,
+        `  food   ${store(organism, "food")}`,
+        `  O₂     ${store(organism, "oxygen")}`,
+        `  CO₂    ${store(organism, "carbonDioxide")}`,
         "",
         `Organelles (${String(organism.organelles.length)})`,
       ].join("\n");
