@@ -121,6 +121,53 @@ describe("createPopulation", () => {
   });
 });
 
+describe("createPopulation over a roster (M7)", () => {
+  it("is M6's generation 0 under an empty roster: no organelle, ids untouched, the same stream", () => {
+    const empty = createPopulation(createRngStream(7), undefined, []);
+    const m6 = createPopulation(createRngStream(7));
+
+    expect(empty.population).toEqual(m6.population);
+    expect(empty.stream).toEqual(m6.stream);
+    expect(empty.nextInnovationId).toBe(1);
+  });
+
+  it("gives some founders neurons through the unscaled structural law, and seeds none", () => {
+    const carriers: number[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const {population} = createPopulation(createRngStream(seed), undefined, [
+        "neuron",
+      ]);
+      carriers.push(
+        population.filter((organism) => organism.organelles.length > 0).length,
+      );
+    }
+
+    // Binomial events at a small rate: most founders have none, and over
+    // twenty worlds some have.
+    expect(Math.max(...carriers)).toBeGreaterThan(0);
+    expect(Math.max(...carriers)).toBeLessThan(STARTING_POPULATION / 2);
+  });
+
+  it("mints founders' ids from the counter in placement order, all distinct, and advances it past them", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const {population, nextInnovationId} = createPopulation(
+        createRngStream(seed),
+        undefined,
+        ["neuron"],
+      );
+      const ids = population.flatMap((organism) =>
+        organism.genome.genes.map((gene) => gene.innovationId),
+      );
+
+      expect(ids).toEqual(ids.map((_, i) => i + 1));
+      expect(nextInnovationId).toBe(ids.length + 1);
+      checked += ids.length;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
 describe("createPopulation from an explicit baseline genome", () => {
   // The done-criteria runs vary the starting point as well as the seed
   // (ADR-0025), so the genome founders are mutated from has to be an

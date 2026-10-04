@@ -11,10 +11,21 @@ import {
 } from "./genome";
 import {totalCarbon, totalOxygen, type Pools} from "./ledger";
 import {applyMaintenance} from "./metabolism";
-import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
-import {Organism, bodyAreaOfRadius, capFor, capForArea} from "./organism";
+import {
+  appendBirths,
+  evaluateMitosis,
+  mintBirths,
+  type PendingBirth,
+} from "./mitosis";
+import {
+  Organism,
+  bodyArea,
+  bodyAreaOfRadius,
+  capFor,
+  capForArea,
+} from "./organism";
 import {createRngStream, deriveChildStream} from "./rng";
-import {openDraws, organismAt} from "./testing";
+import {carrierAt, openDraws, organismAt} from "./testing";
 
 /**
  * `evaluateMitosis` (step 7) and `appendBirths` (step 12) as the pure
@@ -57,7 +68,7 @@ describe("evaluateMitosis", () => {
     organism.energy = organism.genome.mitosisEnergyThreshold * cap - 1e-6;
     const streamBefore = organism.rng;
 
-    const birth = evaluateMitosis(organism);
+    const birth = evaluateMitosis(organism, []);
 
     expect(birth).toBeNull();
     // The world where mitosis does not exist: an organism below threshold
@@ -72,7 +83,7 @@ describe("evaluateMitosis", () => {
     organism.energy = genome.mitosisEnergyThreshold * cap;
     organism.food = 1000;
 
-    expect(evaluateMitosis(organism)).not.toBeNull();
+    expect(evaluateMitosis(organism, [])).not.toBeNull();
   });
 
   it("derives the child's stream from the parent's rng before mutating the genome, so mutation can never affect it", () => {
@@ -81,7 +92,7 @@ describe("evaluateMitosis", () => {
     organism.food = 1000;
     const expectedChildStream = deriveChildStream(organism.rng).childStream;
 
-    const birth = evaluateMitosis(organism);
+    const birth = evaluateMitosis(organism, []);
 
     expect(birth).not.toBeNull();
     expect(birth?.rng).toEqual(expectedChildStream);
@@ -102,8 +113,8 @@ describe("evaluateMitosis", () => {
     large.energy = capFor(large, "energy");
     large.food = 1000;
 
-    const birthSmall = evaluateMitosis(small);
-    const birthLarge = evaluateMitosis(large);
+    const birthSmall = evaluateMitosis(small, []);
+    const birthLarge = evaluateMitosis(large, []);
 
     expect(birthSmall).not.toBeNull();
     expect(birthLarge).not.toBeNull();
@@ -155,7 +166,7 @@ describe("evaluateMitosis", () => {
       capForArea(childBody.cytoplasmArea, "carbonDioxide"),
     );
 
-    const birth = evaluateMitosis(organism);
+    const birth = evaluateMitosis(organism, []);
 
     expect(birth).not.toBeNull();
     expect(birth?.genome).toEqual(childGenome);
@@ -184,7 +195,7 @@ describe("evaluateMitosis", () => {
     organism.energy = capFor(organism, "energy");
     organism.food = capFor(organism, "food");
 
-    const birth = evaluateMitosis(organism);
+    const birth = evaluateMitosis(organism, []);
     expect(birth).not.toBeNull();
     if (!birth) {
       return;
@@ -210,7 +221,7 @@ describe("evaluateMitosis", () => {
     const carbonBefore = totalCarbon([organism], EMPTY_POOLS);
     const oxygenBefore = totalOxygen([organism], EMPTY_POOLS);
 
-    const birth = evaluateMitosis(organism);
+    const birth = evaluateMitosis(organism, []);
     expect(birth).not.toBeNull();
 
     const population = appendBirths([organism], birth ? [birth] : []);
@@ -247,8 +258,8 @@ describe("evaluateMitosis", () => {
     // moved. Assigning the cost directly is exact by construction, for any
     // constants.
     applyMaintenance(organism);
-    organism.energy = MITOSIS_ENERGY_COST * birthCostCeiling(genome);
-    const birth = evaluateMitosis(organism);
+    organism.energy = MITOSIS_ENERGY_COST * birthCostCeiling(genome, []);
+    const birth = evaluateMitosis(organism, []);
     const {survivors, remains} = evaluateDeaths([organism]);
 
     expect(birth).not.toBeNull();
@@ -287,7 +298,7 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
       const parentArea = bodyAreaOfRadius(parentRadius);
       const marginal = i % 2 === 0 ? "food" : "energy";
       const unitCost = marginal === "food" ? RHO : MITOSIS_ENERGY_COST;
-      const worstCost = unitCost * birthCostCeiling(organism.genome);
+      const worstCost = unitCost * birthCostCeiling(organism.genome, []);
       // Both caps sit above the worst case's cost, so whichever store is
       // not the marginal one never binds.
       organism.energy = capFor(organism, "energy");
@@ -296,7 +307,7 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
       organism[marginal] = worstCost * (0.75 + draw() * 0.4);
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        const birth = evaluateMitosis(organism);
+        const birth = evaluateMitosis(organism, []);
         if (birth) {
           logRatios.push(
             Math.log(
@@ -329,12 +340,12 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
       // Halfway between a same-sized child's cost and the ceiling's.
       organism[resource] =
         unitCost *
-        ((bodyAreaOfRadius(1) + birthCostCeiling(organism.genome)) / 2);
+        ((bodyAreaOfRadius(1) + birthCostCeiling(organism.genome, [])) / 2);
       const streamBefore = organism.rng;
 
       // Every stream tried, so no lucky clone or shrink can sneak through.
       for (let attempt = 0; attempt < 50; attempt++) {
-        expect(evaluateMitosis(organism)).toBeNull();
+        expect(evaluateMitosis(organism, [])).toBeNull();
       }
       expect(organism.rng).toEqual(streamBefore);
     },
@@ -348,11 +359,11 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
         eagerGenome(0.6 + (seed % 50) * 0.02),
         seed,
       );
-      const ceiling = birthCostCeiling(organism.genome);
+      const ceiling = birthCostCeiling(organism.genome, []);
       organism.energy = MITOSIS_ENERGY_COST * ceiling;
       organism.food = RHO * ceiling;
 
-      expect(evaluateMitosis(organism)).not.toBeNull();
+      expect(evaluateMitosis(organism, [])).not.toBeNull();
     }
   });
 });
@@ -376,6 +387,203 @@ function depositRemainsForTest(
     EMPTY_POOLS,
   );
 }
+
+describe("evaluateMitosis over a roster (M7)", () => {
+  const ROSTER = ["neuron"] as const;
+
+  /** A carrier that clears both gates with room to spare. Its neurons are
+   * too small to split, so the roster's insertion is the worst event it
+   * prices and the structural ceiling sits above the header-only one. */
+  function richCarrier(seed: number): Organism {
+    const base = carrierAt(30, 20, [0.03, 0.03], 1);
+    const genome = {
+      ...base.genome,
+      mitosisEnergyThreshold: 0,
+      childAllocationRatio: 0.5,
+    };
+    const organism = new Organism({
+      x: 30,
+      y: 20,
+      genome,
+      rng: createRngStream(seed),
+    });
+    const ceiling = birthCostCeiling(genome, ROSTER);
+    organism.energy = 2 * MITOSIS_ENERGY_COST * ceiling;
+    organism.food = 2 * RHO * ceiling;
+    organism.oxygen = capFor(organism, "oxygen");
+    organism.carbonDioxide = capFor(organism, "carbonDioxide");
+    return organism;
+  }
+
+  it("prices the gate on the structural ceiling: a parent holding a same-sized child's cost but not the ceiling's draws nothing", () => {
+    const organism = richCarrier(5);
+    const ceiling = birthCostCeiling(organism.genome, ROSTER);
+    expect(ceiling).toBeGreaterThan(birthCostCeiling(organism.genome, []));
+    organism.food = RHO * ((bodyArea(organism) + ceiling) / 2);
+    const streamBefore = organism.rng;
+
+    expect(evaluateMitosis(organism, ROSTER)).toBeNull();
+    expect(organism.rng).toEqual(streamBefore);
+  });
+
+  it("commits a parent holding exactly the ceiling's costs without ever throwing, whatever the structural events draw", () => {
+    for (let seed = 0; seed < 1500; seed++) {
+      const organism = richCarrier(seed);
+      const ceiling = birthCostCeiling(organism.genome, ROSTER);
+      organism.energy = MITOSIS_ENERGY_COST * ceiling;
+      organism.food = RHO * ceiling;
+
+      expect(evaluateMitosis(organism, ROSTER)).not.toBeNull();
+    }
+  });
+
+  it("prices and caps the child from its derived body, matching a hand-computed replica", () => {
+    // A seed whose child differs in structure from its parent, so the
+    // replica is not trivially the parent's own body.
+    for (let seed = 0; seed < 200; seed++) {
+      const organism = richCarrier(seed);
+      const startFood = organism.food;
+      const startEnergy = organism.energy;
+      const derivation = deriveChildStream(organism.rng);
+      const mutation = mutateGenome(organism.genome, derivation.parentStream, {
+        roster: ROSTER,
+      });
+      const childBody = deriveBody(mutation.genome);
+      if (childBody.organelles.length === organism.organelles.length) {
+        continue;
+      }
+      const childArea = bodyAreaOfRadius(childBody.radius);
+
+      const birth = evaluateMitosis(organism, ROSTER);
+
+      expect(birth).not.toBeNull();
+      expect(birth?.genome).toEqual(mutation.genome);
+      expect(startFood - organism.food).toBeCloseTo(
+        RHO * childArea + (birth?.food ?? 0),
+        9,
+      );
+      expect(startEnergy - organism.energy).toBeCloseTo(
+        MITOSIS_ENERGY_COST * childArea + (birth?.energy ?? 0),
+        9,
+      );
+      // Capped from the child's Cytoplasm Area, which organelles shrink.
+      for (const resource of [
+        "energy",
+        "oxygen",
+        "carbonDioxide",
+        "food",
+      ] as const) {
+        expect(birth?.[resource]).toBeLessThanOrEqual(
+          capForArea(childBody.cytoplasmArea, resource) + 1e-12,
+        );
+      }
+      return;
+    }
+    throw new Error("no seed produced a child with a different structure");
+  });
+
+  it("places the child tangent to its parent using both derived radii", () => {
+    let checked = 0;
+    for (let seed = 0; seed < 200; seed++) {
+      const organism = richCarrier(seed);
+      const parentRadius = organism.bodyRadius;
+      const birth = evaluateMitosis(organism, ROSTER);
+      if (!birth) {
+        continue;
+      }
+
+      expect(
+        Math.hypot(birth.x - organism.x, birth.y - organism.y),
+      ).toBeCloseTo(parentRadius + deriveBody(birth.genome).radius, 9);
+      checked++;
+    }
+    expect(checked).toBeGreaterThan(100);
+  });
+
+  it("stays an unbiased sample under the neuron roster: a marginal parent's committed child is the child its first draw would have been", () => {
+    // The Birth Sieve redraws a child it cannot afford; the gate must not.
+    // A parent that only reaches the worst-case cost after many attempts
+    // still gets the child its untouched stream gives.
+    let compared = 0;
+    for (let seed = 0; seed < 300; seed++) {
+      const organism = richCarrier(seed);
+      const ceiling = birthCostCeiling(organism.genome, ROSTER);
+      organism.food = RHO * ceiling * 0.8;
+      const derivation = deriveChildStream(organism.rng);
+      const expected = mutateGenome(organism.genome, derivation.parentStream, {
+        roster: ROSTER,
+      }).genome;
+
+      let birth = null;
+      for (let attempt = 0; attempt < 100 && birth === null; attempt++) {
+        birth = evaluateMitosis(organism, ROSTER);
+        if (birth === null) {
+          organism.food += 0.005 * RHO * ceiling;
+        }
+      }
+
+      expect(birth?.genome).toEqual(expected);
+      compared++;
+    }
+    expect(compared).toBe(300);
+  });
+
+  it("leaves the child's new genes with provisional ids, which only the commit mints", () => {
+    let inserted = 0;
+    for (let seed = 0; seed < 400; seed++) {
+      const birth = evaluateMitosis(richCarrier(seed), ROSTER);
+      for (const gene of birth?.genome.genes ?? []) {
+        if (gene.innovationId < 0) {
+          inserted++;
+        }
+      }
+    }
+    expect(inserted).toBeGreaterThan(0);
+  });
+});
+
+describe("mintBirths", () => {
+  const birthWith = (ids: readonly number[]): PendingBirth => ({
+    genome: {
+      ...BASELINE_GENOME,
+      genes: ids.map((innovationId, i) => ({
+        type: "neuron" as const,
+        innovationId,
+        radius: 0.1,
+        x: 0.3 * i,
+        y: 0,
+      })),
+    },
+    x: 5,
+    y: 5,
+    rng: createRngStream(1),
+    energy: 0,
+    oxygen: 0,
+    carbonDioxide: 0,
+    food: 0,
+  });
+
+  it("mints provisional ids from the counter in birth order and genome order, and leaves minted ones alone", () => {
+    const result = mintBirths([birthWith([7, -1]), birthWith([-1, -2, 3])], 10);
+
+    expect(result.births[0].genome.genes.map((g) => g.innovationId)).toEqual([
+      7, 10,
+    ]);
+    expect(result.births[1].genome.genes.map((g) => g.innovationId)).toEqual([
+      11, 12, 3,
+    ]);
+    expect(result.nextInnovationId).toBe(13);
+  });
+
+  it("hands back the very same births and counter when nothing is provisional", () => {
+    const births = [birthWith([]), birthWith([4, 5])];
+    const result = mintBirths(births, 20);
+
+    expect(result.births[0]).toBe(births[0]);
+    expect(result.births[1]).toBe(births[1]);
+    expect(result.nextInnovationId).toBe(20);
+  });
+});
 
 describe("appendBirths", () => {
   it("returns the same population reference when there are no pending births", () => {

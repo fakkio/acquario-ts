@@ -175,7 +175,7 @@ describe("birthCostCeiling", () => {
         ...BASELINE_GENOME,
         cytoplasmThickness: 0.3 + (seed % 100) * 0.03,
       };
-      const ceiling = birthCostCeiling(parent);
+      const ceiling = birthCostCeiling(parent, []);
       const {genome: child} = mutateGenome(parent, createRngStream(seed));
       const childArea = bodyAreaOfRadius(deriveBody(child).radius);
 
@@ -194,9 +194,6 @@ describe("birthCostCeiling", () => {
     const genome = {...BASELINE_GENOME, cytoplasmThickness: thickness};
 
     expect(birthCostCeiling(genome, [])).toBe(v01);
-    // Without a roster the structural law does not run at all, and the
-    // ceiling prices the header alone: what mitosis reads until #63.
-    expect(birthCostCeiling(genome)).toBe(v01);
   });
 
   it("prices an empty body's first insertion at r_new, and every later event at 2·r_new", () => {

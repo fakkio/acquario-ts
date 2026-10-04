@@ -26,8 +26,7 @@ import {
   getTick,
   getWorstPenetration,
   getZeroEnergyCount,
-  ORGANELLE_TYPES,
-  type OrganelleType,
+  DEFAULT_ROSTER,
   type World,
 } from "./world";
 
@@ -51,8 +50,8 @@ const ALPHA_SMOOTHING = 0.02;
 let smoothedAlpha = 0;
 let smoothedBrightAlpha = 0;
 
-/** M7's roster is every type the world knows; `roster` joins `WorldOptions` in #63. */
-const ROSTER = Object.keys(ORGANELLE_TYPES) as OrganelleType[];
+/** The roster every world the app builds runs with, and the HUD reports. */
+const ROSTER = DEFAULT_ROSTER;
 
 const formatCarrier = (value: CarrierStat | undefined): string =>
   value === undefined
@@ -73,7 +72,7 @@ const session = createSession(masterSeed);
 // The first world uses the master seed directly; every world after it
 // draws its seed from the session (ADR-0018), so one master seed
 // reproduces the whole sequence, extinctions included.
-const world = createWorld(masterSeed);
+const world = createWorld(masterSeed, {roster: ROSTER});
 let latestWorld = world;
 let showGrid = false;
 // On by default from M5 (ADR-0018): M4's worlds could never breed, so a
@@ -208,7 +207,7 @@ const camera = mountCamera(canvas, frameAquarium(canvas), repaint);
 // noticing an empty population from outside and rebinding the loop's
 // handle to a freshly constructed world.
 const restart = (): void => {
-  const newWorld = createWorld(session.nextWorldSeed());
+  const newWorld = createWorld(session.nextWorldSeed(), {roster: ROSTER});
   loop.setWorld(newWorld);
   latestWorld = newWorld;
   // A fresh world's own α has produced nothing yet; carrying the last

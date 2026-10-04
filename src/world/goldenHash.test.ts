@@ -19,7 +19,7 @@ import {
  * own code produced. The golden value was recorded on `develop` before M7
  * changed any code, in the first commit of `feature/structural-genome`.
  *
- * Once the structural mutation law is wired into the world (#63), this test builds
+ * The structural mutation law is wired into the world (#63), so this test builds
  * its world with an empty roster, and the hash it expects never changes.
  *
  * 2000 ticks reach well past the first death (tick 43) and the first birth
@@ -35,7 +35,7 @@ describe("M6's golden hash", () => {
   it("is what M6's Reference World hashes to at a fixed seed and tick", () => {
     // One tick per call: a single long `advance` would be cut short by its
     // catch-up cap.
-    let world = createWorld(SEED);
+    let world = createWorld(SEED, {roster: []});
     for (let tick = 0; tick < TICKS; tick++) {
       ({world} = advance(world, FIXED_DT_MS));
     }

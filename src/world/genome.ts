@@ -40,7 +40,7 @@ export interface OrganelleGene {
    * child-local id until the world mints it: negative, `-1, -2, …` in the
    * order its events created them, so it can never be taken for a minted
    * one (`FIRST_INNOVATION_ID` and up). The world mints it when the pending
-   * birth is committed (#63).
+   * birth is committed.
    */
   readonly innovationId: number;
   readonly radius: number;
@@ -132,11 +132,11 @@ export interface MutationOptions {
    * (ADR-0032). Given, the structural events run after the header: an
    * empty roster disables insertion, and with no organelles every other
    * operator too, so then they draw nothing at all. Omitted, they do not
-   * run and `genes` passes through untouched, the header-only law mitosis
-   * and generation 0 keep until the world's roster is wired in (#63).
-   * Omitting it is a stopgap, not a third mode: #63 makes it required here
-   * and in `birthCostCeiling` together, since a roster given to one and not
-   * the other either breaks the ceiling or overprices it silently.
+   * run and `genes` passes through untouched: the header-only law, for the
+   * tests that exercise the header alone. The world's mitosis and
+   * generation 0 always give it, the same roster `birthCostCeiling` prices,
+   * since a roster given to one and not the other either breaks the
+   * ceiling or overprices it silently.
    */
   readonly roster?: readonly OrganelleType[];
   /**
@@ -176,6 +176,43 @@ export const OPERATOR_WEIGHTS: OperatorWeights = {
   deletion: DELETION_WEIGHT,
   split: SPLIT_WEIGHT,
 };
+
+/** Whether an id is a child-local provisional one, not yet minted. The one
+ * place an id's sign is read: it names the convention, not an ordering. */
+function isProvisional(innovationId: number): boolean {
+  return innovationId < 0;
+}
+
+/**
+ * Replaces every provisional Innovation Id in `genome` with one minted from
+ * the world's counter, in genome order, and hands back the counter advanced
+ * past them. A gene carrying a minted id (positive) is left as it is. Pure:
+ * the caller threads the counter, so the order births are minted in is the
+ * order it calls this in.
+ */
+export function mintInnovationIds(
+  genome: Genome,
+  nextInnovationId: number,
+): {readonly genome: Genome; readonly nextInnovationId: number} {
+  let next = nextInnovationId;
+  const minted = new Map<number, number>();
+  const genes = genome.genes.map((gene) => {
+    if (!isProvisional(gene.innovationId)) {
+      return gene;
+    }
+    let id = minted.get(gene.innovationId);
+    if (id === undefined) {
+      id = next++;
+      minted.set(gene.innovationId, id);
+    }
+    return {...gene, innovationId: id};
+  });
+
+  return {
+    genome: next === nextInnovationId ? genome : {...genome, genes},
+    nextInnovationId: next,
+  };
+}
 
 export interface GenomeMutation {
   readonly genome: Genome;
@@ -278,22 +315,19 @@ export function mutateGenome(
  * property test in `genome.test.ts` is what says so for the constants a
  * sweep tries.
  *
- * `roster` is the one the child's mutation runs with. Omitted, the
- * structural events do not run (`MutationOptions.roster`) and nothing is
- * priced for them.
+ * `roster` is the one the child's mutation runs with, required so that the
+ * ceiling and the law cannot be given different ones.
  *
  * It covers ordinary births only. Generation 0's scaled founder mutation is
  * not a birth, and its founders can exceed it.
  */
 export function birthCostCeiling(
   genome: Genome,
-  roster?: readonly OrganelleType[],
+  roster: readonly OrganelleType[],
 ): number {
-  const structural =
-    roster === undefined ? 0 : maxStructuralGrowth(genome.genes, roster);
   return bodyAreaOfRadius(
     deriveBody(genome).enclosingRadius +
-      structural +
+      maxStructuralGrowth(genome.genes, roster) +
       genome.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
   );
 }

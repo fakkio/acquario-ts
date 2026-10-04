@@ -1,7 +1,11 @@
 export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 export {BASELINE_GENOME, type Genome} from "./genome";
 export {type GridOccupancy} from "./grid";
-export {ORGANELLE_TYPES, type OrganelleType} from "./organelles";
+export {
+  DEFAULT_ROSTER,
+  ORGANELLE_TYPES,
+  type OrganelleType,
+} from "./organelles";
 export {type Pools} from "./ledger";
 export {BRIGHT_BAND_DEPTH, isBright, lightAt} from "./light";
 export {

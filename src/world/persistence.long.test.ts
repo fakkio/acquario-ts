@@ -39,6 +39,10 @@ import {
 // hence a per-seed timeout well above the slowest seed. When it was
 // measured every seed persisted, but none comfortably: minimum population
 // sizes of 4–9 out of 40 founders, final sizes of 37–62.
+// M7 (#63) runs it on the neuron roster, with `M_max = 1` and `r_new = 0.02`
+// (`constants.ts`): minimum sizes of 4–9, final sizes of 19–24. At the
+// ceiling #58 started from, `M_max = 2` and `r_new = 0.05`, no seed bred
+// once and all five went extinct.
 const TICKS = 100_000;
 const SEEDS: readonly number[] = [7, 8, 9, 10, 11];
 const RUN_TIMEOUT_MS = 120_000;

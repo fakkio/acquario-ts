@@ -498,7 +498,8 @@ export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
  * declaration names (`organelles.ts`). Lengths are in baseline radii, like
  * every length in the world. Persistence on the Reference World arbitrates
  * them (#63): if it fails, `MAX_STRUCTURAL_EVENTS` moves first, then
- * `R_NEW`, and no world constant moves.
+ * `R_NEW`, and no world constant moves. It failed and both moved: see their
+ * own notes.
  */
 
 /**
@@ -507,11 +508,18 @@ export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
  * bounded and do not grow with the genome (ADR-0028). The Birth Cost
  * Ceiling prices `M_max` worst-case events, so it is the first constant
  * persistence lowers.
+ *
+ * 1, not the 2 #58 started from. Persistence on the Reference World (#63,
+ * seeds 7–11, 100k ticks, neuron roster) arbitrated it, and the ceiling is a
+ * cliff rather than a slope: at `M_max = 2`, `r_new = 0.05` every seed went
+ * extinct with no birth at all, `M_max = 1` alone did not save it, and at
+ * `M_max = 2` `r_new` had to fall to 0.01 before all five persisted, against
+ * 0.03 at `M_max = 1`. So `M_max = 1` kept the larger `r_new`.
  */
-export const MAX_STRUCTURAL_EVENTS = tunable("MAX_STRUCTURAL_EVENTS", 2);
+export const MAX_STRUCTURAL_EVENTS = tunable("MAX_STRUCTURAL_EVENTS", 1);
 
-/** `p`, each of the `M_max` trials' chance of becoming an event. At 2 and
- * 0.25, a birth draws no event 56% of the time, one 38%, two 6%. */
+/** `p`, each of the `M_max` trials' chance of becoming an event. At 1 and
+ * 0.25, a birth draws no event 75% of the time and one 25%. */
 export const STRUCTURAL_EVENT_PROBABILITY = tunable(
   "STRUCTURAL_EVENT_PROBABILITY",
   0.25,
@@ -539,8 +547,16 @@ export const SPLIT_WEIGHT = tunable("SPLIT_WEIGHT", 0.1);
 export const SPLIT_HALF_WIDTH = tunable("SPLIT_HALF_WIDTH", 0.3);
 
 /** The radius an inserted organelle is born at, one for every type. Small,
- * so an insertion grows the Enclosing Circle by at most `2·r_new`. */
-export const R_NEW = tunable("R_NEW", 0.05);
+ * so an insertion grows the Enclosing Circle by at most `2·r_new`.
+ *
+ * 0.02, not the 0.05 #58 started from, for the reason `M_max` is 1. At
+ * `M_max = 1` on the Reference World (#63, seeds 7–11, 100k ticks): 0.05
+ * went extinct on all five, 0.04 on two, 0.03 persisted with one seed down
+ * to a single organism, and 0.02 and below kept minimum populations of 4–9,
+ * M6's own. 0.02 is the largest value with that margin. An organelle this
+ * small is invisible on screen at the starting zoom: it grows by mutation
+ * or shows when the camera is close. */
+export const R_NEW = tunable("R_NEW", 0.02);
 
 /**
  * The floor organelle radius clamps at under its size law (ADR-0034), and

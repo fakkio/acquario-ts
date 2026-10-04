@@ -4,6 +4,7 @@ import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
 import {BASELINE_GENOME} from "./genome";
 import {buildUniformGrid} from "./grid";
+import {DEFAULT_ROSTER} from "./organelles";
 import {
   initializeMetabolism,
   totalCarbon,
@@ -45,6 +46,7 @@ import {
   getCarbonDrift,
   getCumulativeBirths,
   getCumulativeDeaths,
+  getNextInnovationId,
   getMeasuredAlpha,
   getOxygenDrift,
   getBrightAlpha,
@@ -61,7 +63,11 @@ import {
 // equilibrium `createWorld` puts generation 0 through, so a hand-built
 // reference population matches what the world actually holds.
 const referencePopulationFor = (seed: number) => {
-  const {population} = createPopulation(createRngStream(seed));
+  const {population} = createPopulation(
+    createRngStream(seed),
+    undefined,
+    DEFAULT_ROSTER,
+  );
   initializeMetabolism(population);
   return population;
 };
@@ -369,7 +375,11 @@ describe("collisions", () => {
     // Short enough to stay under the catch-up cap, so one `advance` call
     // really does run this many ticks.
     const PIPELINE_TICKS = 60;
-    const byHand = createPopulation(createRngStream(SEED)).population;
+    const byHand = createPopulation(
+      createRngStream(SEED),
+      undefined,
+      DEFAULT_ROSTER,
+    ).population;
     // `createWorld` brings generation 0 to diffusive equilibrium before the
     // first tick runs, and steps 2 through 5 (exchange, photosynthesis,
     // respiration, maintenance) run every tick from here on — the equality
@@ -1122,7 +1132,7 @@ describe("fertility mode (M4)", () => {
           applyBrownianMotion(organism);
         }
         const births = currentPopulation
-          .map((organism) => evaluateMitosis(organism))
+          .map((organism) => evaluateMitosis(organism, []))
           .filter((birth): birth is PendingBirth => birth !== null);
         separateOverlaps(
           currentPopulation,
@@ -1330,9 +1340,11 @@ describe("generation 0 (M5)", () => {
 
 describe("a body with neurons (M7)", () => {
   // Founders spread across the bright band, each carrying a small cluster of
-  // neurons, overlapping on purpose so the body relaxes them apart. No
-  // mutation can create a neuron yet (#62), so children inherit them as they
-  // are, and every carrier in this world descends from one of these.
+  // neurons, overlapping on purpose so the body relaxes them apart. They
+  // are small on purpose too: the Birth Cost Ceiling prices an organelle's
+  // worst event by its radius, and a parent short of food cannot afford
+  // larger ones. Worlds built from them run with an empty roster, so no
+  // neuron is inserted and every carrier descends from one of these.
   const CARRIERS: readonly Founder[] = Array.from({length: 12}, (_, i) => ({
     x: 4 + 6.5 * i,
     y: 3 + (i % 3) * 2,
@@ -1343,7 +1355,7 @@ describe("a body with neurons (M7)", () => {
         type: "neuron" as const,
         x: 0.03 * k,
         y: 0,
-        radius: 0.05 + 0.02 * k,
+        radius: 0.03 + 0.002 * k,
       })),
     },
   }));
@@ -1353,7 +1365,7 @@ describe("a body with neurons (M7)", () => {
   }));
 
   const run = (founders: readonly Founder[], ticks: number) => {
-    let world = createWorld(1234, {generation0: {founders}});
+    let world = createWorld(1234, {generation0: {founders}, roster: []});
     for (let tick = 0; tick < ticks; tick++) {
       ({world} = advance(world, FIXED_DT_MS));
     }
@@ -1427,11 +1439,13 @@ describe("a body with neurons (M7)", () => {
         .flatMap((organism) => organism.organelles)
         .map((organelle) => organelle.innovationId),
     );
-    for (const organism of getPopulation(world)) {
-      for (const organelle of organism.organelles) {
-        expect(foundingIds.has(organelle.innovationId)).toBe(true);
-      }
-    }
+    // The structural law is live (#63): a split mints a new id, so a
+    // descendant holds founding ids it inherited and minted ones it did not.
+    const ids = getPopulation(world).flatMap((organism) =>
+      organism.organelles.map((organelle) => organelle.innovationId),
+    );
+    expect(ids.some((id) => foundingIds.has(id))).toBe(true);
+    expect(ids.every((id) => id > 0)).toBe(true);
   });
 
   it("reaches the same hash at tick N in two runs from the same carriers", () => {
@@ -1442,6 +1456,62 @@ describe("a body with neurons (M7)", () => {
     expect(
       hashState(createWorld(1234, {generation0: {founders: CARRIERS}})),
     ).not.toBe(hashState(createWorld(1234, {generation0: {founders: BARE}})));
+  });
+});
+
+describe("the roster and the Innovation Id counter (M7)", () => {
+  const ticks = (world: World, count: number): World => {
+    let current = world;
+    for (let tick = 0; tick < count; tick++) {
+      ({world: current} = advance(current, FIXED_DT_MS));
+    }
+    return current;
+  };
+
+  it("defaults to the neuron, and an empty roster is M6's world", () => {
+    const reference = createWorld(1234);
+    const explicit = createWorld(1234, {roster: ["neuron"]});
+    const m6 = createWorld(1234, {roster: []});
+
+    expect(hashState(explicit)).toBe(hashState(reference));
+    expect(hashState(m6)).not.toBe(hashState(reference));
+    expect(
+      getPopulation(m6).every((organism) => organism.organelles.length === 0),
+    ).toBe(true);
+  });
+
+  it("never inserts a neuron into an unprimed world with an empty roster", () => {
+    const world = ticks(createWorld(1, {roster: []}), 1500);
+
+    expect(getCumulativeBirths(world)).toBeGreaterThan(0);
+    for (const organism of getPopulation(world)) {
+      expect(organism.organelles).toHaveLength(0);
+    }
+  });
+
+  it("lets neurons appear in an unprimed world, with distinct minted ids and the counter past them", () => {
+    let carriers = 0;
+    for (const seed of [1, 2, 3]) {
+      const world = ticks(createWorld(seed), 3000);
+      const ids = getPopulation(world).flatMap((organism) =>
+        organism.organelles.map((organelle) => organelle.innovationId),
+      );
+      carriers += getPopulation(world).filter(
+        (organism) => organism.organelles.length > 0,
+      ).length;
+
+      expect(ids.every((id) => id > 0)).toBe(true);
+      expect(getNextInnovationId(world)).toBeGreaterThan(Math.max(0, ...ids));
+      expect(Math.abs(getCarbonDrift(world))).toBeLessThan(1e-9);
+      expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
+    }
+    expect(carriers).toBeGreaterThan(0);
+  });
+
+  it("reaches the same hash at tick N in two runs of the default world", () => {
+    expect(hashState(ticks(createWorld(2), 1500))).toBe(
+      hashState(ticks(createWorld(2), 1500)),
+    );
   });
 });
 

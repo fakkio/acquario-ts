@@ -18,7 +18,13 @@ import {
   applyRespiration,
   type RespirationOutcome,
 } from "./metabolism";
-import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
+import {
+  appendBirths,
+  evaluateMitosis,
+  mintBirths,
+  type PendingBirth,
+} from "./mitosis";
+import {DEFAULT_ROSTER, type OrganelleType} from "./organelles";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -118,6 +124,12 @@ export interface WorldOptions {
   readonly mortality?: MortalityMode;
   readonly fertility?: FertilityMode;
   readonly generation0?: Generation0;
+  /**
+   * The organelle types the world's structural mutation draws insertions
+   * from (ADR-0032). Defaults to M7's roster, the neuron; an empty roster
+   * is M6's world, with no structural event ever drawn.
+   */
+  readonly roster?: readonly OrganelleType[];
 }
 
 declare const worldBrand: unique symbol;
@@ -158,6 +170,12 @@ interface WorldState {
    * a state, not the law that produced it.
    */
   readonly fertility: FertilityMode;
+  /**
+   * The world's roster (ADR-0032). Not folded into `hashState` either: it
+   * is the law that produced a state, and a genome's organelles already
+   * carry what it drew.
+   */
+  readonly roster: readonly OrganelleType[];
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
@@ -209,7 +227,7 @@ interface WorldState {
   /**
    * The world's Innovation Id counter (ADR-0028): the next id a new
    * structural gene receives, advancing monotonically. Generation 0 mints
-   * its founders' ids from it, and from #63 the commit step mints each
+   * its founders' ids from it, and the commit step mints each
    * child's new genes in birth order. Part of the world's own state, yet
    * deliberately **not** folded into `hashState`: an id's value never
    * reaches behaviour, and every id minted is folded through the gene that
@@ -232,9 +250,11 @@ export interface AdvanceResult {
 }
 
 export function createWorld(seed: number, options: WorldOptions = {}): World {
+  const roster = options.roster ?? DEFAULT_ROSTER;
   const {population, stream, nextInnovationId} = placeGeneration0(
     createRngStream(seed),
     options.generation0,
+    roster,
   );
   // The carbon ledger's one-time construction: generation 0 starts at
   // diffusive equilibrium, and every later tick's conservation check reads
@@ -248,6 +268,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     globalRng: stream,
     mortality: options.mortality ?? "on",
     fertility: options.fertility ?? "on",
+    roster,
     population,
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
@@ -270,14 +291,15 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
 function placeGeneration0(
   stream: RngStream,
   generation0: Generation0 | undefined,
+  roster: readonly OrganelleType[],
 ): PopulationDraw {
   if (generation0 === undefined) {
-    return createPopulation(stream);
+    return createPopulation(stream, undefined, roster);
   }
 
   return "founders" in generation0
     ? placeFounders(stream, generation0.founders)
-    : createPopulation(stream, generation0.baselineGenome);
+    : createPopulation(stream, generation0.baselineGenome, roster);
 }
 
 /**
@@ -377,7 +399,7 @@ function runTick(state: WorldState): WorldState {
   const births: readonly PendingBirth[] =
     state.fertility === "on"
       ? state.population
-          .map((organism) => evaluateMitosis(organism))
+          .map((organism) => evaluateMitosis(organism, state.roster))
           .filter((birth): birth is PendingBirth => birth !== null)
       : NO_BIRTHS;
   // 8. Evaluate death: `energy <= 0` condemns an organism (ADR-0017), and
@@ -419,7 +441,10 @@ function runTick(state: WorldState): WorldState {
   //     first tick: the iteration above never sees them, which rules out
   //     half-initialised organisms metabolising or a birth cascade within
   //     one tick.
-  const population = appendBirths(survivors, births);
+  //     Each child's provisional Innovation Ids are minted first, from the
+  //     world's counter in birth order (ADR-0028).
+  const minted = mintBirths(births, state.nextInnovationId);
+  const population = appendBirths(survivors, minted.births);
   // 13. Tick++.
   return {
     ...state,
@@ -429,6 +454,7 @@ function runTick(state: WorldState): WorldState {
     measuredAlpha,
     cumulativeDeaths: state.cumulativeDeaths + remains.length,
     cumulativeBirths: state.cumulativeBirths + births.length,
+    nextInnovationId: minted.nextInnovationId,
   };
 }
 
@@ -681,6 +707,14 @@ export function getCumulativeDeaths(world: World): number {
  */
 export function getCumulativeBirths(world: World): number {
   return toState(world).cumulativeBirths;
+}
+
+/**
+ * The next Innovation Id the world will mint (ADR-0028). A readout for
+ * tests: no id's value is ever read by behaviour.
+ */
+export function getNextInnovationId(world: World): number {
+  return toState(world).nextInnovationId;
 }
 
 /**

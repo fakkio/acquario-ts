@@ -12,6 +12,7 @@ import {
 import {
   BASELINE_GENOME,
   deriveBody,
+  mintInnovationIds,
   mutateGenome,
   type Body,
   type Genome,
@@ -20,6 +21,7 @@ import {
   type OrganelleGeneDraft,
 } from "./genome";
 import {foldString} from "./hash";
+import type {OrganelleType} from "./organelles";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
 
 /**
@@ -346,15 +348,25 @@ export const FIRST_INNOVATION_ID = 1;
  * shades of one colour, in the milestone that introduces the gene whose
  * whole purpose is making descent visible (`docs/vision.md`).
  *
+ * Each founder then goes through the structural law over `roster` exactly
+ * as a birth does, unscaled and unforced (ADR-0028): the header's founder
+ * mutation is forced and scaled, the structural events keep their own
+ * rates. A founder may be born with a neuron, and none is seeded. Its
+ * provisional Innovation Ids are minted here, in placement order, the
+ * counter's first mints. An empty `roster` with no organelles draws nothing
+ * beyond M6's placement.
+ *
  * Bodies land entirely inside the aquarium; overlaps between them are
  * expected and are the separation ticket's problem, not this one's.
  */
 export function createPopulation(
   globalRng: RngStream,
   baselineGenome: Genome = BASELINE_GENOME,
+  roster: readonly OrganelleType[] = [],
 ): PopulationDraw {
   const draws = openDraws(globalRng);
   const population: Organism[] = [];
+  let nextInnovationId = FIRST_INNOVATION_ID;
 
   for (let i = 0; i < STARTING_POPULATION; i++) {
     // Derived before the placement draws, so an organism's own stream is
@@ -363,8 +375,11 @@ export function createPopulation(
     const mutated = draws.mutate(baselineGenome, {
       probability: 1,
       scale: GENERATION_0_MUTATION_SCALE,
+      roster,
     });
-    const genome: Genome = {...mutated, lineageHue: draws.unit()};
+    const minted = mintInnovationIds(mutated, nextInnovationId);
+    nextInnovationId = minted.nextInnovationId;
+    const genome: Genome = {...minted.genome, lineageHue: draws.unit()};
     const {radius} = deriveBody(genome);
 
     population.push(
@@ -377,13 +392,7 @@ export function createPopulation(
     );
   }
 
-  // No founder carries a structural gene of its own yet: the structural
-  // law that could give it one is wired into generation 0 by #63.
-  return {
-    population,
-    stream: draws.stream(),
-    nextInnovationId: FIRST_INNOVATION_ID,
-  };
+  return {population, stream: draws.stream(), nextInnovationId};
 }
 
 /** A founder's genome as a caller describes it: the header, and organelles
