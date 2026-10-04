@@ -20,6 +20,7 @@ import {
 } from "./app/selection";
 import {createSession, isRestartDue} from "./app/session";
 import {
+  AQUARIUM_AREA,
   createWorld,
   getCarbonDrift,
   getCumulativeBirths,
@@ -110,10 +111,11 @@ const updateHud = (currentWorld: World, fps: number): void => {
 
   const pools = getPoolLevels(currentWorld);
   // Each level beside the most it can hold: the world's starting carbon (or
-  // oxygen), since a pool has no cap of its own.
+  // oxygen), since a pool has no cap of its own. `c` is the ambient
+  // concentration, the number passive exchange actually reads.
   const capacities = getPoolCapacities(currentWorld);
   const formatPool = (level: number, capacity: number): string =>
-    `${level.toFixed(2)} / ${capacity.toFixed(0)} (${((level / capacity) * 100).toFixed(0)}%)`;
+    `${level.toFixed(2)} / ${capacity.toFixed(0)} (${((level / capacity) * 100).toFixed(0)}%), c ${(level / AQUARIUM_AREA).toFixed(2)}`;
   hud.setField(
     "poolFood",
     "Pool food",
