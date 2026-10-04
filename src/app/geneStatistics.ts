@@ -1,4 +1,4 @@
-import type {OrganismView} from "../world";
+import type {OrganelleType, OrganismView} from "../world";
 
 export interface GeneStat {
   readonly mean: number;
@@ -54,4 +54,50 @@ export function foldGeneStatistics(
     ),
     lineageHue: stat(population.map((organism) => organism.lineageHue)),
   };
+}
+
+/** What the HUD shows for one roster type: structural genes cannot be
+ * averaged by name, so the population is summarised by who carries the type
+ * and how many each carrier has. */
+export interface CarrierStat {
+  /** The fraction of the population carrying at least one organelle of the
+   * type. */
+  readonly fraction: number;
+  /** The mean count among carriers only; 0 when there are none. */
+  readonly meanCountPerCarrier: number;
+}
+
+export type CarrierStatistics = Partial<Record<OrganelleType, CarrierStat>>;
+
+/**
+ * Carrier fraction and mean count per carrier, per roster type, folded in
+ * the App layer from the organism view like the gene means above. An empty
+ * population and a population with no carriers read zero, not `NaN`.
+ */
+export function foldCarrierStatistics(
+  population: readonly OrganismView[],
+  roster: readonly OrganelleType[],
+): CarrierStatistics {
+  const statistics: CarrierStatistics = {};
+  for (const type of roster) {
+    let carriers = 0;
+    let organelles = 0;
+    for (const organism of population) {
+      const carried: readonly string[] = organism.organelles.map(
+        (organelle) => organelle.type,
+      );
+      const count = carried.filter(
+        (carriedType) => carriedType === type,
+      ).length;
+      if (count > 0) {
+        carriers += 1;
+        organelles += count;
+      }
+    }
+    statistics[type] = {
+      fraction: population.length === 0 ? 0 : carriers / population.length,
+      meanCountPerCarrier: carriers === 0 ? 0 : organelles / carriers,
+    };
+  }
+  return statistics;
 }

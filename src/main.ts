@@ -2,7 +2,12 @@ import {mountCamera} from "./app/camera";
 import {mountCanvas} from "./app/canvas";
 import {mountControls} from "./app/controls";
 import {createDeathEffects} from "./app/deathEffects";
-import {foldGeneStatistics, type GeneStat} from "./app/geneStatistics";
+import {
+  foldCarrierStatistics,
+  foldGeneStatistics,
+  type CarrierStat,
+  type GeneStat,
+} from "./app/geneStatistics";
 import {mountHud} from "./app/hud";
 import {frameAquarium, renderWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
@@ -21,6 +26,8 @@ import {
   getTick,
   getWorstPenetration,
   getZeroEnergyCount,
+  ORGANELLE_TYPES,
+  type OrganelleType,
   type World,
 } from "./world";
 
@@ -43,6 +50,14 @@ const formatDrift = (drift: number): string => drift.toExponential(3);
 const ALPHA_SMOOTHING = 0.02;
 let smoothedAlpha = 0;
 let smoothedBrightAlpha = 0;
+
+/** M7's roster is every type the world knows; `roster` joins `WorldOptions` in #63. */
+const ROSTER = Object.keys(ORGANELLE_TYPES) as OrganelleType[];
+
+const formatCarrier = (value: CarrierStat | undefined): string =>
+  value === undefined
+    ? "-"
+    : `${(value.fraction * 100).toFixed(1)}% × ${value.meanCountPerCarrier.toFixed(2)}`;
 
 const formatStat = (value: GeneStat): string =>
   `${value.mean.toFixed(3)} ± ${value.sigma.toFixed(3)}`;
@@ -131,7 +146,8 @@ const updateHud = (currentWorld: World, fps: number): void => {
 
   // Gene mean ± σ (ADR-0011), folded here rather than read off a world
   // reader — the same call ADR-0015 made for `α` smoothing above.
-  const geneStats = foldGeneStatistics(getPopulation(currentWorld));
+  const population = getPopulation(currentWorld);
+  const geneStats = foldGeneStatistics(population);
   hud.setField(
     "geneCytoplasmThickness",
     "Cytoplasm thickness (μ±σ)",
@@ -157,6 +173,17 @@ const updateHud = (currentWorld: World, fps: number): void => {
     "Lineage hue (μ±σ)",
     formatStat(geneStats.lineageHue),
   );
+
+  // Structural genes cannot be averaged by name: one row per roster type,
+  // the fraction carrying at least one and the mean count per carrier.
+  const carrierStats = foldCarrierStatistics(population, ROSTER);
+  for (const type of ROSTER) {
+    hud.setField(
+      `carriers.${type}`,
+      `${type} carriers (fraction × count)`,
+      formatCarrier(carrierStats[type]),
+    );
+  }
 };
 
 const deathEffects = createDeathEffects();
