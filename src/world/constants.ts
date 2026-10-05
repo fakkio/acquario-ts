@@ -579,9 +579,18 @@ export const DELTA_ORGANELLE_POSITION = tunable(
 
 /**
  * The neuron's Organelle Overhead `c_neuron` (ADR-0029), per tick, whatever
- * its size. Provisional at a hundredth of `c₀`: small enough for M11's
- * near-neutral structure, large enough to bite. Its value is chosen in the
- * harness later in M7 (#66).
+ * its size: a hundredth of `c₀`, final (#66). Small enough for M11's
+ * near-neutral structure. The harness (`CALIBRATE_SEED_COUNT=20 npm run
+ * neuron`, Reference World, 100k ticks) could not separate it from larger
+ * values: at 0.01, 0.03, 0.1 and 0.3 of `c₀` the carrier fraction came out
+ * 4.0%, 3.9%, 3.2% and 4.0% against 5.1% at `c_neuron = 0`, mean count per
+ * carrier 1.00. Every one is below the drift baseline, none apart from it
+ * by more than the seeds' spread (σ ≈ 2.6 points), and the response is not
+ * monotonic. A lineage sees only about four generations in 100k ticks, and
+ * 5% of births draw an insertion, so the run has no power to rank them, and
+ * a bigger overhead would have been a guess paid for in persistence. 0.01
+ * is the smallest of the four and was already committed, so the value did
+ * not move and persistence (#56, seeds 7–11) stayed green.
  */
 export const C_NEURON = tunable("C_NEURON", 0.01 * EXISTENCE_COST);
 
