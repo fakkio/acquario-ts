@@ -201,3 +201,23 @@ Il passo di conio guarda il segno di un id. La regola dice che niente decide in 
 ---
 
 Il ripiego di #62, il roster opzionale che il revisore aveva chiamato "terzo modo nascosto", è rimasto opzionale nella mutazione e obbligatorio nel ceiling. Nell'app e nel mondo non è raggiungibile: mitosi e generazione 0 lo danno sempre. Resta solo per i test che esercitano l'header da solo (34 chiamate). Il commento ora dice questo, invece di promettere un'obbligatorietà che nessuno ha costruito.
+
+---
+
+Prima delle corse l'agente aveva scritto la previsione sul ticket: senza costo i portatori di neurone salgono al 40-70% in 100k tick, con il costo scendono al 25-55%. La misura: 5% senza costo, 4% con. Un ordine di grandezza sotto. Il ragionamento dietro la previsione era giusto (inserzione e delezione quasi bilanciate, un po' di split in più, quindi una deriva verso l'alto), ma contava le generazioni sbagliate: un seed fa 100-170 nascite con circa 25 vivi, cioè quattro generazioni in tutta la corsa, e solo il 5% delle nascite pesca un'inserzione. Il neurone non ha fatto in tempo a diffondersi, prima ancora di essere punito.
+
+---
+
+La domanda del ticket era "con il costo, la frazione sta sotto il baseline di drift?". Sì, per tutti e quattro i costi provati (0.01, 0.03, 0.1, 0.3 di c₀, venti seed). Ma di 1-2 punti su una dispersione di 2.6, e 0.3 sta sopra 0.1. Il criterio è soddisfatto da ogni valore e non distingue nessuno. L'agente ha scelto di lasciare `c_neuron` al valore già committato, perché non c'era una misura su cui spostarlo, e di scrivere nel commento della costante che la corsa non ha potenza per ordinarli. Un valore "scelto dalla harness" che in realtà è rimasto quello di partenza.
+
+---
+
+Il primo report mostrava "0.4 neuroni per portatore" e sembrava un dato. Era un artefatto: la media sui seed contava come zero i campioni senza nessun portatore. L'agente se n'è accorto guardando il numero e non la tabella: un portatore non può avere 0.4 neuroni. Ora il conteggio è pesato sui campioni (neuroni totali su portatori totali), e a fine corsa vale 1.00 in entrambi i mondi.
+
+---
+
+`vision.md` diceva che la frazione di portatori "si assesta a equilibrio mutazione-selezione". Il revisore Spec l'ha segnalato: con quattro generazioni non si assesta niente, e la frase era rimasta lì dalla grill. L'agente ha riscritto il paragrafo per dire che il controllo c'è ma è sotto la risoluzione della corsa. Non era in discussione una cifra sbagliata, era un verbo.
+
+---
+
+La harness ha dovuto spawnare un processo figlio per il baseline, perché le costanti si leggono una volta all'import e `c_neuron = 0` non può convivere con `c_neuron = 0.0624` nello stesso processo. Il progetto non ha i tipi di Node (scelta di Fabio, ADR-0024: la simulazione gira sotto qualsiasi runtime), quindi lo spawn passa da `globalThis.process` castato, come fa già `settings.ts`. Due regole eslint contrastanti sul cast (`!` vietato, `as` segnalato come sostituibile con `!`) hanno costretto a passare da `unknown`.
