@@ -140,12 +140,12 @@ export function relax<T extends Disc>(discs: readonly T[]): T[] {
     if (round >= maxRounds) {
       throw new Error(
         "relax: overlapping pairs did not fall every round, which its own " +
-          "construction rules out (ADR-0028's relaxation contract)",
+          "construction rules out (ADR-0036's relaxation contract)",
       );
     }
 
     let best: T[] | null = null;
-    let bestRadius = Number.POSITIVE_INFINITY;
+    let bestReach = Number.POSITIVE_INFINITY;
     for (let culprit = 0; culprit < layout.length; culprit++) {
       if (partners[culprit] !== most) {
         continue;
@@ -154,10 +154,10 @@ export function relax<T extends Disc>(discs: readonly T[]): T[] {
         pushAway(layout, layout[culprit], deepestOverlapOf(layout, culprit)),
         slideOut(layout, culprit),
       ]) {
-        const radius = reach(candidate);
-        if (radius < bestRadius) {
+        const candidateReach = reach(candidate);
+        if (candidateReach < bestReach) {
           best = candidate;
-          bestRadius = radius;
+          bestReach = candidateReach;
         }
       }
     }
@@ -214,20 +214,20 @@ function pushAway<T extends Disc>(
 function slideOut<T extends Disc>(discs: readonly T[], index: number): T[] {
   const moving = discs[index];
   const others = discs.filter((_, i) => i !== index);
-  const origin = ORIGIN;
-  const offsetX = moving.x - origin.x;
-  const offsetY = moving.y - origin.y;
+  const offsetX = moving.x - ORIGIN.x;
+  const offsetY = moving.y - ORIGIN.y;
   const direction = unitVector(offsetX, offsetY);
 
   // Each other disc forbids an open interval of the ray, `|O + t·u − p| <
   // r + rⱼ`, the roots of a quadratic in `t`.
   const forbidden: {readonly from: number; readonly to: number}[] = [];
   for (const other of others) {
-    const qx = other.x - origin.x;
-    const qy = other.y - origin.y;
+    const qx = other.x - ORIGIN.x;
+    const qy = other.y - ORIGIN.y;
     const along = direction.x * qx + direction.y * qy;
-    const reach = moving.radius + other.radius;
-    const discriminant = along * along - (qx * qx + qy * qy - reach * reach);
+    const touching = moving.radius + other.radius;
+    const discriminant =
+      along * along - (qx * qx + qy * qy - touching * touching);
     if (discriminant > 0) {
       const halfWidth = Math.sqrt(discriminant);
       forbidden.push({from: along - halfWidth, to: along + halfWidth});
@@ -250,7 +250,7 @@ function slideOut<T extends Disc>(discs: readonly T[], index: number): T[] {
 
   return discs.map((disc, i) =>
     i === index
-      ? {...disc, x: origin.x + direction.x * t, y: origin.y + direction.y * t}
+      ? {...disc, x: ORIGIN.x + direction.x * t, y: ORIGIN.y + direction.y * t}
       : disc,
   );
 }
@@ -285,11 +285,11 @@ function overlap(a: Disc, b: Disc): number {
 }
 
 function contains(circle: Disc, disc: Disc): boolean {
-  const reach =
+  const gap =
     distance(disc.x - circle.x, disc.y - circle.y) +
     disc.radius -
     circle.radius;
-  return reach <= ROUNDING_SLACK * Math.max(1, circle.radius);
+  return gap <= ROUNDING_SLACK * Math.max(1, circle.radius);
 }
 
 /** The smallest circle containing two discs: the larger when it holds the
