@@ -296,7 +296,7 @@ const animate = (nowMs: number): void => {
     getTick(latestWorld),
     nowMs,
   );
-  inspector.render(selection, selectedFlows);
+  inspector.render(selection, selectedFlows, getPoolLevels(latestWorld));
   repaint(nowMs);
   requestAnimationFrame(animate);
 };

@@ -1,10 +1,12 @@
 import {
+  AQUARIUM_AREA,
   birthCosts,
   bodyAreaOfRadius,
   capFor,
   maintenanceBreakdown,
   type OrganelleType,
   type OrganismView,
+  type Pools,
   type Resource,
   type TickFlows,
 } from "../world";
@@ -20,7 +22,7 @@ import type {Selection} from "./selection";
 export interface Inspector {
   /** Redraws the panel for this frame's selection. Cheap when nothing
    * changed: the organelle table is only rebuilt for a new organism. */
-  render(selection: Selection, flows: TickFlows | null): void;
+  render(selection: Selection, flows: TickFlows | null, pools: Pools): void;
 }
 
 const fixed = (value: number, digits = 3): string => value.toFixed(digits);
@@ -51,19 +53,27 @@ const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
   return terms.length === 0 ? "    (no change)" : `    ${terms.join("  ")}`;
 };
 
-/** A store against its cap and how full it is, with its concentration (store
- * per cytoplasm area, the quantity passive exchange reads) except for energy,
- * which never exchanges: `937.000/1000.000 (94%)  c 1.196`. */
-const store = (organism: OrganismView, resource: Resource): string => {
-  const cap = capFor(organism, resource);
-  const full = `${fixed(organism[resource])}/${fixed(cap)} (${(
-    (organism[resource] / cap) *
+/** Energy against its cap and how full it is, the one store with a ceiling
+ * (ADR-0035): `937.000/1000.000 (94%)`. */
+const energyStore = (organism: OrganismView): string => {
+  const cap = capFor(organism, "energy");
+  return `${fixed(organism.energy)}/${fixed(cap)} (${(
+    (organism.energy / cap) *
     100
   ).toFixed(0)}%)`;
-  return resource === "energy"
-    ? full
-    : `${full}  c ${fixed(organism[resource] / organism.cytoplasmArea)}`;
 };
+
+/** A diffusible store as its internal Concentration (store per cytoplasm area)
+ * next to the ambient one (pool per aquarium area), the comparison that decides
+ * which way passive exchange runs: `0.700  ambient 0.500`. */
+const concentration = (
+  organism: OrganismView,
+  pools: Pools,
+  resource: Exclude<Resource, "energy">,
+): string =>
+  `${fixed(organism[resource] / organism.cytoplasmArea)}  ambient ${fixed(
+    pools[resource] / AQUARIUM_AREA,
+  )}  (${fixed(organism[resource])} held)`;
 
 const BAR_WIDTH = 20;
 
@@ -157,7 +167,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   };
 
   return {
-    render(selection, flows) {
+    render(selection, flows, pools) {
       if (selection.kind === "none") {
         container.style.display = "none";
         tableFor = null;
@@ -203,13 +213,13 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
         "",
         flows ? "Stores (last tick)" : "Stores",
-        `  energy ${store(organism, "energy")}`,
+        `  energy ${energyStore(organism)}`,
         flowsOf(flows, "energy"),
-        `  food   ${store(organism, "food")}`,
+        `  food   ${concentration(organism, pools, "food")}`,
         flowsOf(flows, "food"),
-        `  O₂     ${store(organism, "oxygen")}`,
+        `  O₂     ${concentration(organism, pools, "oxygen")}`,
         flowsOf(flows, "oxygen"),
-        `  CO₂    ${store(organism, "carbonDioxide")}`,
+        `  CO₂    ${concentration(organism, pools, "carbonDioxide")}`,
         flowsOf(flows, "carbonDioxide"),
         "",
         `Organelles (${String(organism.organelles.length)})`,
