@@ -30,9 +30,11 @@ export interface Pools {
  * diffusible stores start at exactly the ambient concentration the pools
  * hold. That requirement is what lets the ambient concentration fall out
  * of the carbon budget in closed form, with no iterative search —
- * `s = (K·π − A) / (A + aquariumArea)`, where `A` is the population's
- * summed body area. Internal stores and pool levels would otherwise each
- * depend on the other's answer.
+ * `s = (K·π − A) / (C + aquariumArea)`, where `A` is the population's
+ * summed body area, the mass its bodies are made of, and `C` its summed
+ * Cytoplasm Area, the space its stores fill (ADR-0029). With no organelles
+ * `C = A`. Internal stores and pool levels would otherwise each depend on
+ * the other's answer.
  *
  * Mutates every organism's stores in place, per ADR-0013's mutable
  * organisms. This is generation 0's construction, called once from
@@ -44,6 +46,10 @@ export function initializeMetabolism(population: readonly Organism[]): Pools {
     (sum, organism) => sum + bodyArea(organism),
     0,
   );
+  const totalCytoplasmArea = population.reduce(
+    (sum, organism) => sum + organism.cytoplasmArea,
+    0,
+  );
 
   // "Enough carbon for K baseline organisms": a baseline body has area π
   // (bodyRadius = 1), so K of them are worth K·π of carbon in the unit
@@ -51,13 +57,13 @@ export function initializeMetabolism(population: readonly Organism[]): Pools {
   // but is a free ratio rather than a unit (ADR-0022).
   const carbonBudget = CARBON_BUDGET_BASELINE_ORGANISMS * Math.PI;
   const ambientConcentration =
-    (carbonBudget - totalBodyArea) / (totalBodyArea + AQUARIUM_AREA);
+    (carbonBudget - totalBodyArea) / (totalCytoplasmArea + AQUARIUM_AREA);
 
   const co2Concentration = ambientConcentration * AMBIENT_CO2_SHARE;
   const foodConcentration = ambientConcentration * (1 - AMBIENT_CO2_SHARE);
 
   for (const organism of population) {
-    const area = bodyArea(organism);
+    const area = organism.cytoplasmArea;
     organism.carbonDioxide = co2Concentration * area;
     organism.food = foodConcentration * area;
     organism.oxygen = AMBIENT_OXYGEN_CONCENTRATION * area;

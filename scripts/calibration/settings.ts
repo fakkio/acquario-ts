@@ -105,6 +105,16 @@ export const LIVE_TICKS = setting("LIVE_TICKS", 50_000);
  * Every tick would be a hundred thousand rows to say what twenty say. */
 export const LIVE_SAMPLE_EVERY = setting("LIVE_SAMPLE_EVERY", 250);
 
+/**
+ * The neuron run (#66): the Reference World, long enough for structure to
+ * drift. Persistence's own 100k, because a carrier fraction is a quantity of
+ * generations and a short run reports the founders instead.
+ */
+export const NEURON_TICKS = setting("NEURON_TICKS", 100_000);
+
+/** How often the neuron run reads the population. */
+export const NEURON_SAMPLE_EVERY = setting("NEURON_SAMPLE_EVERY", 2_500);
+
 /** The income ladder: wide enough in log space to tell `r¹` from `r^1.3`,
  * which generation 0's own spread of `[1/1.4, 1.4]` is nowhere near
  * (ADR-0025). */

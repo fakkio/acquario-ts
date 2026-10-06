@@ -1,4 +1,5 @@
 import type {OrganismView} from "../world";
+import {drawBody, type BodyShape} from "./bodyGlyph";
 
 /**
  * The moment of going (ticket #24), App-layer only: no world-side dying
@@ -6,7 +7,8 @@ import type {OrganismView} from "../world";
  * of a visual — the thing ADR-0015 already refused for `α` smoothing. Body
  * brightness already fades an organism to a dim ghost of its `lineageHue`
  * as its energy runs out (M2, ADR-0010); this adds the ring for the tick it
- * actually vanishes.
+ * actually vanishes, around the body itself fading out with its organelles
+ * (M7), so the effect shows the body that died.
  *
  * Driven off **wall-clock**, not ticks, so it reads the same at any
  * simulation speed and keeps animating while the sim is paused — the
@@ -45,11 +47,8 @@ const RING_WIDTH_PX = 2;
  */
 const MAX_LIVE_EFFECTS = 48;
 
-interface Effect {
-  readonly x: number;
-  readonly y: number;
-  readonly bodyRadius: number;
-  readonly lineageHue: number;
+/** The body that died, kept whole so it can fade out as it looked. */
+interface Effect extends BodyShape {
   readonly startMs: number;
 }
 
@@ -67,6 +66,7 @@ export function createDeathEffects(): DeathEffects {
             y: organism.y,
             bodyRadius: organism.bodyRadius,
             lineageHue: organism.lineageHue,
+            organelles: organism.organelles,
             startMs: nowMs,
           });
         }
@@ -84,11 +84,17 @@ export function createDeathEffects(): DeathEffects {
         (effect) => nowMs - effect.startMs < EFFECT_DURATION_MS,
       );
 
-      ctx.lineWidth = RING_WIDTH_PX / worldScale;
       for (const effect of effects) {
         const age = (nowMs - effect.startMs) / EFFECT_DURATION_MS;
         const radius = effect.bodyRadius * (1 + EXPANSION_RADII * age);
 
+        // The body fades out where it died, organelles included, at the
+        // dimmest brightness: it died with its energy store empty.
+        ctx.globalAlpha = 1 - age;
+        drawBody(ctx, effect, 0, worldScale);
+        ctx.globalAlpha = 1;
+
+        ctx.lineWidth = RING_WIDTH_PX / worldScale;
         ctx.strokeStyle = `hsla(${String(effect.lineageHue * 360)}, 70%, 60%, ${String(1 - age)})`;
         ctx.beginPath();
         ctx.arc(effect.x, effect.y, radius, 0, 2 * Math.PI);

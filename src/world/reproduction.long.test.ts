@@ -121,9 +121,9 @@ import {
 // world, peaking at 125, an eighth of #36's boom.
 //
 // A real, if latent, risk found along the way and worth recording here
-// rather than only where it was found: `bodyRadius` mutates with no
-// ceiling (`genome.ts`'s `mutateRadius`), and `buildUniformGrid` sizes
-// every cell at `2 × the single largest body in the population`
+// rather than only where it was found: the body radius mutates with no
+// ceiling (`genome.ts`'s `mutateMultiplicatively`, on the thickness), and
+// `buildUniformGrid` sizes every cell at `2 × the single largest body in the population`
 // (`grid.ts`) — so a population dense enough, breeding fast enough, that
 // mutation eventually drifts one lineage to an outlier radius would fall
 // into a single oversized grid cell together, and `separateOverlaps` pays
@@ -134,8 +134,9 @@ import {
 // a timeout cannot actually interrupt — kept running for a further
 // real-world 80 minutes before the process next had a chance to notice.
 // This file's own population, without the fallback, stays an order of
-// magnitude smaller and has not hit it; bounding `mutateRadius`, or making
-// `buildUniformGrid` robust to one outsized body, is the real fix and
+// magnitude smaller and has not hit it; bounding the thickness's mutation,
+// or making `buildUniformGrid` robust to one outsized body, is the real fix
+// and
 // belongs to a ticket of its own regardless.
 const TICKS = 100_000;
 const SEED = 7;

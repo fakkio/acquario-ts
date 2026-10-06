@@ -25,8 +25,8 @@ import {GENERATION_0_MAX_BODY_RADIUS, type Organism} from "./organism";
  *
  * One cell has to hold this body whole — the one thing cell size has to buy —
  * which is why cell size is derived from it fresh every build rather than
- * from a constant: from M4 on, `bodyRadius` mutates without an upper bound
- * other than the carbon ledger, so there is no fixed largest radius left to
+ * from a constant: from M4 on, the body radius mutates without an upper
+ * bound other than the carbon ledger (through `cytoplasmThickness` from M7), so there is no fixed largest radius left to
  * derive a module-level cell size from (ADR-0012's amendment).
  */
 function largestBodyRadius(population: readonly Organism[]): number {

@@ -1,16 +1,24 @@
 export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 export {BASELINE_GENOME, type Genome} from "./genome";
 export {type GridOccupancy} from "./grid";
+export {
+  DEFAULT_ROSTER,
+  ORGANELLE_TYPES,
+  type OrganelleType,
+} from "./organelles";
 export {type Pools} from "./ledger";
+export {maintenanceBreakdown, type MaintenanceBreakdown} from "./metabolism";
 export {BRIGHT_BAND_DEPTH, isBright, lightAt} from "./light";
 export {
   bodyArea,
   bodyAreaOfRadius,
   capFor,
-  capForRadius,
+  capForArea,
   type Founder,
   type OrganismView,
+  type Resource,
 } from "./organism";
+export {type StoreDeltas, type TickFlows} from "./tickFlows";
 export {createRngStream, deriveChildStream, type RngStream} from "./rng";
 export {
   advance,
@@ -23,6 +31,7 @@ export {
   getGridOccupancy,
   getMeasuredAlpha,
   getOxygenDrift,
+  getPoolCapacities,
   getPoolLevels,
   getPopulation,
   getSeed,
@@ -30,6 +39,8 @@ export {
   getWorstPenetration,
   getZeroEnergyCount,
   hashState,
+  type AdvanceOptions,
+  type AdvanceResult,
   type FertilityMode,
   type Generation0,
   type MortalityMode,

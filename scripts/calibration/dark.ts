@@ -1,11 +1,12 @@
 import {
   AQUARIUM_AREA,
   bodyAreaOfRadius,
-  capForRadius,
+  capFor,
   createWorld,
   getPoolLevels,
   getPopulation,
   lightAt,
+  type OrganismView,
 } from "../../src/world";
 import {
   BODY_COST_COEFFICIENT,
@@ -63,6 +64,12 @@ interface DarkRung {
   readonly finalEnergyFraction: number;
 }
 
+/** Read off the view, so the cap is the founder's own Cytoplasm Area's
+ * rather than one recomputed here from the rung's radius. */
+function energyFraction(organism: OrganismView): number {
+  return organism.energy / capFor(organism, "energy");
+}
+
 function measureRung(radius: number): DarkRung {
   const world = createWorld(SEED, {
     mortality: "on",
@@ -71,7 +78,7 @@ function measureRung(radius: number): DarkRung {
   });
 
   let diedAt: number | null = null;
-  let lastEnergy = getPopulation(world)[0].energy;
+  let lastEnergyFraction = energyFraction(getPopulation(world)[0]);
 
   const finished = runTicksWatching(world, DARK_TICKS, (current, tick) => {
     const population = getPopulation(current);
@@ -79,13 +86,13 @@ function measureRung(radius: number): DarkRung {
       diedAt ??= tick;
       return;
     }
-    lastEnergy = population[0].energy;
+    lastEnergyFraction = energyFraction(population[0]);
   });
 
   return {
     radius,
     diedAt: getPopulation(finished).length > 0 ? null : diedAt,
-    finalEnergyFraction: lastEnergy / capForRadius(radius, "energy"),
+    finalEnergyFraction: lastEnergyFraction,
   };
 }
 

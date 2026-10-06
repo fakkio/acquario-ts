@@ -2,7 +2,10 @@ import {describe, expect, it} from "vitest";
 
 import {
   BODY_COST_COEFFICIENT,
+  C_NEURON,
   EXISTENCE_COST,
+  K_CAP,
+  K_CAP_ENERGY,
   K_DIFFUSION,
   K_PHOTO,
   RESPIRATION_ENERGY_YIELD,
@@ -10,12 +13,13 @@ import {
 import type {Environment, Vec2} from "./environment";
 import {
   applyMaintenance,
+  maintenanceBreakdown,
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
 } from "./metabolism";
 import {bodyArea, capFor, type Diffusible} from "./organism";
-import {organismAt} from "./testing";
+import {carrierAt, organismAt} from "./testing";
 
 /**
  * Level 1 of the milestone's three testing levels: one reaction, one
@@ -508,6 +512,53 @@ describe("applyRespiration", () => {
   });
 });
 
+describe("maintenanceBreakdown", () => {
+  it("sums to exactly what the tick charges, with and without neurons", () => {
+    for (const organism of [
+      organismAt(0, 0, 1.3),
+      carrierAt(0, 0, [0.1]),
+      carrierAt(0, 0, [0.05, 0.05, 0.3, 0.1]),
+    ]) {
+      organism.energy = 100;
+      const breakdown = maintenanceBreakdown(organism);
+
+      applyMaintenance(organism);
+
+      expect(organism.energy).toBe(100 - breakdown.total);
+      expect(breakdown.total).toBeCloseTo(
+        breakdown.existence +
+          breakdown.cytoplasm +
+          breakdown.organelleOverheads +
+          breakdown.organelleTissue,
+        12,
+      );
+    }
+  });
+
+  it("splits a body with neurons into c₀, the cytoplasm's cost and the neurons' overheads and tissue", () => {
+    const organism = carrierAt(0, 0, [0.1, 0.2]);
+    const breakdown = maintenanceBreakdown(organism);
+
+    expect(breakdown.existence).toBe(EXISTENCE_COST);
+    expect(breakdown.cytoplasm).toBeCloseTo(
+      BODY_COST_COEFFICIENT * organism.cytoplasmArea,
+      12,
+    );
+    expect(breakdown.organelleOverheads).toBeCloseTo(2 * C_NEURON, 12);
+    expect(breakdown.organelleTissue).toBeCloseTo(
+      BODY_COST_COEFFICIENT * Math.PI * (0.1 * 0.1 + 0.2 * 0.2),
+      12,
+    );
+  });
+
+  it("has no organelle terms for a body without organelles", () => {
+    const breakdown = maintenanceBreakdown(organismAt(0, 0, 1));
+
+    expect(breakdown.organelleOverheads).toBe(0);
+    expect(breakdown.organelleTissue).toBe(0);
+  });
+});
+
 describe("applyMaintenance", () => {
   it("charges the flat existence cost plus the area-scaled body cost", () => {
     const organism = organismAt(0, 0, 1.3);
@@ -544,5 +595,86 @@ describe("applyMaintenance", () => {
     applyMaintenance(organism);
 
     expect(organism.energy).toBeLessThan(0);
+  });
+});
+
+/**
+ * M7's neuron (ADR-0029): an organelle takes space that holds no stores and
+ * pays its own way. These run through the same single-organism helpers as
+ * every test above, on a body whose Cytoplasm Area is not its whole area.
+ */
+describe("a body with neurons", () => {
+  it("is charged c₀ + β·bodyArea + n·c_neuron in maintenance, the neurons' tissue at the cytoplasm's rate", () => {
+    for (const radii of [[0.1], [0.1, 0.2], [0.05, 0.05, 0.3, 0.1]]) {
+      const organism = carrierAt(0, 0, radii);
+      organism.energy = 100;
+
+      applyMaintenance(organism);
+
+      expect(100 - organism.energy).toBeCloseTo(
+        EXISTENCE_COST +
+          BODY_COST_COEFFICIENT * bodyArea(organism) +
+          radii.length * C_NEURON,
+        12,
+      );
+    }
+  });
+
+  it("caps every store over its Cytoplasm Area, the body's area minus the neurons'", () => {
+    const organism = carrierAt(0, 0, [0.2, 0.3]);
+    const cytoplasmArea =
+      bodyArea(organism) - Math.PI * (0.2 * 0.2 + 0.3 * 0.3);
+
+    expect(capFor(organism, "energy")).toBeCloseTo(
+      K_CAP_ENERGY * cytoplasmArea,
+      9,
+    );
+    for (const resource of ["oxygen", "carbonDioxide", "food"] as const) {
+      expect(capFor(organism, resource)).toBeCloseTo(
+        K_CAP[resource] * cytoplasmArea,
+        9,
+      );
+    }
+  });
+
+  it("exchanges nothing once its stores over the Cytoplasm Area match the water outside", () => {
+    // Over the whole body area these stores would read below ambient and
+    // draw; over the cytoplasm they read exactly ambient.
+    const organism = carrierAt(0, 0, [0.2, 0.3]);
+    const cytoplasmArea =
+      bodyArea(organism) - Math.PI * (0.2 * 0.2 + 0.3 * 0.3);
+    organism.food = 0.4 * cytoplasmArea;
+    organism.carbonDioxide = 0.4 * cytoplasmArea;
+    organism.oxygen = 0.4 * cytoplasmArea;
+
+    applyPassiveExchange(
+      organism,
+      stubEnvironment({oxygen: 0.4, carbonDioxide: 0.4, food: 0.4}),
+    );
+
+    expect(organism.food).toBeCloseTo(0.4 * cytoplasmArea, 12);
+    expect(organism.carbonDioxide).toBeCloseTo(0.4 * cytoplasmArea, 12);
+    expect(organism.oxygen).toBeCloseTo(0.4 * cytoplasmArea, 12);
+  });
+
+  it("respires at the rate its concentrations over the Cytoplasm Area set", () => {
+    // Mass action, K·[food]·[O₂]·volume, with the cytoplasm as both the
+    // denominator and the volume: at the same concentrations a carrier
+    // reacts in proportion to the cytoplasm it has left, not to its body.
+    const carrier = carrierAt(0, 0, [0.3, 0.3], 1);
+    const bare = organismAt(0, 0, 1);
+    const ratio = carrier.cytoplasmArea / bodyArea(bare);
+    carrier.food = 0.01 * carrier.cytoplasmArea;
+    carrier.oxygen = 0.01 * carrier.cytoplasmArea;
+    bare.food = 0.01 * bodyArea(bare);
+    bare.oxygen = 0.01 * bodyArea(bare);
+
+    const carrierOutcome = applyRespiration(carrier);
+    const bareOutcome = applyRespiration(bare);
+
+    expect(carrierOutcome.energyProduced).toBeCloseTo(
+      bareOutcome.energyProduced * ratio,
+      12,
+    );
   });
 });

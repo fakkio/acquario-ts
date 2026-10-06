@@ -11,11 +11,17 @@ import {
 } from "./constants";
 import {
   BASELINE_GENOME,
+  deriveBody,
+  mintInnovationIds,
   mutateGenome,
+  type Body,
   type Genome,
   type MutationOptions,
+  type OrganelleGene,
+  type OrganelleGeneDraft,
 } from "./genome";
 import {foldString} from "./hash";
+import type {OrganelleType} from "./organelles";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
 
 /**
@@ -42,8 +48,9 @@ export const MAX_RADIUS_FACTOR = 1.4;
 
 /**
  * The largest body generation 0 places — no longer, from M4 on, the largest
- * body the world allows. `bodyRadius` is a gene with range `> 0` mutating
- * multiplicatively, so once reproduction exists there is no largest radius
+ * body the world allows. The radius grows from `cytoplasmThickness`, a gene
+ * with range `> 0` mutating multiplicatively (v0.1's `bodyRadius` until M7),
+ * so once reproduction exists there is no largest radius
  * to derive a world-wide ceiling from; the ledger is the only ceiling left,
  * since a single body cannot exceed the carbon budget (`r ≤ √K`, ADR-0012's
  * amendment).
@@ -64,8 +71,23 @@ export const GENERATION_0_MAX_BODY_RADIUS =
 export interface OrganismView {
   readonly x: number;
   readonly y: number;
+  /** The derived body's radius (`deriveBody`), not a gene: what collides,
+   * what is drawn, and what the HUD's body-radius row folds. */
   readonly bodyRadius: number;
+  /** The gene the body radius grows from, on the view from M7 so the HUD
+   * can show it apart from the radius it no longer is. */
+  readonly cytoplasmThickness: number;
+  /** The derived body's Cytoplasm Area, the denominator of every cap and
+   * internal concentration (ADR-0029). */
+  readonly cytoplasmArea: number;
+  /** The body's organelles in genome order: type, Innovation Id, radius and
+   * position relative to the body's centre (`Body.organelles`). */
+  readonly organelles: readonly OrganelleGene[];
   readonly lineageHue: number;
+  /** How many births separate this organism from generation 0's founders,
+   * which are 0. Read by the inspector only: no tick reads it, so it stays
+   * out of the state hash. */
+  readonly generation: number;
   /**
    * The two reproduction genes, on the view from M5 so that all four genes
    * can be read where the statistics over them are computed — the HUD and
@@ -87,6 +109,8 @@ export interface OrganismInit {
   readonly y: number;
   readonly genome: Genome;
   readonly rng: RngStream;
+  /** The parent's Generation plus one for a child; defaults to 0, a founder's. */
+  readonly generation?: number;
   /**
    * The four internal resource stores, all defaulting to 0. Left optional
    * here rather than required: placement (`createPopulation`) does not know
@@ -140,10 +164,10 @@ export const RESOURCES: readonly Resource[] = [
 
 /**
  * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
- * size: `coefficient × bodyArea`. The three diffusibles' coefficients come
- * from `K_CAP`'s own per-resource table, spread in whole rather than listed
- * again here, so a diffusible added later cannot be given a cap in one
- * place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
+ * size: `coefficient × cytoplasmArea` (ADR-0029). The three diffusibles'
+ * coefficients come from `K_CAP`'s own per-resource table, spread in whole
+ * rather than listed again here, so a diffusible added later cannot be
+ * given a cap in one place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
  * outside that table, because its unit is fixed independently by `β = 1`
  * rather than by coincidence of notation.
  */
@@ -159,15 +183,16 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
  *
  * `x`/`y` and `rng` are the state a tick advances. `genome` is fixed for a
  * life: it changes only at birth, through `mutateGenome`, where the child
- * gets its own record — never in place on a living organism. All four genes
- * are readable as getters over it, so every existing read of `bodyRadius`
- * or `lineageHue` — in `grid.ts`, `motion.ts`, `metabolism.ts`,
- * `separation.ts`, `render.ts` and the test fixtures — keeps working
- * untouched, and `OrganismView` is widened rather than reshaped.
+ * gets its own record — never in place on a living organism. All four
+ * header genes are readable as getters over it, and so is the body the
+ * genome builds, derived once at construction because a fixed genome builds
+ * a fixed body. `bodyRadius` stays the name every collision, wall and draw
+ * reads, in `grid.ts`, `motion.ts`, `separation.ts` and `render.ts`; from
+ * M7 it is the derived radius rather than a gene.
  *
- * No rotation and no angular velocity: a circle with no organelles has no
- * visible orientation, and rotation arrives in v0.2 with the organelles whose
- * placement makes it matter.
+ * No rotation and no angular velocity: `x`/`y` is the Enclosing Circle's
+ * centre, and an organelle sits in the world at that position plus its own.
+ * Rotation arrives with the first torque (M8), the thruster's.
  *
  * The four internal resource stores arrive in M2. They are plain mutable
  * fields for the same reason `x`/`y` are: metabolism will write to them
@@ -185,12 +210,16 @@ export class Organism {
   oxygen: number;
   carbonDioxide: number;
   food: number;
+  readonly generation: number;
+  private readonly body: Body;
 
   constructor(init: OrganismInit) {
     this.x = init.x;
     this.y = init.y;
     this.genome = init.genome;
+    this.body = deriveBody(init.genome);
     this.rng = init.rng;
+    this.generation = init.generation ?? 0;
     this.energy = init.energy ?? 0;
     this.oxygen = init.oxygen ?? 0;
     this.carbonDioxide = init.carbonDioxide ?? 0;
@@ -198,7 +227,19 @@ export class Organism {
   }
 
   get bodyRadius(): number {
-    return this.genome.bodyRadius;
+    return this.body.radius;
+  }
+
+  get cytoplasmArea(): number {
+    return this.body.cytoplasmArea;
+  }
+
+  get cytoplasmThickness(): number {
+    return this.genome.cytoplasmThickness;
+  }
+
+  get organelles(): readonly OrganelleGene[] {
+    return this.body.organelles;
   }
 
   get lineageHue(): number {
@@ -217,10 +258,10 @@ export class Organism {
 /**
  * The area a body of `bodyRadius` occupies, in the same length unit as the
  * radius itself. The one place that area is computed from a bare radius,
- * so `bodyArea`, `bodyMass` and `capFor` all read it the same way — and so
- * does `mitosis.ts` (ADR-0019), which has to price a child's cost and caps
- * from its mutated `bodyRadius` before any `Organism` for it exists to hand
- * `bodyArea` itself.
+ * so `bodyArea`, `bodyMass` and `deriveBody` all read it the same way — and
+ * so does `mitosis.ts` (ADR-0019), which has to price a child from its
+ * derived body before any `Organism` for it exists to hand `bodyArea`
+ * itself.
  */
 export function bodyAreaOfRadius(bodyRadius: number): number {
   return Math.PI * bodyRadius * bodyRadius;
@@ -258,27 +299,39 @@ export function bodyMass(organism: Organism): number {
   return bodyMassOfRadius(organism.bodyRadius);
 }
 
-/** The maximum amount of `resource` a body of `bodyRadius` can hold — see
- * `bodyAreaOfRadius` for why a radius-only sibling of `capFor` exists. */
-export function capForRadius(bodyRadius: number, resource: Resource): number {
-  return CAP_COEFFICIENT[resource] * bodyAreaOfRadius(bodyRadius);
+/** The maximum amount of `resource` a body with `cytoplasmArea` can hold —
+ * `capFor`'s sibling for a body with no `Organism` yet, a child mitosis is
+ * still pricing from its `deriveBody`. */
+export function capForArea(cytoplasmArea: number, resource: Resource): number {
+  return CAP_COEFFICIENT[resource] * cytoplasmArea;
 }
 
 /** The maximum amount of `resource` this organism can hold right now — a
- * maximum internal concentration, scaled by its own body area. Accepts an
+ * maximum internal concentration, scaled by its own Cytoplasm Area, since
+ * organelles take space that holds no stores (ADR-0029). Accepts an
  * `OrganismView` too; see `bodyArea`. */
 export function capFor(
   organism: Organism | OrganismView,
   resource: Resource,
 ): number {
-  return capForRadius(organism.bodyRadius, resource);
+  return capForArea(organism.cytoplasmArea, resource);
 }
 
 export interface PopulationDraw {
   readonly population: Organism[];
   /** The global stream, advanced past every draw placement consumed. */
   readonly stream: RngStream;
+  /** The world's Innovation Id counter, advanced past every id placement
+   * minted. */
+  readonly nextInnovationId: number;
 }
+
+/**
+ * The first Innovation Id a world's counter mints. `0` stays outside the
+ * counter's range for the body's own reserved id, the endpoint its Innate
+ * Senses are wired from (ADR-0031, M11).
+ */
+export const FIRST_INNOVATION_ID = 1;
 
 /**
  * Places generation 0 from the global stream. Each founder is
@@ -303,15 +356,25 @@ export interface PopulationDraw {
  * shades of one colour, in the milestone that introduces the gene whose
  * whole purpose is making descent visible (`docs/vision.md`).
  *
+ * Each founder then goes through the structural law over `roster` exactly
+ * as a birth does, unscaled and unforced (ADR-0028): the header's founder
+ * mutation is forced and scaled, the structural events keep their own
+ * rates. A founder may be born with a neuron, and none is seeded. Its
+ * provisional Innovation Ids are minted here, in placement order, the
+ * counter's first mints. An empty `roster` with no organelles draws nothing
+ * beyond M6's placement.
+ *
  * Bodies land entirely inside the aquarium; overlaps between them are
  * expected and are the separation ticket's problem, not this one's.
  */
 export function createPopulation(
   globalRng: RngStream,
   baselineGenome: Genome = BASELINE_GENOME,
+  roster: readonly OrganelleType[] = [],
 ): PopulationDraw {
   const draws = openDraws(globalRng);
   const population: Organism[] = [];
+  let nextInnovationId = FIRST_INNOVATION_ID;
 
   for (let i = 0; i < STARTING_POPULATION; i++) {
     // Derived before the placement draws, so an organism's own stream is
@@ -320,25 +383,37 @@ export function createPopulation(
     const mutated = draws.mutate(baselineGenome, {
       probability: 1,
       scale: GENERATION_0_MUTATION_SCALE,
+      roster,
     });
-    const genome: Genome = {...mutated, lineageHue: draws.unit()};
+    const minted = mintInnovationIds(mutated, nextInnovationId);
+    nextInnovationId = minted.nextInnovationId;
+    const genome: Genome = {...minted.genome, lineageHue: draws.unit()};
+    const {radius} = deriveBody(genome);
 
     population.push(
       new Organism({
-        x: placeWithin(draws.unit(), AQUARIUM_WIDTH, genome.bodyRadius),
-        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, genome.bodyRadius),
+        x: placeWithin(draws.unit(), AQUARIUM_WIDTH, radius),
+        y: placeWithin(draws.unit(), AQUARIUM_HEIGHT, radius),
         genome,
         rng,
       }),
     );
   }
 
-  return {population, stream: draws.stream()};
+  return {population, stream: draws.stream(), nextInnovationId};
 }
+
+/** A founder's genome as a caller describes it: the header, and organelles
+ * whose Innovation Ids the world has not minted yet. */
+export type FounderGenome = Omit<Genome, "genes"> & {
+  readonly genes: readonly OrganelleGeneDraft[];
+};
 
 /**
  * One organism of an explicitly placed generation 0: a position and a whole
- * genome, with nothing drawn and nothing mutated.
+ * genome, with nothing drawn and nothing mutated. Its organelles are given
+ * without ids, and `placeFounders` mints them; a full `Genome` fits too, and
+ * any ids it carries are replaced.
  *
  * A position as well as a genome, because the two measurements the
  * calibration harness cannot take from a placed population need both. The
@@ -351,7 +426,7 @@ export function createPopulation(
 export interface Founder {
   readonly x: number;
   readonly y: number;
-  readonly genome: Genome;
+  readonly genome: FounderGenome;
 }
 
 /**
@@ -374,23 +449,44 @@ export interface Founder {
  * The four internal stores are left at zero, exactly as `createPopulation`
  * leaves them: `initializeMetabolism` is what brings any generation 0 to
  * diffusive equilibrium, and it does not care how the bodies got there.
+ *
+ * Each founder's organelles get their Innovation Ids here, from the world's
+ * counter, in placement order and then genome order: the counter's first
+ * mints. Organelle positions are not taken at their word: the genome a
+ * founder is built from holds its layout relaxed apart and recentred on its
+ * Enclosing Circle, as every genome does (ADR-0034).
  */
 export function placeFounders(
   globalRng: RngStream,
   founders: readonly Founder[],
 ): PopulationDraw {
   const draws = openDraws(globalRng);
-  const population = founders.map(
-    (founder) =>
-      new Organism({
-        x: founder.x,
-        y: founder.y,
-        genome: founder.genome,
-        rng: draws.child(),
-      }),
-  );
+  let nextInnovationId = FIRST_INNOVATION_ID;
+  const population = founders.map((founder) => {
+    const minted: Genome = {
+      ...founder.genome,
+      genes: founder.genome.genes.map((draft) => ({
+        type: draft.type,
+        innovationId: nextInnovationId++,
+        radius: draft.radius,
+        x: draft.x,
+        y: draft.y,
+      })),
+    };
+    // The body's organelles are the layout relaxed and recentred, which is
+    // what a genome holds (ADR-0034): stored as the genes, nothing is left
+    // for construction to fix.
+    const genes = deriveBody(minted).organelles;
 
-  return {population, stream: draws.stream()};
+    return new Organism({
+      x: founder.x,
+      y: founder.y,
+      genome: {...minted, genes},
+      rng: draws.child(),
+    });
+  });
+
+  return {population, stream: draws.stream(), nextInnovationId};
 }
 
 /**
@@ -399,7 +495,15 @@ export function placeFounders(
  * folds in, including the two M4 adds — `mitosisEnergyThreshold` and
  * `childAllocationRatio` — per the rule: what enters the hash is what the
  * next tick reads, and a gene left out is a gene the invariant silently
- * stops covering.
+ * stops covering. `cytoplasmThickness` folds into the slot `bodyRadius`
+ * held, and with no organelles it is the same number, so a world of
+ * Minimal Organisms hashes as it did in M6 (#59).
+ *
+ * Every Organelle Gene folds in after those fields, as the genome holds it:
+ * type, Innovation Id, radius, position. An empty `genes` adds nothing to
+ * the string, which is what keeps M6's hash reproducible. The id folds
+ * through the gene that holds it, so the world's counter itself stays out
+ * (`hashState`).
  *
  * The four internal stores fold in too, per the rule M2 adds beside
  * `hashState`: what enters the hash is what the next tick *reads*, and
@@ -412,9 +516,13 @@ export function foldPopulation(
   let folded = hash;
   for (const organism of population) {
     const {genome} = organism;
+    let genes = "";
+    for (const gene of genome.genes) {
+      genes += `|${gene.type}|${String(gene.innovationId)}|${String(gene.radius)}|${String(gene.x)}|${String(gene.y)}`;
+    }
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(genome.bodyRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmThickness)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}`,
     );
   }
 

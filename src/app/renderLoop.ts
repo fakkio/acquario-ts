@@ -1,4 +1,10 @@
-import {advance, FIXED_DT_MS, type World} from "../world";
+import {
+  advance,
+  FIXED_DT_MS,
+  type OrganismView,
+  type TickFlows,
+  type World,
+} from "../world";
 
 export interface RenderLoop {
   play(): void;
@@ -13,7 +19,13 @@ export interface RenderLoop {
 
 export interface RenderLoopOptions {
   readonly world: World;
-  readonly onAdvance: (world: World, fps: number) => void;
+  readonly onAdvance: (
+    world: World,
+    fps: number,
+    flows: TickFlows | null,
+  ) => void;
+  /** The organism whose per-step flows each advance reports, if any. */
+  readonly trace?: () => OrganismView | undefined;
   readonly requestFrame?: (callback: FrameRequestCallback) => number;
   readonly cancelFrame?: (handle: number) => void;
 }
@@ -52,8 +64,9 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
           : smoothedFps + (instantFps - smoothedFps) * FPS_SMOOTHING;
     }
 
-    ({world} = advance(world, elapsedMs));
-    options.onAdvance(world, smoothedFps);
+    const result = advance(world, elapsedMs, {trace: options.trace?.()});
+    ({world} = result);
+    options.onAdvance(world, smoothedFps, result.flows);
 
     frameHandle = requestFrame(onFrame);
   };
@@ -86,8 +99,9 @@ export function createRenderLoop(options: RenderLoopOptions): RenderLoop {
 
       // No rAF frame backs a manual step, so the last-known fps would just
       // sit there frozen and misread as a live rate. 0 says "not applicable".
-      ({world} = advance(world, FIXED_DT_MS));
-      options.onAdvance(world, 0);
+      const result = advance(world, FIXED_DT_MS, {trace: options.trace?.()});
+      ({world} = result);
+      options.onAdvance(world, 0, result.flows);
     },
     isRunning() {
       return running;
