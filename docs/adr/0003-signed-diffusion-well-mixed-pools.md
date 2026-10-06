@@ -1,5 +1,7 @@
 # One signed diffusion law over well-mixed pools
 
+> **Amended by [ADR-0035](./0035-only-the-energy-store-has-a-hard-cap.md).** A diffusible's cap no longer binds any reaction, so the consequence that it "only binds when the world is richer than `kCap`" is withdrawn. Energy's cap is the only hard one left.
+
 Passive exchange is a single signed law, with concentration defined as an amount divided by the area holding it on both sides of the membrane:
 
 ```text

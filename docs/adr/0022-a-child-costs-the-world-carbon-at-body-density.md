@@ -1,5 +1,7 @@
 # A child is affordable only where dissolved carbon reaches body density
 
+> **Amended by [ADR-0035](./0035-only-the-energy-store-has-a-hard-cap.md).** No reaction reads a diffusible's cap any more, so food's coefficient above `ρ` no longer buys the mass gate anything: the gate is a floor on the store, never a ceiling. The relaxation of internal carbon to `s` stands unchanged, and it is now also what bounds a diffusible store.
+
 Mitosis's mass cost is a **concentration** threshold in disguise, and no metabolic constant can move it. A parent can afford a same-sized child only in a world whose ambient carbon concentration `s` is at least the body density `ρ`. `CARBON_BUDGET_BASELINE_ORGANISMS` therefore rises from M2's provisional 200 to a value chosen against the population ceiling it implies, and `K_CAP` stops being described as a unit: only `kCap/ρ` is physical, and food gets a cap of its own above `ρ`.
 
 ## Why
