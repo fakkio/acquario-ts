@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-06
+
 ### Added
 
 - A structural genome (ADR-0028, ADR-0034): the genome is a fixed header of Organism Genes plus a `Gene[]` of Organelle Genes, each with a type, a position, a radius and an Innovation Id. `cytoplasmThickness` replaces `bodyRadius` in the header with the same law, and a body's radius is its **Enclosing Circle**'s plus the thickness, derived from the genome by a pure function.
