@@ -26,35 +26,39 @@ const fixed = (value: number, digits = 3): string => value.toFixed(digits);
 const signed = (value: number): string =>
   `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(3)}`;
 
-/** The steps of a tick, in the order they run, with the label the panel gives them. */
+/** The steps of a tick, in the order they run, with the short label the panel gives them. */
 const FLOW_STEPS = [
-  ["exchange", "exchange"],
-  ["photosynthesis", "photosynthesis"],
-  ["respiration", "respiration"],
-  ["maintenance", "maintenance"],
+  ["exchange", "exch"],
+  ["photosynthesis", "photo"],
+  ["respiration", "resp"],
+  ["maintenance", "maint"],
   ["mitosis", "mitosis"],
 ] as const;
 
-/** What the last tick did to one store, one term per step that touched it. */
+/** What the last tick did to one store, one term per step that touched it.
+ * Always a line, even an empty one, so the panel's height never depends on it. */
 const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
   if (!flows) {
-    return "";
+    return "    ";
   }
 
   const terms = FLOW_STEPS.filter(([step]) => flows[step][resource] !== 0).map(
     ([step, label]) => `${signed(flows[step][resource])} ${label}`,
   );
 
-  return terms.length === 0 ? "  (no change)" : `  ${terms.join("  ")}`;
+  return terms.length === 0 ? "    (no change)" : `    ${terms.join("  ")}`;
 };
 
-/** A store against its cap, with how full it is: `937.000/1000.000 (94%)`. */
+/** A store against its cap, how full it is, and its concentration (store per
+ * cytoplasm area, the quantity passive exchange reads):
+ * `937.000/1000.000 (94%)  c 1.196`. */
 const store = (organism: OrganismView, resource: Resource): string => {
   const cap = capFor(organism, resource);
+  const concentration = organism[resource] / organism.cytoplasmArea;
   return `${fixed(organism[resource])}/${fixed(cap)} (${(
     (organism[resource] / cap) *
     100
-  ).toFixed(0)}%)`;
+  ).toFixed(0)}%)  c ${fixed(concentration)}`;
 };
 
 export function mountInspector(): Inspector {
@@ -63,7 +67,10 @@ export function mountInspector(): Inspector {
   container.style.top = "44px";
   container.style.left = "8px";
   container.style.zIndex = "10";
-  container.style.minWidth = "260px";
+  // A fixed width, in characters: the text is monospace and its length moves
+  // every tick, and an auto-sized panel resized with it, which read as flicker.
+  container.style.width = "52ch";
+  container.style.boxSizing = "content-box";
   container.style.maxHeight = "calc(100vh - 60px)";
   container.style.overflowY = "auto";
   container.style.padding = "6px 10px";
@@ -77,6 +84,7 @@ export function mountInspector(): Inspector {
 
   const summary = document.createElement("pre");
   summary.style.margin = "0";
+  summary.style.whiteSpace = "pre-wrap";
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
   table.style.marginTop = "6px";
@@ -141,7 +149,7 @@ export function mountInspector(): Inspector {
       for (const organelle of organism.organelles) {
         organelleArea += bodyAreaOfRadius(organelle.radius);
       }
-      summary.textContent = [
+      const text = [
         `Generation ${String(organism.generation)}`,
         "",
         "Genes",
@@ -162,13 +170,20 @@ export function mountInspector(): Inspector {
         `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
         "",
         flows ? "Stores (last tick)" : "Stores",
-        `  energy ${store(organism, "energy")}${flowsOf(flows, "energy")}`,
-        `  food   ${store(organism, "food")}${flowsOf(flows, "food")}`,
-        `  O₂     ${store(organism, "oxygen")}${flowsOf(flows, "oxygen")}`,
-        `  CO₂    ${store(organism, "carbonDioxide")}${flowsOf(flows, "carbonDioxide")}`,
+        `  energy ${store(organism, "energy")}`,
+        flowsOf(flows, "energy"),
+        `  food   ${store(organism, "food")}`,
+        flowsOf(flows, "food"),
+        `  O₂     ${store(organism, "oxygen")}`,
+        flowsOf(flows, "oxygen"),
+        `  CO₂    ${store(organism, "carbonDioxide")}`,
+        flowsOf(flows, "carbonDioxide"),
         "",
         `Organelles (${String(organism.organelles.length)})`,
       ].join("\n");
+      if (summary.textContent !== text) {
+        summary.textContent = text;
+      }
 
       if (tableFor !== organism) {
         rebuildTable(organism);
