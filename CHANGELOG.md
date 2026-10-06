@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A structural genome (ADR-0028, ADR-0034): the genome is a fixed header of Organism Genes plus a `Gene[]` of Organelle Genes, each with a type, a position, a radius and an Innovation Id. `cytoplasmThickness` replaces `bodyRadius` in the header with the same law, and a body's radius is its **Enclosing Circle**'s plus the thickness, derived from the genome by a pure function.
+- The structural mutation law: each birth draws `n ~ Binomial(M_max, p)` events, each a parameter change, insertion, deletion or split, with the layout relaxed after every event and recentred at the end. The relaxation (a push or a slide from the most-overlapped disc) keeps ADR-0028's contract, an event grows the Enclosing Circle by at most `Δd + d`.
+- The **Birth Cost Ceiling** as a closed-form bound read from the parent's own genome, taken only over the operators that have a valid target (ADR-0034); mitosis still throws if a child exceeds it.
+- The **neuron**, M7's one organelle type: a disc with a radius and a position, no synapses, weightless, paying an Organelle Overhead `c_neuron` (0.01·c₀). Maintenance charges `β` on the Cytoplasm Area plus each organelle's overhead and tissue; caps and internal concentrations read the Cytoplasm Area.
+- A `roster` option on the world, defaulting to the neuron. An empty roster draws no structural events and reproduces M6's state hash bit for bit, pinned by a golden hash recorded before M7 changed any code.
+- Innovation Ids minted from a per-world counter when a pending birth is committed, in population order, and kept out of the state hash.
+- The inspector: click an organism to select it, with a highlight ring; a panel shows its genes, derived body radius, Cytoplasm Area, maintenance breakdown, the four stores with each against its cap, the last tick's effect on them, its Generation and an organelle table. Esc or a click on empty water clears it.
+- The HUD shows `cytoplasmThickness` and the derived body radius as mean ± σ, each roster type's carrier fraction and mean count per carrier, and each pool's level against its capacity, percentage full and ambient concentration.
+- `npm run neuron`: the neuron's carrier fraction and mean count per carrier against a run with `c_neuron = 0` on the same seeds, and the ratio of each organism's Birth Cost Ceiling to its own body area, reported and never gated. At `c_neuron` from 0.01 to 0.3 of `c₀` the carrier fraction sits 1–2 points below the 5.1% of the free world, within the seeds' spread.
+- Devlog article 010, _Il neurone che non fa niente_.
+
+### Changed
+
+- Bodies are drawn in the v0.2 look: the cytoplasm in `lineageHue` at a lower saturation, neurons as opaque light-grey discs with a dark outline, and the energy fraction dimming the whole body, organelles included.
+- `.gitattributes` pins line endings to LF.
+- `M_max = 1` and `r_new = 0.02`, not the 2 and 0.05 the milestone started from. At the starting constants every Reference World seed went extinct with no birth at all; the ceiling is a cliff, and 0.02 is the largest `r_new` that keeps M6's minimum populations. No world constant moved.
+
+### Fixed
+
+- `vision.md`'s insertion domain: an organelle is inserted inside the Enclosing Circle, not inside the body (ADR-0034).
+
+This is **M7 — Structural genome**.
+
 ## [0.1.1] - 2026-10-02
 
 ### Added
