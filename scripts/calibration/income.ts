@@ -1,6 +1,5 @@
 import {
-  bodyAreaOfRadius,
-  capForRadius,
+  capFor,
   createWorld,
   getPoolLevels,
   getPopulation,
@@ -136,7 +135,7 @@ type Exclusion =
   | "no window long enough";
 
 function exclusionFor(organism: OrganismView): Exclusion | null {
-  const cap = capForRadius(organism.bodyRadius, "energy");
+  const cap = capFor(organism, "energy");
   if (organism.energy <= FLOOR_ENERGY) {
     return "never off the immortal floor";
   }
@@ -236,8 +235,7 @@ function measureLadder(
   const finished = runTicksWatching(world, totalTicks, (current, tick) => {
     const ambient = ambientCarbon(getPoolLevels(current));
     getPopulation(current).forEach((organism, rung) => {
-      const concentration =
-        organism.food / bodyAreaOfRadius(organism.bodyRadius);
+      const concentration = organism.food / organism.cytoplasmArea;
       peakFood[rung] = Math.max(peakFood[rung], concentration);
       peakFoodOverAmbient[rung] = Math.max(
         peakFoodOverAmbient[rung],
@@ -254,8 +252,8 @@ function measureLadder(
   });
 
   return getPopulation(finished).map((organism, rung) => {
-    const area = bodyAreaOfRadius(organism.bodyRadius);
-    const maintenance = EXISTENCE_COST + BODY_COST_COEFFICIENT * area;
+    const maintenance =
+      EXISTENCE_COST + BODY_COST_COEFFICIENT * organism.cytoplasmArea;
     const best = spans[rung].best;
     const usable = best !== null && stretchTicks(best) >= LADDER_MIN_SPAN_TICKS;
 

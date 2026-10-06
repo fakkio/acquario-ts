@@ -1,12 +1,19 @@
 import {MITOSIS_ENERGY_COST, RHO} from "./constants";
-import {birthCostCeiling, mutateGenome, type Genome} from "./genome";
+import {
+  birthCostCeiling,
+  deriveBody,
+  mintInnovationIds,
+  mutateGenome,
+  type Genome,
+} from "./genome";
+import type {OrganelleType} from "./organelles";
 import {constrainToAquarium} from "./motion";
 import {
   Organism,
   RESOURCES,
   bodyAreaOfRadius,
   capFor,
-  capForRadius,
+  capForArea,
   type Resource,
 } from "./organism";
 import {deriveChildStream, drawUnitVector, type RngStream} from "./rng";
@@ -25,6 +32,8 @@ export interface PendingBirth {
   readonly x: number;
   readonly y: number;
   readonly rng: RngStream;
+  /** The parent's Generation plus one. */
+  readonly generation: number;
   readonly energy: number;
   readonly oxygen: number;
   readonly carbonDioxide: number;
@@ -50,7 +59,8 @@ export interface PendingBirth {
  *    numbers it drew before this function existed.
  * 2. **The Worst-Case Birth Gate, with no draws either** (ADR-0027). The
  *    parent must already hold both costs of the most expensive child its
- *    mutation law could produce, its `birthCostCeiling`. What this gate
+ *    mutation law could produce, its `birthCostCeiling` over the world's
+ *    `roster`. What this gate
  *    filters is which parents breed, on their own state; the child drawn
  *    after it is an unbiased sample of the mutation law. Pricing the drawn
  *    child instead, and turning it away when it costs too much, is the
@@ -60,26 +70,31 @@ export interface PendingBirth {
  *    adding a fifth gene later, or retuning a δ, does not reseed every
  *    lineage in the world. `createPopulation` derives before drawing for
  *    the same reason.
- * 4. **Mutate the genome**, gene by gene in `mutateGenome`'s own fixed
- *    declaration order, drawn from the *parent's* stream — the same stream
+ * 4. **Mutate the genome**, the header gene by gene in `mutateGenome`'s own
+ *    fixed declaration order and then the structural events, drawn from the
+ *    *parent's* stream — the same stream
  *    `deriveChildStream` just advanced past the derivation draw, not the
  *    freshly derived child stream, which the child keeps for its own life
  *    from here on untouched by its own birth.
- * 5. **Price and pay**, which cannot fail after step 2. A child the parent
+ * 5. **Price and pay**, from the body the child's genome builds
+ *    (`deriveBody`), which cannot fail after step 2. A child the parent
  *    cannot pay for means the ceiling is broken, and that throws, before
  *    anything is subtracted: returning no birth would reject the draw and
  *    bring the sieve back from the other side.
  * 6. **The tangent angle, last**, so its rejection-sampling loop's
  *    variable draw count shifts nothing drawn before it.
  */
-export function evaluateMitosis(organism: Organism): PendingBirth | null {
+export function evaluateMitosis(
+  organism: Organism,
+  roster: readonly OrganelleType[],
+): PendingBirth | null {
   const thresholdEnergy =
     organism.genome.mitosisEnergyThreshold * capFor(organism, "energy");
   if (organism.energy < thresholdEnergy) {
     return null;
   }
 
-  const maxChildArea = birthCostCeiling(organism.genome);
+  const maxChildArea = birthCostCeiling(organism.genome, roster);
   if (
     organism.energy < mitosisEnergyCost(maxChildArea) ||
     organism.food < mitosisMassCost(maxChildArea)
@@ -91,11 +106,12 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   organism.rng = derivation.parentStream;
   const childStream = derivation.childStream;
 
-  const mutation = mutateGenome(organism.genome, organism.rng);
+  const mutation = mutateGenome(organism.genome, organism.rng, {roster});
   organism.rng = mutation.stream;
   const childGenome = mutation.genome;
 
-  const childArea = bodyAreaOfRadius(childGenome.bodyRadius);
+  const childBody = deriveBody(childGenome);
+  const childArea = bodyAreaOfRadius(childBody.radius);
   const massCost = mitosisMassCost(childArea);
   const energyCost = mitosisEnergyCost(childArea);
 
@@ -112,7 +128,7 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   // `childAllocationRatio` splits what remains after both costs, across
   // all four resources including energy (ADR-0019). A child that cannot
   // hold its full share receives up to its own caps — computed from its
-  // own mutated area via `capForRadius`, since no `Organism` for it exists
+  // own Cytoplasm Area via `capForArea`, since no `Organism` for it exists
   // yet to hand `capFor` — and the excess simply stays subtracted from
   // nothing: `organism[resource]` only ever loses the granted amount.
   const ratio = organism.genome.childAllocationRatio;
@@ -126,7 +142,7 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
     const desired = ratio * organism[resource];
     const granted = Math.min(
       desired,
-      capForRadius(childGenome.bodyRadius, resource),
+      capForArea(childBody.cytoplasmArea, resource),
     );
     organism[resource] -= granted;
     childStores[resource] = granted;
@@ -139,13 +155,14 @@ export function evaluateMitosis(organism: Organism): PendingBirth | null {
   // direction. Left free to land outside the aquarium — `appendBirths`
   // constrains it at step 12, after step 10's separation has already run
   // for everyone else this tick.
-  const separation = organism.bodyRadius + childGenome.bodyRadius;
+  const separation = organism.bodyRadius + childBody.radius;
 
   return {
     genome: childGenome,
     x: organism.x + direction.x * separation,
     y: organism.y + direction.y * separation,
     rng: childStream,
+    generation: organism.generation + 1,
     energy: childStores.energy,
     oxygen: childStores.oxygen,
     carbonDioxide: childStores.carbonDioxide,
@@ -182,6 +199,33 @@ function mitosisEnergyCost(childArea: number): number {
 }
 
 /**
+ * Commit-phase step 12's first half: replaces each pending birth's
+ * provisional Innovation Ids from the world's counter, in the order the
+ * births were enqueued, which is the population's order (ADR-0028). Pure,
+ * like `appendBirths`: it returns the counter advanced past what it
+ * minted. Nothing reads an id's value, so the order only has to be
+ * reproducible, and it is.
+ */
+export function mintBirths(
+  births: readonly PendingBirth[],
+  nextInnovationId: number,
+): {
+  readonly births: readonly PendingBirth[];
+  readonly nextInnovationId: number;
+} {
+  let next = nextInnovationId;
+  const minted = births.map((birth) => {
+    const result = mintInnovationIds(birth.genome, next);
+    next = result.nextInnovationId;
+    return result.genome === birth.genome
+      ? birth
+      : {...birth, genome: result.genome};
+  });
+
+  return {births: minted, nextInnovationId: next};
+}
+
+/**
  * Commit-phase step 12: a pure `(population, births[]) => population`
  * (ADR-0019), so it is testable against no world at all — the same shape
  * `death.ts`'s `depositRemains` gives step 11. Each pending birth becomes a
@@ -206,6 +250,7 @@ export function appendBirths(
       y: birth.y,
       genome: birth.genome,
       rng: birth.rng,
+      generation: birth.generation,
       energy: birth.energy,
       oxygen: birth.oxygen,
       carbonDioxide: birth.carbonDioxide,

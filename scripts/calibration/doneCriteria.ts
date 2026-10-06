@@ -75,8 +75,8 @@ interface Baseline {
  * reason to walk downhill. */
 const BASELINES: readonly Baseline[] = [
   {label: "r=1.0", genome: BASELINE_GENOME},
-  {label: "r=1.5", genome: {...BASELINE_GENOME, bodyRadius: 1.5}},
-  {label: "r=2.5", genome: {...BASELINE_GENOME, bodyRadius: 2.5}},
+  {label: "r=1.5", genome: {...BASELINE_GENOME, cytoplasmThickness: 1.5}},
+  {label: "r=2.5", genome: {...BASELINE_GENOME, cytoplasmThickness: 2.5}},
 ];
 
 interface DoneCriteriaRun {
@@ -238,7 +238,7 @@ function reportCriteria(runs: readonly DoneCriteriaRun[]): void {
     .filter((mean): mean is number => mean !== null);
   const runSpread = meanAndSigma(means).sigma;
   const baselineSpread = meanAndSigma(
-    BASELINES.map((baseline) => baseline.genome.bodyRadius),
+    BASELINES.map((baseline) => baseline.genome.cytoplasmThickness),
   ).sigma;
   const extinct = runs.filter((run) => run.extinctAt !== null).length;
   const converged =

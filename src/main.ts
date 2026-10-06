@@ -2,12 +2,25 @@ import {mountCamera} from "./app/camera";
 import {mountCanvas} from "./app/canvas";
 import {mountControls} from "./app/controls";
 import {createDeathEffects} from "./app/deathEffects";
-import {foldGeneStatistics, type GeneStat} from "./app/geneStatistics";
+import {
+  foldCarrierStatistics,
+  foldGeneStatistics,
+  type CarrierStat,
+  type GeneStat,
+} from "./app/geneStatistics";
 import {mountHud} from "./app/hud";
-import {frameAquarium, renderWorld} from "./app/render";
+import {mountInspector} from "./app/inspector";
+import {frameAquarium, renderWorld, screenToWorld} from "./app/render";
 import {createRenderLoop} from "./app/renderLoop";
+import {
+  NO_SELECTION,
+  pickOrganism,
+  updateSelection,
+  type Selection,
+} from "./app/selection";
 import {createSession, isRestartDue} from "./app/session";
 import {
+  AQUARIUM_AREA,
   createWorld,
   getCarbonDrift,
   getCumulativeBirths,
@@ -15,12 +28,15 @@ import {
   getMeasuredAlpha,
   getOxygenDrift,
   getBrightAlpha,
+  getPoolCapacities,
   getPoolLevels,
   getPopulation,
   getSeed,
   getTick,
   getWorstPenetration,
   getZeroEnergyCount,
+  DEFAULT_ROSTER,
+  type TickFlows,
   type World,
 } from "./world";
 
@@ -44,6 +60,14 @@ const ALPHA_SMOOTHING = 0.02;
 let smoothedAlpha = 0;
 let smoothedBrightAlpha = 0;
 
+/** The roster every world the app builds runs with, and the HUD reports. */
+const ROSTER = DEFAULT_ROSTER;
+
+const formatCarrier = (value: CarrierStat | undefined): string =>
+  value === undefined
+    ? "-"
+    : `${(value.fraction * 100).toFixed(1)}% × ${value.meanCountPerCarrier.toFixed(2)}`;
+
 const formatStat = (value: GeneStat): string =>
   `${value.mean.toFixed(3)} ± ${value.sigma.toFixed(3)}`;
 
@@ -58,9 +82,12 @@ const session = createSession(masterSeed);
 // The first world uses the master seed directly; every world after it
 // draws its seed from the session (ADR-0018), so one master seed
 // reproduces the whole sequence, extinctions included.
-const world = createWorld(masterSeed);
+const world = createWorld(masterSeed, {roster: ROSTER});
 let latestWorld = world;
 let showGrid = false;
+let selection: Selection = NO_SELECTION;
+// What the last tick did to the selected organism's stores, for the inspector.
+let selectedFlows: TickFlows | null = null;
 // On by default from M5 (ADR-0018): M4's worlds could never breed, so a
 // restart showed nothing; M5's calibrated constants are what makes leaving
 // the tab open show a sequence of worlds rather than one dead aquarium.
@@ -83,9 +110,27 @@ const updateHud = (currentWorld: World, fps: number): void => {
   );
 
   const pools = getPoolLevels(currentWorld);
-  hud.setField("poolFood", "Pool food", pools.food.toFixed(2));
-  hud.setField("poolCO2", "Pool CO₂", pools.carbonDioxide.toFixed(2));
-  hud.setField("poolO2", "Pool O₂", pools.oxygen.toFixed(2));
+  // Each level beside the most it can hold: the world's starting carbon (or
+  // oxygen), since a pool has no cap of its own. `c` is the ambient
+  // concentration, the number passive exchange actually reads.
+  const capacities = getPoolCapacities(currentWorld);
+  const formatPool = (level: number, capacity: number): string =>
+    `${level.toFixed(2)} / ${capacity.toFixed(0)} (${((level / capacity) * 100).toFixed(0)}%), c ${(level / AQUARIUM_AREA).toFixed(2)}`;
+  hud.setField(
+    "poolFood",
+    "Pool food",
+    formatPool(pools.food, capacities.food),
+  );
+  hud.setField(
+    "poolCO2",
+    "Pool CO₂",
+    formatPool(pools.carbonDioxide, capacities.carbonDioxide),
+  );
+  hud.setField(
+    "poolO2",
+    "Pool O₂",
+    formatPool(pools.oxygen, capacities.oxygen),
+  );
   hud.setField(
     "carbonDrift",
     "Carbon drift",
@@ -131,9 +176,15 @@ const updateHud = (currentWorld: World, fps: number): void => {
 
   // Gene mean ± σ (ADR-0011), folded here rather than read off a world
   // reader — the same call ADR-0015 made for `α` smoothing above.
-  const geneStats = foldGeneStatistics(getPopulation(currentWorld));
+  const population = getPopulation(currentWorld);
+  const geneStats = foldGeneStatistics(population);
   hud.setField(
-    "geneBodyRadius",
+    "geneCytoplasmThickness",
+    "Cytoplasm thickness (μ±σ)",
+    formatStat(geneStats.cytoplasmThickness),
+  );
+  hud.setField(
+    "bodyRadius",
     "Body radius (μ±σ)",
     formatStat(geneStats.bodyRadius),
   );
@@ -152,6 +203,17 @@ const updateHud = (currentWorld: World, fps: number): void => {
     "Lineage hue (μ±σ)",
     formatStat(geneStats.lineageHue),
   );
+
+  // Structural genes cannot be averaged by name: one row per roster type,
+  // the fraction carrying at least one and the mean count per carrier.
+  const carrierStats = foldCarrierStatistics(population, ROSTER);
+  for (const type of ROSTER) {
+    hud.setField(
+      `carriers.${type}`,
+      `${type} carriers (fraction × count)`,
+      formatCarrier(carrierStats[type]),
+    );
+  }
 };
 
 const deathEffects = createDeathEffects();
@@ -167,6 +229,7 @@ const repaint = (nowMs: number = performance.now()): void => {
     showGrid,
     deathEffects,
     nowMs,
+    selected: selection.kind === "alive" ? selection.organism : undefined,
   });
 };
 
@@ -176,9 +239,12 @@ const camera = mountCamera(canvas, frameAquarium(canvas), repaint);
 // noticing an empty population from outside and rebinding the loop's
 // handle to a freshly constructed world.
 const restart = (): void => {
-  const newWorld = createWorld(session.nextWorldSeed());
+  const newWorld = createWorld(session.nextWorldSeed(), {roster: ROSTER});
   loop.setWorld(newWorld);
   latestWorld = newWorld;
+  // The old world's organisms are gone; a selection would point at nothing.
+  selection = NO_SELECTION;
+  selectedFlows = null;
   // A fresh world's own α has produced nothing yet; carrying the last
   // world's smoothed reading across the restart would flash a stale number.
   smoothedAlpha = 0;
@@ -189,8 +255,10 @@ const restart = (): void => {
 
 const loop = createRenderLoop({
   world,
-  onAdvance: (nextWorld, fps) => {
+  trace: () => (selection.kind === "alive" ? selection.organism : undefined),
+  onAdvance: (nextWorld, fps, flows) => {
     latestWorld = nextWorld;
+    selectedFlows = flows;
     updateHud(nextWorld, fps);
     if (isRestartDue(getPopulation(nextWorld).length, autoRestart)) {
       restart();
@@ -216,7 +284,15 @@ window.addEventListener("resize", () => {
 // (above) deliberately does not repaint any more — this loop is the sole
 // caller of `repaint` now, so a tick landing and an animation frame firing
 // can never double-draw the same frame.
+const inspector = mountInspector();
 const animate = (nowMs: number): void => {
+  selection = updateSelection(
+    selection,
+    getPopulation(latestWorld),
+    getTick(latestWorld),
+    nowMs,
+  );
+  inspector.render(selection, selectedFlows);
   repaint(nowMs);
   requestAnimationFrame(animate);
 };
@@ -250,4 +326,40 @@ controls.autoRestartButton.addEventListener("click", () => {
   controls.autoRestartButton.textContent = autoRestart
     ? "Auto-restart: on"
     : "Auto-restart: off";
+});
+
+// A click selects, a drag pans (the camera owns drags): the two are told
+// apart by how far the pointer travelled between press and release.
+const CLICK_MAX_TRAVEL_PX = 4;
+let pressX = 0;
+let pressY = 0;
+canvas.addEventListener("mousedown", (event) => {
+  pressX = event.clientX;
+  pressY = event.clientY;
+});
+canvas.addEventListener("mouseup", (event) => {
+  if (
+    Math.hypot(event.clientX - pressX, event.clientY - pressY) >
+    CLICK_MAX_TRAVEL_PX
+  ) {
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const point = screenToWorld(
+    camera.getCamera(),
+    event.clientX - rect.left,
+    event.clientY - rect.top,
+  );
+  const picked = pickOrganism(getPopulation(latestWorld), point.x, point.y);
+  selection = picked ? {kind: "alive", organism: picked} : NO_SELECTION;
+  selectedFlows = null;
+  repaint();
+});
+window.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    selection = NO_SELECTION;
+    selectedFlows = null;
+    repaint();
+  }
 });

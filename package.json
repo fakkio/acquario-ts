@@ -1,7 +1,7 @@
 {
   "name": "acquario-ts",
   "description": "",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "author": "fakkio (fabiolazzaroni.dev)",
   "bugs": {
     "url": "https://github.com/fakkio/acquario-ts/issues"
@@ -41,6 +41,7 @@
     "dev": "vite",
     "done-criteria": "node --import ./scripts/ts-esm-resolver.mjs scripts/doneCriteria.ts",
     "lint": "eslint .",
+    "neuron": "node --import ./scripts/ts-esm-resolver.mjs scripts/neuron.ts",
     "prepare": "husky",
     "preview": "vite preview",
     "test": "vitest run",

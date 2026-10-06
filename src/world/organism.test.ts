@@ -6,7 +6,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {K_CAP, K_CAP_ENERGY} from "./constants";
-import {BASELINE_GENOME, type Genome} from "./genome";
+import {BASELINE_GENOME, deriveBody, type Genome} from "./genome";
 import {EMPTY_HASH} from "./hash";
 import {
   MAX_RADIUS_FACTOR,
@@ -67,7 +67,9 @@ describe("createPopulation", () => {
   // cannot distinguish forty founders is not a marker.
   it("gives founders pairwise-distinct values in all three functional genes", () => {
     const population = populationFor(7);
-    const bodyRadii = population.map((organism) => organism.genome.bodyRadius);
+    const thicknesses = population.map(
+      (organism) => organism.genome.cytoplasmThickness,
+    );
     const thresholds = population.map(
       (organism) => organism.genome.mitosisEnergyThreshold,
     );
@@ -75,7 +77,7 @@ describe("createPopulation", () => {
       (organism) => organism.genome.childAllocationRatio,
     );
 
-    expect(new Set(bodyRadii).size).toBe(STARTING_POPULATION);
+    expect(new Set(thicknesses).size).toBe(STARTING_POPULATION);
     expect(new Set(thresholds).size).toBe(STARTING_POPULATION);
     expect(new Set(ratios).size).toBe(STARTING_POPULATION);
   });
@@ -119,11 +121,58 @@ describe("createPopulation", () => {
   });
 });
 
+describe("createPopulation over a roster (M7)", () => {
+  it("is M6's generation 0 under an empty roster: no organelle, ids untouched, the same stream", () => {
+    const empty = createPopulation(createRngStream(7), undefined, []);
+    const m6 = createPopulation(createRngStream(7));
+
+    expect(empty.population).toEqual(m6.population);
+    expect(empty.stream).toEqual(m6.stream);
+    expect(empty.nextInnovationId).toBe(1);
+  });
+
+  it("gives some founders neurons through the unscaled structural law, and seeds none", () => {
+    const carriers: number[] = [];
+    for (let seed = 1; seed <= 20; seed++) {
+      const {population} = createPopulation(createRngStream(seed), undefined, [
+        "neuron",
+      ]);
+      carriers.push(
+        population.filter((organism) => organism.organelles.length > 0).length,
+      );
+    }
+
+    // Binomial events at a small rate: most founders have none, and over
+    // twenty worlds some have.
+    expect(Math.max(...carriers)).toBeGreaterThan(0);
+    expect(Math.max(...carriers)).toBeLessThan(STARTING_POPULATION / 2);
+  });
+
+  it("mints founders' ids from the counter in placement order, all distinct, and advances it past them", () => {
+    let checked = 0;
+    for (let seed = 1; seed <= 20; seed++) {
+      const {population, nextInnovationId} = createPopulation(
+        createRngStream(seed),
+        undefined,
+        ["neuron"],
+      );
+      const ids = population.flatMap((organism) =>
+        organism.genome.genes.map((gene) => gene.innovationId),
+      );
+
+      expect(ids).toEqual(ids.map((_, i) => i + 1));
+      expect(nextInnovationId).toBe(ids.length + 1);
+      checked += ids.length;
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+});
+
 describe("createPopulation from an explicit baseline genome", () => {
   // The done-criteria runs vary the starting point as well as the seed
   // (ADR-0025), so the genome founders are mutated from has to be an
   // argument rather than a module-level constant.
-  const LARGE_BASELINE: Genome = {...BASELINE_GENOME, bodyRadius: 2.5};
+  const LARGE_BASELINE: Genome = {...BASELINE_GENOME, cytoplasmThickness: 2.5};
 
   it("defaults to BASELINE_GENOME, so an omitted argument changes nothing", () => {
     expect(createPopulation(createRngStream(7)).population).toEqual(
@@ -139,10 +188,10 @@ describe("createPopulation from an explicit baseline genome", () => {
 
     for (const radius of radii) {
       expect(radius).toBeGreaterThan(
-        MIN_RADIUS_FACTOR * LARGE_BASELINE.bodyRadius * 0.99,
+        MIN_RADIUS_FACTOR * LARGE_BASELINE.cytoplasmThickness * 0.99,
       );
       expect(radius).toBeLessThan(
-        MAX_RADIUS_FACTOR * LARGE_BASELINE.bodyRadius * 1.01,
+        MAX_RADIUS_FACTOR * LARGE_BASELINE.cytoplasmThickness * 1.01,
       );
     }
   });
@@ -161,11 +210,13 @@ describe("createPopulation from an explicit baseline genome", () => {
 });
 
 describe("placeFounders", () => {
-  const ladder: readonly Founder[] = [1, 1.5, 2, 2.5].map((bodyRadius, i) => ({
-    x: 10 + 5 * i,
-    y: 3 + 2 * i,
-    genome: {...BASELINE_GENOME, bodyRadius, lineageHue: 0.1 * i},
-  }));
+  const ladder: readonly Founder[] = [1, 1.5, 2, 2.5].map(
+    (cytoplasmThickness, i) => ({
+      x: 10 + 5 * i,
+      y: 3 + 2 * i,
+      genome: {...BASELINE_GENOME, cytoplasmThickness, lineageHue: 0.1 * i},
+    }),
+  );
 
   it("places exactly the bodies it was handed, in order", () => {
     const {population} = placeFounders(createRngStream(7), ladder);
@@ -229,7 +280,7 @@ describe("the reproduction genes on the view", () => {
 
   // Gene statistics live in the App layer and in the harness rather than
   // behind a reader of their own, so all four genes have to be readable
-  // off the view — bodyRadius and lineageHue already were.
+  // off the view — lineageHue already was.
   it("reads both reproduction genes off the genome, with no field of their own", () => {
     const view: OrganismView = organism;
 
@@ -240,7 +291,7 @@ describe("the reproduction genes on the view", () => {
   it("exposes all four genes through the view", () => {
     const view: OrganismView = organism;
 
-    expect(view.bodyRadius).toBe(organism.genome.bodyRadius);
+    expect(view.cytoplasmThickness).toBe(organism.genome.cytoplasmThickness);
     expect(view.lineageHue).toBe(organism.genome.lineageHue);
     expect(view.mitosisEnergyThreshold).toBe(
       organism.genome.mitosisEnergyThreshold,
@@ -248,6 +299,25 @@ describe("the reproduction genes on the view", () => {
     expect(view.childAllocationRatio).toBe(
       organism.genome.childAllocationRatio,
     );
+  });
+});
+
+describe("the derived body on the view", () => {
+  // M7 splits the gene from the body it builds: the HUD shows both, and
+  // the App layer reads caps and concentrations off the Cytoplasm Area.
+  it("reads the body radius and Cytoplasm Area off the body the genome builds", () => {
+    const genome: Genome = {...BASELINE_GENOME, cytoplasmThickness: 1.7};
+    const view: OrganismView = new Organism({
+      x: 1,
+      y: 2,
+      genome,
+      rng: createRngStream(11),
+    });
+    const body = deriveBody(genome);
+
+    expect(view.cytoplasmThickness).toBe(1.7);
+    expect(view.bodyRadius).toBe(body.radius);
+    expect(view.cytoplasmArea).toBe(body.cytoplasmArea);
   });
 });
 
@@ -277,7 +347,10 @@ describe("foldPopulation", () => {
   // covers bodies: a field left out of the fold is a field two divergent
   // runs could differ in while still hashing the same.
   it.each([
-    ["body radius", {bodyRadius: BASE_GENOME.bodyRadius + 0.0000001}],
+    [
+      "cytoplasm thickness",
+      {cytoplasmThickness: BASE_GENOME.cytoplasmThickness + 0.0000001},
+    ],
     [
       "mitosis energy threshold",
       {mitosisEnergyThreshold: BASE_GENOME.mitosisEnergyThreshold + 0.0000001},
@@ -316,7 +389,7 @@ describe("internal resource stores", () => {
       y: 4,
       genome: {
         ...BASELINE_GENOME,
-        bodyRadius: 2,
+        cytoplasmThickness: 2,
         lineageHue: 0.5,
         ...genomeChange,
       },
@@ -333,7 +406,7 @@ describe("internal resource stores", () => {
     expect(organism.food).toBe(0);
   });
 
-  it("derives body area from body radius", () => {
+  it("derives body area from the derived body radius", () => {
     expect(bodyArea(organismWith())).toBeCloseTo(Math.PI * 4, 12);
   });
 
@@ -349,12 +422,12 @@ describe("internal resource stores", () => {
     ).toBeUndefined();
   });
 
-  it("caps each diffusible at its own K_CAP entry times body area", () => {
+  it("caps each diffusible at its own K_CAP entry times Cytoplasm Area", () => {
     const organism = organismWith();
 
     for (const resource of DIFFUSIBLES) {
       expect(capFor(organism, resource)).toBeCloseTo(
-        K_CAP[resource] * bodyArea(organism),
+        K_CAP[resource] * organism.cytoplasmArea,
         12,
       );
     }
@@ -372,15 +445,15 @@ describe("internal resource stores", () => {
     const organism = organismWith();
 
     expect(capFor(organism, "energy")).toBeCloseTo(
-      K_CAP_ENERGY * bodyArea(organism),
+      K_CAP_ENERGY * organism.cytoplasmArea,
       12,
     );
     expect(K_CAP_ENERGY).not.toBe(K_CAP.food);
   });
 
-  it("scales every cap with the organism's own body area", () => {
-    const small = organismWith({bodyRadius: 1});
-    const large = organismWith({bodyRadius: 2});
+  it("scales every cap with the organism's own Cytoplasm Area", () => {
+    const small = organismWith({cytoplasmThickness: 1});
+    const large = organismWith({cytoplasmThickness: 2});
 
     expect(capFor(large, "food")).toBeGreaterThan(capFor(small, "food"));
     expect(capFor(large, "energy")).toBeGreaterThan(capFor(small, "energy"));

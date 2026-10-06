@@ -71,8 +71,8 @@ A gene the organism has exactly once, held in the genome's fixed header rather t
 _Avoid_: trait, header field, global gene
 
 **Innovation Id**:
-The stable identifier of a gene in the `Gene[]`, minted once from a monotonic per-world counter when the gene is inserted or split off, and preserved through mutation and inheritance. Identity only: ids are compared for equality and nothing else, so nothing sorts, iterates, draws or branches on an id's value, and evaluation order is the gene's position in the genome. That rule is what keeps a counter advanced in population order from leaking into behaviour.
-_Avoid_: gene id, innovation number, uid
+The stable identifier of a gene in the `Gene[]`, minted once from a monotonic per-world counter when the gene enters the world, and preserved through mutation and inheritance. A founder's genes are minted at creation. A gene a birth inserts or splits off carries a **provisional id** until that birth is committed: unique within the child's own genome, never seen outside the pending birth, and replaced by a minted id at commit. Identity only: ids are compared for equality and nothing else, so nothing sorts, iterates, draws or branches on an id's value, and evaluation order is the gene's position in the genome. That rule is what keeps a counter advanced in population order from leaking into behaviour.
+_Avoid_: gene id, innovation number, uid; for the provisional id: temporary id, draft id, local id
 
 **Structural Gene**:
 From v0.2, an element of the genome's `Gene[]`: an **Organelle Gene** or a **Synapse Gene**, carrying an **Innovation Id**. What insertion, deletion and **Split** act on; **Organism Genes** are never structural.
@@ -93,6 +93,10 @@ _Avoid_: duplication (in prose it is fine; the operator is a split), copy, fissi
 **Body Radius**:
 The radius of an organism's circular body. A gene in v0.1, the only one mutating multiplicatively. From v0.2 derived: the minimum enclosing circle of the body's relaxed organelles plus the **Cytoplasm Thickness**, which is the whole radius of a body with no organelles.
 _Avoid_: size, scale
+
+**Enclosing Circle**:
+From v0.2, the smallest circle containing every organelle of a body once relaxed apart; the body is centred on it and its radius plus the **Cytoplasm Thickness** is the **Body Radius**. Empty, of radius zero, in a body with no organelles. An inserted organelle is born inside it, never in the cytoplasm around it.
+_Avoid_: MEC (in prose; fine in formulas), bounding circle, hull, layout radius
 
 **Cytoplasm Thickness**:
 From v0.2, the **Organism Gene** giving the width of cytoplasm around a body's organelles: body radius is the organelles' minimum enclosing circle plus this. With no organelles it is the whole body radius, so it inherits v0.1's `bodyRadius` and its multiplicative law.

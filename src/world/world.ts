@@ -18,7 +18,14 @@ import {
   applyRespiration,
   type RespirationOutcome,
 } from "./metabolism";
-import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
+import {
+  appendBirths,
+  evaluateMitosis,
+  mintBirths,
+  type PendingBirth,
+} from "./mitosis";
+import {DEFAULT_ROSTER, type OrganelleType} from "./organelles";
+import {FlowTracer, type TickFlows} from "./tickFlows";
 import {applyBrownianMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
@@ -118,6 +125,12 @@ export interface WorldOptions {
   readonly mortality?: MortalityMode;
   readonly fertility?: FertilityMode;
   readonly generation0?: Generation0;
+  /**
+   * The organelle types the world's structural mutation draws insertions
+   * from (ADR-0032). Defaults to M7's roster, the neuron; an empty roster
+   * is M6's world, with no structural event ever drawn.
+   */
+  readonly roster?: readonly OrganelleType[];
 }
 
 declare const worldBrand: unique symbol;
@@ -158,6 +171,12 @@ interface WorldState {
    * a state, not the law that produced it.
    */
   readonly fertility: FertilityMode;
+  /**
+   * The world's roster (ADR-0032). Not folded into `hashState` either: it
+   * is the law that produced a state, and a genome's organelles already
+   * carry what it drew.
+   */
+  readonly roster: readonly OrganelleType[];
   /** Carried by reference across `advance`: the array is versioned with the
    * record, the organisms inside it are not. */
   readonly population: readonly Organism[];
@@ -206,6 +225,16 @@ interface WorldState {
    * `hashState` for the same reason `cumulativeDeaths` does.
    */
   readonly cumulativeBirths: number;
+  /**
+   * The world's Innovation Id counter (ADR-0028): the next id a new
+   * structural gene receives, advancing monotonically. Generation 0 mints
+   * its founders' ids from it, and the commit step mints each
+   * child's new genes in birth order. Part of the world's own state, yet
+   * deliberately **not** folded into `hashState`: an id's value never
+   * reaches behaviour, and every id minted is folded through the gene that
+   * holds it (`foldPopulation`).
+   */
+  readonly nextInnovationId: number;
 }
 
 function toWorld(state: WorldState): World {
@@ -219,12 +248,25 @@ function toState(world: World): WorldState {
 export interface AdvanceResult {
   readonly world: World;
   readonly ticksRun: number;
+  /**
+   * What the last tick run did to `options.trace`'s stores, or null when no
+   * organism was asked for, none ran, or the organism is not in the world.
+   * A readout for the inspector: asking for it changes nothing a tick does.
+   */
+  readonly flows: TickFlows | null;
+}
+
+export interface AdvanceOptions {
+  /** The one organism whose per-step flows `advance` reports. */
+  readonly trace?: OrganismView;
 }
 
 export function createWorld(seed: number, options: WorldOptions = {}): World {
-  const {population, stream} = placeGeneration0(
+  const roster = options.roster ?? DEFAULT_ROSTER;
+  const {population, stream, nextInnovationId} = placeGeneration0(
     createRngStream(seed),
     options.generation0,
+    roster,
   );
   // The carbon ledger's one-time construction: generation 0 starts at
   // diffusive equilibrium, and every later tick's conservation check reads
@@ -238,6 +280,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     globalRng: stream,
     mortality: options.mortality ?? "on",
     fertility: options.fertility ?? "on",
+    roster,
     population,
     pools,
     initialTotalCarbon: totalCarbon(population, pools),
@@ -247,6 +290,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     measuredAlpha: NO_ENERGY_PRODUCED,
     cumulativeDeaths: 0,
     cumulativeBirths: 0,
+    nextInnovationId,
   });
 }
 
@@ -259,14 +303,15 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
 function placeGeneration0(
   stream: RngStream,
   generation0: Generation0 | undefined,
+  roster: readonly OrganelleType[],
 ): PopulationDraw {
   if (generation0 === undefined) {
-    return createPopulation(stream);
+    return createPopulation(stream, undefined, roster);
   }
 
   return "founders" in generation0
     ? placeFounders(stream, generation0.founders)
-    : createPopulation(stream, generation0.baselineGenome);
+    : createPopulation(stream, generation0.baselineGenome, roster);
 }
 
 /**
@@ -283,7 +328,7 @@ function placeGeneration0(
  * named below with the milestone that fills it, so later work has a place
  * to land rather than a decision to re-make.
  */
-function runTick(state: WorldState): WorldState {
+function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   // ---- Read: sample the environment into a snapshot ----------------
   // 1. Snapshot concentrations and light. `state.pools` is already an
   //    immutable record, so building the tick's `ExchangeSettlement` from
@@ -305,12 +350,16 @@ function runTick(state: WorldState): WorldState {
   //    in — only the `Environment` it is given each time does.
   const requestEnvironment = settlement.requestPass();
   for (const organism of state.population) {
+    tracer.start(organism);
     applyPassiveExchange(organism, requestEnvironment);
+    tracer.end("exchange", organism);
   }
   settlement.settle();
   const grantEnvironment = settlement.grantPass();
   for (const organism of state.population) {
+    tracer.start(organism);
     applyPassiveExchange(organism, grantEnvironment);
+    tracer.end("exchange", organism);
   }
   // 3. Photosynthesis: CO₂ + light → food + O₂, no energy produced. Runs
   //    after both exchange sub-passes above, against the same
@@ -318,7 +367,9 @@ function runTick(state: WorldState): WorldState {
   //    last tick's, and reads light off the same seam even though the
   //    reaction never calls `exchange` itself.
   for (const organism of state.population) {
+    tracer.start(organism);
     applyPhotosynthesis(organism, grantEnvironment);
+    tracer.end("photosynthesis", organism);
   }
   // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
   //    so an illuminated organism nets light → energy within this tick
@@ -326,14 +377,19 @@ function runTick(state: WorldState): WorldState {
   //    Every outcome is kept, not just applied, so this tick's population
   //    mean `α` (ADR-0015) can be struck below without a second pass over
   //    the population.
-  const respirationOutcomes = state.population.map((organism) =>
-    applyRespiration(organism),
-  );
+  const respirationOutcomes = state.population.map((organism) => {
+    tracer.start(organism);
+    const outcome = applyRespiration(organism);
+    tracer.end("respiration", organism);
+    return outcome;
+  });
   // 5. Maintenance: c₀ + β·area, charged in full and unconditionally
   //    (ADR-0017) — whether the result is allowed to go below zero is this
   //    world's mortality mode, not this reaction's business.
   for (const organism of state.population) {
+    tracer.start(organism);
     applyMaintenance(organism);
+    tracer.end("maintenance", organism);
   }
   // Immortal floor (ADR-0017), not one of ADR-0006's numbered steps: only
   // in a world constructed with `mortality: "off"` does energy stop here
@@ -366,7 +422,12 @@ function runTick(state: WorldState): WorldState {
   const births: readonly PendingBirth[] =
     state.fertility === "on"
       ? state.population
-          .map((organism) => evaluateMitosis(organism))
+          .map((organism) => {
+            tracer.start(organism);
+            const birth = evaluateMitosis(organism, state.roster);
+            tracer.end("mitosis", organism);
+            return birth;
+          })
           .filter((birth): birth is PendingBirth => birth !== null)
       : NO_BIRTHS;
   // 8. Evaluate death: `energy <= 0` condemns an organism (ADR-0017), and
@@ -408,7 +469,10 @@ function runTick(state: WorldState): WorldState {
   //     first tick: the iteration above never sees them, which rules out
   //     half-initialised organisms metabolising or a birth cascade within
   //     one tick.
-  const population = appendBirths(survivors, births);
+  //     Each child's provisional Innovation Ids are minted first, from the
+  //     world's counter in birth order (ADR-0028).
+  const minted = mintBirths(births, state.nextInnovationId);
+  const population = appendBirths(survivors, minted.births);
   // 13. Tick++.
   return {
     ...state,
@@ -418,6 +482,7 @@ function runTick(state: WorldState): WorldState {
     measuredAlpha,
     cumulativeDeaths: state.cumulativeDeaths + remains.length,
     cumulativeBirths: state.cumulativeBirths + births.length,
+    nextInnovationId: minted.nextInnovationId,
   };
 }
 
@@ -487,7 +552,11 @@ function meanMeasuredAlpha(
   };
 }
 
-export function advance(world: World, elapsedMs: number): AdvanceResult {
+export function advance(
+  world: World,
+  elapsedMs: number,
+  options: AdvanceOptions = {},
+): AdvanceResult {
   const state = toState(world);
   const maxAccumulatorMs = MAX_TICKS_PER_ADVANCE * FIXED_DT_MS;
   const accumulatorMs = Math.min(
@@ -498,8 +567,19 @@ export function advance(world: World, elapsedMs: number): AdvanceResult {
   const ticksRun = Math.floor((accumulatorMs + EPSILON_MS) / FIXED_DT_MS);
 
   let ticked = state;
+  let flows: TickFlows | null = null;
   for (let i = 0; i < ticksRun; i++) {
-    ticked = runTick(ticked);
+    // A fresh tracer per tick, so `flows` is the last tick's alone. A
+    // view is an `Organism` handed out narrowed, so identity finds it.
+    const tracer = new FlowTracer(
+      options.trace === undefined
+        ? undefined
+        : ticked.population.find(
+            (organism) => organism === (options.trace as unknown),
+          ),
+    );
+    ticked = runTick(ticked, tracer);
+    flows = tracer.flows();
   }
 
   return {
@@ -508,6 +588,7 @@ export function advance(world: World, elapsedMs: number): AdvanceResult {
       accumulatorMs: Math.max(0, accumulatorMs - ticksRun * FIXED_DT_MS),
     }),
     ticksRun,
+    flows,
   };
 }
 
@@ -571,6 +652,22 @@ export function getWorstPenetration(world: World): number {
  */
 export function getPoolLevels(world: World): Pools {
   return toState(world).pools;
+}
+
+/**
+ * The most each pool can ever hold, for the HUD to read a level against: a
+ * pool has no cap of its own, but food and CO₂ cannot exceed the carbon the
+ * world started with, nor O₂ the oxygen it started with (ADR-0001's closed
+ * ledger). Constant for the life of a world.
+ */
+export function getPoolCapacities(world: World): Pools {
+  const state = toState(world);
+
+  return {
+    food: state.initialTotalCarbon,
+    carbonDioxide: state.initialTotalCarbon,
+    oxygen: state.initialTotalOxygen,
+  };
 }
 
 /** `(current − initial) / initial`. Reads as 0 while a ledger holds and as
@@ -670,6 +767,14 @@ export function getCumulativeDeaths(world: World): number {
  */
 export function getCumulativeBirths(world: World): number {
   return toState(world).cumulativeBirths;
+}
+
+/**
+ * The next Innovation Id the world will mint (ADR-0028). A readout for
+ * tests: no id's value is ever read by behaviour.
+ */
+export function getNextInnovationId(world: World): number {
+  return toState(world).nextInnovationId;
 }
 
 /**

@@ -59,15 +59,17 @@ export function runTicksWatching(
 }
 
 /**
- * A genome that differs from the baseline in body radius alone. Every
+ * A genome that differs from the baseline in Cytoplasm Thickness alone, and
+ * carries no organelles, so the thickness is the body's whole radius and a
+ * ladder of thicknesses is a ladder of radii. Every
  * measurement here runs in a **fixed population** or an infertile one, so
  * the two reproduction genes are never read; they ride along at the
  * baseline's values so that a founder the harness places is the same
  * organism a founder the app places is, apart from the one gene under
  * measurement.
  */
-export function genomeOfRadius(bodyRadius: number): Genome {
-  return {...BASELINE_GENOME, bodyRadius};
+export function genomeOfThickness(cytoplasmThickness: number): Genome {
+  return {...BASELINE_GENOME, cytoplasmThickness};
 }
 
 /**
@@ -117,7 +119,7 @@ export function ladderFounders(
     const x = cursor + radius;
     cursor += 2 * radius + gap;
 
-    return {x, y: depth, genome: genomeOfRadius(radius)};
+    return {x, y: depth, genome: genomeOfThickness(radius)};
   });
 }
 
@@ -130,7 +132,7 @@ export function soleFounder(radius: number, depth: number): readonly Founder[] {
     {
       x: AQUARIUM_WIDTH / 2,
       y: Math.min(depth, AQUARIUM_HEIGHT - radius),
-      genome: genomeOfRadius(radius),
+      genome: genomeOfThickness(radius),
     },
   ];
 }

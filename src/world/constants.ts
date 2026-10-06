@@ -67,8 +67,9 @@ function tunable(name: string, committed: number): number {
 }
 
 /**
- * Each diffusible's cap coefficient: a cap of `K_CAP[resource] × bodyArea`
- * is a maximum internal *concentration*, not a bucket size (ADR-0003).
+ * Each diffusible's cap coefficient: a cap of `K_CAP[resource] ×
+ * cytoplasmArea` is a maximum internal *concentration*, not a bucket size
+ * (ADR-0003, taken over the Cytoplasm Area from v0.2 by ADR-0029).
  *
  * Per-resource rather than a single scalar, because `kCap` was never a unit
  * (ADR-0022). It carries `ρ`'s own dimension — carbon per area — so fixing
@@ -414,13 +415,18 @@ export const BODY_COST_COEFFICIENT = 1;
 export const MUTATION_PROBABILITY = tunable("MUTATION_PROBABILITY", 0.25);
 
 /**
- * `bodyRadius`'s multiplicative step size: a mutation applies `× (1 +
+ * `cytoplasmThickness`'s multiplicative step size: a mutation applies `× (1 +
  * u·δ)` or its reciprocal with equal probability. Chosen, together with
  * `GENERATION_0_MUTATION_SCALE`, so that scaling it by 5 reproduces
  * generation 0's `[1/1.4, 1.4]` spread — the range M1 already calibrated —
- * from a single ordinary birth's step.
+ * from a single ordinary birth's step. It was v0.1's `bodyRadius` step, and
+ * the thickness inherits it unchanged (ADR-0028): with no organelles the
+ * thickness is the whole radius.
  */
-export const DELTA_BODY_RADIUS = tunable("DELTA_BODY_RADIUS", 0.08);
+export const DELTA_CYTOPLASM_THICKNESS = tunable(
+  "DELTA_CYTOPLASM_THICKNESS",
+  0.08,
+);
 
 /**
  * `mitosisEnergyThreshold`'s additive step size, clamped to `[0, 1]`. Small
@@ -452,8 +458,8 @@ export const DELTA_LINEAGE_HUE = tunable("DELTA_LINEAGE_HUE", 0.02);
 /**
  * Multiplies every δ above for generation 0 only, so founders spread across
  * the range a lineage would otherwise take many generations to explore.
- * Derived, not picked: `DELTA_BODY_RADIUS × 5 = 0.4` puts founder radii in
- * `[1/1.4, 1.4]` of the baseline, whose top end is exactly
+ * Derived, not picked: `DELTA_CYTOPLASM_THICKNESS × 5 = 0.4` puts founder
+ * radii in `[1/1.4, 1.4]` of the baseline, whose top end is exactly
  * `MAX_RADIUS_FACTOR` — generation 0's spread stays what M1 calibrated it
  * to.
  */
@@ -486,6 +492,107 @@ export const GENERATION_0_MUTATION_SCALE = tunable(
  * touching where `bodyRadius` is predicted to converge.
  */
 export const MITOSIS_ENERGY_COST = tunable("MITOSIS_ENERGY_COST", 100);
+
+/**
+ * M7's structural constants (ADR-0028, ADR-0034), the ones the neuron's
+ * declaration names (`organelles.ts`). Lengths are in baseline radii, like
+ * every length in the world. Persistence on the Reference World arbitrates
+ * them (#63): if it fails, `MAX_STRUCTURAL_EVENTS` moves first, then
+ * `R_NEW`, and no world constant moves. It failed and both moved: see their
+ * own notes.
+ */
+
+/**
+ * `M_max`, the most structural events one birth can draw: `n ~
+ * Binomial(M_max, p)`, so the structural mutations a birth undergoes are
+ * bounded and do not grow with the genome (ADR-0028). The Birth Cost
+ * Ceiling prices `M_max` worst-case events, so it is the first constant
+ * persistence lowers.
+ *
+ * 1, not the 2 #58 started from. Persistence on the Reference World (#63,
+ * seeds 7–11, 100k ticks, neuron roster) arbitrated it, and the ceiling is a
+ * cliff rather than a slope: at `M_max = 2`, `r_new = 0.05` every seed went
+ * extinct with no birth at all, `M_max = 1` alone did not save it, and at
+ * `M_max = 2` `r_new` had to fall to 0.01 before all five persisted, against
+ * 0.03 at `M_max = 1`. So `M_max = 1` kept the larger `r_new`.
+ */
+export const MAX_STRUCTURAL_EVENTS = tunable("MAX_STRUCTURAL_EVENTS", 1);
+
+/** `p`, each of the `M_max` trials' chance of becoming an event. At 1 and
+ * 0.25, a birth draws no event 75% of the time and one 25%. */
+export const STRUCTURAL_EVENT_PROBABILITY = tunable(
+  "STRUCTURAL_EVENT_PROBABILITY",
+  0.25,
+);
+
+/**
+ * The structural operators' rate weights: an event picks its operator in
+ * proportion to them, before it picks a target. #58's starting values, not
+ * derived: insertion and deletion weigh the same, so structure does not
+ * accumulate from a rate imbalance alone, and half of all events reshape an
+ * organelle rather than add or remove one. The rates set how often each
+ * event happens, never how far one can grow the body, so the Birth Cost
+ * Ceiling does not read them.
+ */
+export const PARAMETER_CHANGE_WEIGHT = tunable("PARAMETER_CHANGE_WEIGHT", 0.5);
+export const INSERTION_WEIGHT = tunable("INSERTION_WEIGHT", 0.2);
+export const DELETION_WEIGHT = tunable("DELETION_WEIGHT", 0.2);
+export const SPLIT_WEIGHT = tunable("SPLIT_WEIGHT", 0.1);
+
+/**
+ * `w`, the half-width of a Split's triangular bell, `f = 0.5 + (u₁ + u₂ −
+ * 1)·w` (ADR-0028): at 0.3 the larger piece takes between 50% and 80% of
+ * the area, never more, with no truncation needed.
+ */
+export const SPLIT_HALF_WIDTH = tunable("SPLIT_HALF_WIDTH", 0.3);
+
+/** The radius an inserted organelle is born at, one for every type. Small,
+ * so an insertion grows the Enclosing Circle by at most `2·r_new`.
+ *
+ * 0.02, not the 0.05 #58 started from, for the reason `M_max` is 1. At
+ * `M_max = 1` on the Reference World (#63, seeds 7–11, 100k ticks): 0.05
+ * went extinct on all five, 0.04 on two, 0.03 persisted with one seed down
+ * to a single organism, and 0.02 and below kept minimum populations of 4–9,
+ * M6's own. 0.02 is the largest value with that margin. An organelle this
+ * small is invisible on screen at the starting zoom: it grows by mutation
+ * or shows when the camera is close. */
+export const R_NEW = tunable("R_NEW", 0.02);
+
+/**
+ * The floor organelle radius clamps at under its size law (ADR-0034), and
+ * below which a Split piece makes its organelle no valid target. Half the
+ * birth radius: room to shrink, with a neuron resting at the floor doing no
+ * harm.
+ */
+export const R_MIN = tunable("R_MIN", R_NEW / 2);
+
+/** An organelle radius's symmetric multiplicative step, `× (1 + u·δ)` or its
+ * reciprocal: the same law and the same step as `cytoplasmThickness`. */
+export const DELTA_ORGANELLE_RADIUS = tunable("DELTA_ORGANELLE_RADIUS", 0.08);
+
+/** An organelle position's Cartesian step, at most this many of the
+ * organelle's own radii, so a small organelle moves a small distance. */
+export const DELTA_ORGANELLE_POSITION = tunable(
+  "DELTA_ORGANELLE_POSITION",
+  0.5,
+);
+
+/**
+ * The neuron's Organelle Overhead `c_neuron` (ADR-0029), per tick, whatever
+ * its size: a hundredth of `c₀`, final (#66). Small enough for M11's
+ * near-neutral structure. The harness (`CALIBRATE_SEED_COUNT=20 npm run
+ * neuron`, Reference World, 100k ticks) could not separate it from larger
+ * values: at 0.01, 0.03, 0.1 and 0.3 of `c₀` the carrier fraction came out
+ * 4.0%, 3.9%, 3.2% and 4.0% against 5.1% at `c_neuron = 0`, mean count per
+ * carrier 1.00. Every one is below the drift baseline, none apart from it
+ * by more than the seeds' spread (σ ≈ 2.6 points), and the response is not
+ * monotonic. A lineage sees only about four generations in 100k ticks, and
+ * 5% of births draw an insertion, so the run has no power to rank them, and
+ * a bigger overhead would have been a guess paid for in persistence. 0.01
+ * is the smallest of the four and was already committed, so the value did
+ * not move and persistence (#56, seeds 7–11) stayed green.
+ */
+export const C_NEURON = tunable("C_NEURON", 0.01 * EXISTENCE_COST);
 
 /**
  * Last, once every `tunable` above has registered its name: an
