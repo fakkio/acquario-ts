@@ -33,7 +33,7 @@ import {createRngStream, nextRng, type RngStream} from "./rng";
  * which numbers a body draws can pin one and a test that only needs a body
  * somewhere can ignore it. The two reproduction genes ride along at
  * `BASELINE_GENOME`'s values; no test in this suite yet cares which. It
- * carries no organelles, so `bodyRadius` is its Cytoplasm Thickness.
+ * carries no organelles, so `bodyRadius` is its Cytoplasm Radius.
  */
 export function organismAt(
   x: number,
@@ -46,7 +46,7 @@ export function organismAt(
     y,
     genome: {
       ...BASELINE_GENOME,
-      cytoplasmThickness: bodyRadius,
+      cytoplasmRadius: bodyRadius,
       lineageHue: 0.5,
     },
     rng: createRngStream(seed),
@@ -83,7 +83,7 @@ export function carrierAt(
     y,
     genome: {
       ...BASELINE_GENOME,
-      cytoplasmThickness: thickness,
+      cytoplasmRadius: thickness,
       lineageHue: 0.5,
       genes,
     },

@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
-  DELTA_CYTOPLASM_THICKNESS,
+  DELTA_CYTOPLASM_RADIUS,
   DELTA_ORGANELLE_POSITION,
   DELTA_ORGANELLE_RADIUS,
   MAX_STRUCTURAL_EVENTS,
@@ -20,14 +20,13 @@ import {
   type OperatorWeights,
   type OrganelleGene,
 } from "./genome";
-import {enclosingCircle} from "./layout";
 import {bodyAreaOfRadius} from "./organism";
 import {createRngStream} from "./rng";
 
 const SAMPLE_SEEDS = 500;
 
 describe("mutateGenome", () => {
-  it("mutates cytoplasmThickness by × m or ÷ m with equal probability, m and 1/m both inside [1, 1 + δ]", () => {
+  it("mutates cytoplasmRadius by × m or ÷ m with equal probability, m and 1/m both inside [1, 1 + δ]", () => {
     let up = 0;
     let down = 0;
 
@@ -35,8 +34,7 @@ describe("mutateGenome", () => {
       const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed), {
         probability: 1,
       });
-      const ratio =
-        genome.cytoplasmThickness / BASELINE_GENOME.cytoplasmThickness;
+      const ratio = genome.cytoplasmRadius / BASELINE_GENOME.cytoplasmRadius;
 
       if (ratio > 1) {
         up++;
@@ -51,7 +49,7 @@ describe("mutateGenome", () => {
       // `1 + δ = 1.08`.
       const reciprocalBound = Math.max(ratio, 1 / ratio);
       expect(reciprocalBound).toBeLessThanOrEqual(
-        1 + DELTA_CYTOPLASM_THICKNESS + 1e-9,
+        1 + DELTA_CYTOPLASM_RADIUS + 1e-9,
       );
       expect(reciprocalBound).toBeGreaterThanOrEqual(1);
     }
@@ -132,7 +130,7 @@ describe("mutateGenome", () => {
     for (let seed = 0; seed < SAMPLE_SEEDS; seed++) {
       const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed));
       if (
-        genome.cytoplasmThickness === BASELINE_GENOME.cytoplasmThickness &&
+        genome.cytoplasmRadius === BASELINE_GENOME.cytoplasmRadius &&
         genome.mitosisEnergyThreshold ===
           BASELINE_GENOME.mitosisEnergyThreshold &&
         genome.childAllocationRatio === BASELINE_GENOME.childAllocationRatio &&
@@ -173,7 +171,7 @@ describe("birthCostCeiling", () => {
     for (let seed = 0; seed < STREAMS; seed++) {
       const parent: Genome = {
         ...BASELINE_GENOME,
-        cytoplasmThickness: 0.3 + (seed % 100) * 0.03,
+        cytoplasmRadius: 0.3 + (seed % 100) * 0.03,
       };
       const ceiling = birthCostCeiling(parent, []);
       const {genome: child} = mutateGenome(parent, createRngStream(seed));
@@ -190,74 +188,74 @@ describe("birthCostCeiling", () => {
 
   it("prices v0.1's ceiling exactly for a genome with no organelles and an empty roster", () => {
     const thickness = 1.3;
-    const v01 = bodyAreaOfRadius(thickness * (1 + DELTA_CYTOPLASM_THICKNESS));
-    const genome = {...BASELINE_GENOME, cytoplasmThickness: thickness};
+    const v01 = bodyAreaOfRadius(thickness * (1 + DELTA_CYTOPLASM_RADIUS));
+    const genome = {...BASELINE_GENOME, cytoplasmRadius: thickness};
 
     expect(birthCostCeiling(genome, [])).toBe(v01);
   });
 
-  it("prices an empty body's first insertion at r_new, and every later event at 2·r_new", () => {
-    // ADR-0034: an insertion into an empty Enclosing Circle grows it from
-    // nothing to one disc. Only the first event can find it empty.
-    const thickness = 0.8;
-    expect(
-      birthCostCeiling({...BASELINE_GENOME, cytoplasmThickness: thickness}, [
-        "neuron",
-      ]),
-    ).toBeCloseTo(
-      bodyAreaOfRadius(
-        R_NEW +
-          (MAX_STRUCTURAL_EVENTS - 1) * 2 * R_NEW +
-          thickness * (1 + DELTA_CYTOPLASM_THICKNESS),
-      ),
-      12,
+  it("prices an empty body's insertion by the body it is born in", () => {
+    // ADR-0036: the area term is the cytoplasm at its largest step plus the
+    // new organelle's area, and the reach cannot pass it.
+    const radius = 0.8;
+    const cytoplasm = bodyAreaOfRadius(radius * (1 + DELTA_CYTOPLASM_RADIUS));
+    const ceiling = birthCostCeiling(
+      {...BASELINE_GENOME, cytoplasmRadius: radius},
+      ["neuron"],
     );
+
+    expect(ceiling).toBeGreaterThanOrEqual(cytoplasm + bodyAreaOfRadius(R_NEW));
+    if (MAX_STRUCTURAL_EVENTS === 1) {
+      expect(ceiling).toBeCloseTo(cytoplasm + bodyAreaOfRadius(R_NEW), 12);
+    }
   });
 
   it("counts only the operators with a target: no insertion with an empty roster, no split of an organelle too small to split", () => {
     // A neuron at r_new splits into a piece below r_min, so it is no split
-    // target; with an empty roster nothing is inserted. What is left is
-    // its own position step, the largest of its parameter laws.
+    // target; with an empty roster nothing is inserted. What is left is its
+    // radius step and its position step, and the radius step adds the area.
     const radius = R_NEW;
     const genome: Genome = {
       ...BASELINE_GENOME,
       genes: [neuron(1, 0, 0, radius)],
     };
-    const thickness = BASELINE_GENOME.cytoplasmThickness;
+    const cytoplasm = bodyAreaOfRadius(
+      BASELINE_GENOME.cytoplasmRadius * (1 + DELTA_CYTOPLASM_RADIUS),
+    );
+    const grown =
+      radius * (1 + DELTA_ORGANELLE_RADIUS) ** MAX_STRUCTURAL_EVENTS;
 
     expect(birthCostCeiling(genome, [])).toBeCloseTo(
-      bodyAreaOfRadius(
-        radius +
-          MAX_STRUCTURAL_EVENTS * DELTA_ORGANELLE_POSITION * radius +
-          thickness * (1 + DELTA_CYTOPLASM_THICKNESS),
-      ),
+      cytoplasm + bodyAreaOfRadius(grown),
       12,
     );
     // The same neuron in a body that can receive one prices the insertion.
-    expect(birthCostCeiling(genome, ["neuron"])).toBeCloseTo(
-      bodyAreaOfRadius(
-        radius +
-          MAX_STRUCTURAL_EVENTS * 2 * R_NEW +
-          thickness * (1 + DELTA_CYTOPLASM_THICKNESS),
-      ),
-      12,
+    expect(birthCostCeiling(genome, ["neuron"])).toBeGreaterThan(
+      birthCostCeiling(genome, []),
     );
   });
 
-  it("prices a split of the largest organelle once it is large enough to split", () => {
-    const radius = 0.5;
+  it("prices an organelle past the cytoplasm by its reach, not its area", () => {
+    // A lone neuron far out in a thin body: the reach term dominates, and an
+    // event can push it out by its own step.
+    const radius = 0.1;
     const genome: Genome = {
       ...BASELINE_GENOME,
-      genes: [neuron(1, 0, 0, radius)],
+      cytoplasmRadius: 0.3,
+      genes: [neuron(1, 2, 0, radius)],
     };
+    const reachNow = 2 + radius;
 
-    expect(birthCostCeiling(genome, [])).toBeCloseTo(
+    expect(birthCostCeiling(genome, [])).toBeGreaterThan(
+      bodyAreaOfRadius(reachNow),
+    );
+    expect(birthCostCeiling(genome, [])).toBeLessThanOrEqual(
       bodyAreaOfRadius(
-        radius +
-          MAX_STRUCTURAL_EVENTS * 2 * (Math.SQRT2 - 1) * radius +
-          BASELINE_GENOME.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
+        reachNow +
+          MAX_STRUCTURAL_EVENTS *
+            (2 * radius + DELTA_ORGANELLE_POSITION * radius) *
+            (1 + DELTA_ORGANELLE_RADIUS) ** MAX_STRUCTURAL_EVENTS,
       ),
-      12,
     );
   });
 });
@@ -349,9 +347,10 @@ describe("mutateGenome's structural events", () => {
       }
     });
 
-    it("gives an empty body's first organelle a body exactly r_new wider", () => {
+    it("places an empty body's first organelle off its centre, inside the body it grows", () => {
       // Two trials at p = 0.5: some seeds draw exactly one event.
       let seen = 0;
+      let offCentre = 0;
       for (let seed = 0; seed < 100; seed++) {
         const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed), {
           roster: ["neuron"],
@@ -360,23 +359,37 @@ describe("mutateGenome's structural events", () => {
         });
         if (genome.genes.length === 1) {
           seen++;
-          expect(genome.genes[0]).toMatchObject({x: 0, y: 0});
-          expect(deriveBody(genome).radius).toBe(
-            R_NEW + genome.cytoplasmThickness,
+          const [gene] = genome.genes;
+          const body = deriveBody(genome);
+          expect(body.radius).toBeCloseTo(
+            Math.sqrt(
+              (bodyAreaOfRadius(genome.cytoplasmRadius) +
+                bodyAreaOfRadius(R_NEW)) /
+                Math.PI,
+            ),
+            12,
           );
+          expect(Math.hypot(gene.x, gene.y) + gene.radius).toBeLessThanOrEqual(
+            body.radius + 1e-12,
+          );
+          if (Math.hypot(gene.x, gene.y) > 1e-6) {
+            offCentre++;
+          }
         }
       }
       expect(seen).toBeGreaterThan(0);
+      expect(offCentre).toBe(seen);
     });
 
-    it("lands inside the current Enclosing Circle, spread across it", () => {
-      // Two neurons far apart leave a wide empty circle between them: an
-      // insertion lands anywhere in it, and nowhere outside.
+    it("lands inside the body it is born in, spread across it", () => {
+      // Two neurons far apart: the body is already as wide as their reach,
+      // so an insertion lands anywhere in that disc, and nowhere outside it
+      // but by relaxation's slide.
       const parent: Genome = {
         ...BASELINE_GENOME,
         genes: [neuron(1, -1, 0, 0.1), neuron(2, 1, 0, 0.1)],
       };
-      const circleRadius = 1.1;
+      const bodyRadius = 1.1;
       let farthest = 0;
 
       for (let seed = 0; seed < 300; seed++) {
@@ -385,17 +398,15 @@ describe("mutateGenome's structural events", () => {
           eventProbability: 1,
           operatorWeights: only("insertion"),
         });
-        const [left, right] = genome.genes;
-        const centre = {x: (left.x + right.x) / 2, y: (left.y + right.y) / 2};
         for (const gene of genome.genes.slice(2)) {
-          const reach = Math.hypot(gene.x - centre.x, gene.y - centre.y);
+          const edge = Math.hypot(gene.x, gene.y) + gene.radius;
           // Relaxation may slide an organelle that landed on another out
-          // past that one's edge, by no more than its own diameter.
-          expect(reach).toBeLessThanOrEqual(circleRadius + 2 * R_NEW);
-          farthest = Math.max(farthest, reach);
+          // past the old reach, by no more than its own diameter.
+          expect(edge).toBeLessThanOrEqual(bodyRadius + 2 * R_NEW);
+          farthest = Math.max(farthest, edge);
         }
       }
-      expect(farthest).toBeGreaterThan(0.8 * circleRadius);
+      expect(farthest).toBeGreaterThan(0.8 * bodyRadius);
     });
 
     it("never happens with an empty roster", () => {
@@ -592,7 +603,7 @@ describe("mutateGenome's structural events", () => {
 describe("the structural mutation law's invariant (ADR-0028, ADR-0034)", () => {
   // Every child of every hostile parent, under every mix of operators, fits
   // its parent's Birth Cost Ceiling, with a layout that has no overlaps,
-  // sits centred on its Enclosing Circle, and keeps every radius at or above
+  // holds every organelle inside its body, and keeps every radius at or above
   // the floor; a split, wherever it happens, conserves area.
   const MIXES: readonly {
     readonly name: string;
@@ -633,10 +644,9 @@ describe("the structural mutation law's invariant (ADR-0028, ADR-0034)", () => {
             for (const gene of child.genes) {
               expect(gene.radius, where).toBeGreaterThanOrEqual(R_MIN);
             }
-            if (child.genes.length > 0) {
-              const circle = enclosingCircle(child.genes);
-              expect(Math.hypot(circle.x, circle.y), where).toBeLessThan(1e-9);
-            }
+            expect(deriveBody(child).radius, where).toBeGreaterThanOrEqual(
+              deriveBody(child).reach,
+            );
             if (mixName === "only split") {
               expect(organelleArea(child), where).toBeCloseTo(
                 organelleArea(parent),
@@ -654,54 +664,72 @@ describe("deriveBody", () => {
   it("gives a genome with no organelles a body exactly as thick as its cytoplasm, all of it cytoplasm", () => {
     // v0.1's Minimal Organism, bit for bit: the golden hash rests on these
     // being the same numbers, not close ones.
-    for (const cytoplasmThickness of [0.3, 1, 1.4, 2.5]) {
-      const body = deriveBody({...BASELINE_GENOME, cytoplasmThickness});
+    for (const cytoplasmRadius of [0.3, 1, 1.4, 2.5]) {
+      const body = deriveBody({...BASELINE_GENOME, cytoplasmRadius});
 
-      expect(body.radius).toBe(cytoplasmThickness);
-      expect(body.cytoplasmArea).toBe(bodyAreaOfRadius(cytoplasmThickness));
+      expect(body.radius).toBe(cytoplasmRadius);
+      expect(body.cytoplasmArea).toBe(bodyAreaOfRadius(cytoplasmRadius));
       expect(body.organelles).toEqual([]);
     }
   });
 
-  it("wraps the cytoplasm around the Enclosing Circle of the organelles", () => {
-    // Two tangent neurons of radius 0.1 side by side: their Enclosing Circle
-    // has radius 0.2, so a thickness of 0.5 gives a body of radius 0.7.
+  it("is as wide as the cytoplasm and the organelles' areas together while they fit", () => {
+    // Two tangent neurons of radius 0.1 near the centre of a cytoplasm of
+    // radius 0.5: the body's area is the sum, and the reach is inside it.
     const body = deriveBody({
       ...BASELINE_GENOME,
-      cytoplasmThickness: 0.5,
+      cytoplasmRadius: 0.5,
       genes: [neuron(1, -0.1, 0, 0.1), neuron(2, 0.1, 0, 0.1)],
     });
 
-    expect(body.radius).toBeCloseTo(0.7, 12);
-    expect(body.enclosingRadius).toBeCloseTo(0.2, 12);
+    expect(body.radius).toBeCloseTo(Math.sqrt(0.25 + 2 * 0.01), 12);
+    expect(body.reach).toBeCloseTo(0.2, 12);
+    expect(body.cytoplasmArea).toBeCloseTo(Math.PI * 0.25, 12);
   });
 
-  it("leaves as cytoplasm the body's area minus every organelle's", () => {
-    const body = deriveBody({
-      ...BASELINE_GENOME,
-      cytoplasmThickness: 0.5,
-      genes: [neuron(1, -0.1, 0, 0.1), neuron(2, 0.1, 0, 0.1)],
-    });
+  it("keeps the cytoplasm area at least the cytoplasm radius's own, whatever the layout", () => {
+    for (const x of [0, 0.4, 1.5, 3]) {
+      const body = deriveBody({
+        ...BASELINE_GENOME,
+        cytoplasmRadius: 0.5,
+        genes: [neuron(1, x, 0, 0.1), neuron(2, x + 0.3, 0.2, 0.15)],
+      });
 
-    expect(body.cytoplasmArea).toBeCloseTo(
-      Math.PI * 0.7 * 0.7 - 2 * Math.PI * 0.1 * 0.1,
-      12,
+      expect(body.cytoplasmArea).toBeGreaterThanOrEqual(
+        bodyAreaOfRadius(0.5) - 1e-12,
+      );
+    }
+  });
+
+  it("grows to the reach when an organelle sticks out, and never moves it back", () => {
+    const genes = [neuron(1, 1.5, 0, 0.1)];
+    const body = deriveBody({...BASELINE_GENOME, cytoplasmRadius: 0.5, genes});
+
+    expect(body.radius).toBeCloseTo(1.6, 12);
+    expect(body.organelles).toEqual(genes);
+    expect(body.cytoplasmArea).toBeGreaterThan(Math.PI * 0.25);
+
+    // A smaller cytoplasm leaves the organelle where it was.
+    const thinner = deriveBody({
+      ...BASELINE_GENOME,
+      cytoplasmRadius: 0.2,
+      genes,
+    });
+    expect(thinner.organelles).toEqual(genes);
+    expect(thinner.radius).toBeCloseTo(1.6, 12);
+  });
+
+  it("keeps the genome's origin as the body's centre, whatever the layout", () => {
+    const genes = [
+      neuron(1, 3, 2, 0.1),
+      neuron(2, 3.4, 2, 0.2),
+      neuron(3, 3, 2.5, 0.05),
+    ];
+    const body = deriveBody({...BASELINE_GENOME, genes});
+
+    expect(body.organelles.map(({x, y}) => ({x, y}))).toEqual(
+      genes.map(({x, y}) => ({x, y})),
     );
-  });
-
-  it("centres the organelles on their Enclosing Circle, wherever the genome put them", () => {
-    const body = deriveBody({
-      ...BASELINE_GENOME,
-      genes: [
-        neuron(1, 3, 2, 0.1),
-        neuron(2, 3.4, 2, 0.2),
-        neuron(3, 3, 2.5, 0.05),
-      ],
-    });
-    const circle = enclosingCircle(body.organelles);
-
-    expect(circle.x).toBeCloseTo(0, 12);
-    expect(circle.y).toBeCloseTo(0, 12);
   });
 
   it("relaxes overlapping organelles apart, keeping each one's type, id and radius", () => {
@@ -732,7 +760,7 @@ describe("deriveBody", () => {
 
 describe("BASELINE_GENOME", () => {
   it("carries the baseline radius as its thickness, and no organelles", () => {
-    expect(BASELINE_GENOME.cytoplasmThickness).toBe(BASELINE_BODY_RADIUS);
+    expect(BASELINE_GENOME.cytoplasmRadius).toBe(BASELINE_BODY_RADIUS);
     expect(BASELINE_GENOME.genes).toEqual([]);
   });
 });
@@ -766,13 +794,13 @@ function only(operator: keyof OperatorWeights): OperatorWeights {
 
 function headerOf(genome: Genome): Omit<Genome, "genes"> {
   const {
-    cytoplasmThickness,
+    cytoplasmRadius,
     mitosisEnergyThreshold,
     childAllocationRatio,
     lineageHue,
   } = genome;
   return {
-    cytoplasmThickness,
+    cytoplasmRadius,
     mitosisEnergyThreshold,
     childAllocationRatio,
     lineageHue,
@@ -781,15 +809,12 @@ function headerOf(genome: Genome): Omit<Genome, "genes"> {
 
 /**
  * Parents chosen to push the ceiling and the relaxation where they are
- * weakest, each holding the relaxed, recentred layout a genome in the world
- * holds (ADR-0034).
+ * weakest, each holding the relaxed layout a genome in the world holds
+ * (ADR-0034, ADR-0036).
  */
 function hostileGenomes(): {readonly name: string; readonly genome: Genome}[] {
-  const settled = (
-    cytoplasmThickness: number,
-    genes: OrganelleGene[],
-  ): Genome => {
-    const genome: Genome = {...BASELINE_GENOME, cytoplasmThickness, genes};
+  const settled = (cytoplasmRadius: number, genes: OrganelleGene[]): Genome => {
+    const genome: Genome = {...BASELINE_GENOME, cytoplasmRadius, genes};
     return {...genome, genes: deriveBody(genome).organelles};
   };
 

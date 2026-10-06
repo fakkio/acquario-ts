@@ -48,7 +48,7 @@ export const MAX_RADIUS_FACTOR = 1.4;
 
 /**
  * The largest body generation 0 places — no longer, from M4 on, the largest
- * body the world allows. The radius grows from `cytoplasmThickness`, a gene
+ * body the world allows. The radius grows from `cytoplasmRadius`, a gene
  * with range `> 0` mutating multiplicatively (v0.1's `bodyRadius` until M7),
  * so once reproduction exists there is no largest radius
  * to derive a world-wide ceiling from; the ledger is the only ceiling left,
@@ -76,7 +76,7 @@ export interface OrganismView {
   readonly bodyRadius: number;
   /** The gene the body radius grows from, on the view from M7 so the HUD
    * can show it apart from the radius it no longer is. */
-  readonly cytoplasmThickness: number;
+  readonly cytoplasmRadius: number;
   /** The derived body's Cytoplasm Area, the denominator of every cap and
    * internal concentration (ADR-0029). */
   readonly cytoplasmArea: number;
@@ -193,8 +193,8 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
  * reads, in `grid.ts`, `motion.ts`, `separation.ts` and `render.ts`; from
  * M7 it is the derived radius rather than a gene.
  *
- * No rotation and no angular velocity: `x`/`y` is the Enclosing Circle's
- * centre, and an organelle sits in the world at that position plus its own.
+ * No rotation and no angular velocity: `x`/`y` is the body's centre, the
+ * genome's origin, and an organelle sits in the world at that position plus its own.
  * Rotation arrives with the first torque (M8), the thruster's.
  *
  * The four internal resource stores arrive in M2. They are plain mutable
@@ -237,8 +237,8 @@ export class Organism {
     return this.body.cytoplasmArea;
   }
 
-  get cytoplasmThickness(): number {
-    return this.genome.cytoplasmThickness;
+  get cytoplasmRadius(): number {
+    return this.genome.cytoplasmRadius;
   }
 
   get organelles(): readonly OrganelleGene[] {
@@ -456,8 +456,9 @@ export interface Founder {
  * Each founder's organelles get their Innovation Ids here, from the world's
  * counter, in placement order and then genome order: the counter's first
  * mints. Organelle positions are not taken at their word: the genome a
- * founder is built from holds its layout relaxed apart and recentred on its
- * Enclosing Circle, as every genome does (ADR-0034).
+ * founder is built from holds its layout relaxed apart, as every genome does
+ * (ADR-0034), and not moved otherwise: the body is centred on the genome's
+ * origin (ADR-0036).
  */
 export function placeFounders(
   globalRng: RngStream,
@@ -476,7 +477,7 @@ export function placeFounders(
         y: draft.y,
       })),
     };
-    // The body's organelles are the layout relaxed and recentred, which is
+    // The body's organelles are the layout relaxed, which is
     // what a genome holds (ADR-0034): stored as the genes, nothing is left
     // for construction to fix.
     const genes = deriveBody(minted).organelles;
@@ -498,7 +499,7 @@ export function placeFounders(
  * folds in, including the two M4 adds — `mitosisEnergyThreshold` and
  * `childAllocationRatio` — per the rule: what enters the hash is what the
  * next tick reads, and a gene left out is a gene the invariant silently
- * stops covering. `cytoplasmThickness` folds into the slot `bodyRadius`
+ * stops covering. `cytoplasmRadius` folds into the slot `bodyRadius`
  * held, and with no organelles it is the same number, so a world of
  * Minimal Organisms hashes as it did in M6 (#59).
  *
@@ -525,7 +526,7 @@ export function foldPopulation(
     }
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmThickness)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}`,
     );
   }
 

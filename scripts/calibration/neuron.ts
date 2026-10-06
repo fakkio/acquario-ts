@@ -74,7 +74,7 @@ function ceilingOverArea(organism: OrganismView): number {
     birthCostCeiling(
       {
         ...BASELINE_GENOME,
-        cytoplasmThickness: organism.cytoplasmThickness,
+        cytoplasmRadius: organism.cytoplasmRadius,
         genes: organism.organelles,
       },
       DEFAULT_ROSTER,

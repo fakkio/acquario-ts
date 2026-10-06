@@ -179,9 +179,9 @@ const updateHud = (currentWorld: World, fps: number): void => {
   const population = getPopulation(currentWorld);
   const geneStats = foldGeneStatistics(population);
   hud.setField(
-    "geneCytoplasmThickness",
-    "Cytoplasm thickness (μ±σ)",
-    formatStat(geneStats.cytoplasmThickness),
+    "geneCytoplasmRadius",
+    "Cytoplasm radius (μ±σ)",
+    formatStat(geneStats.cytoplasmRadius),
   );
   hud.setField(
     "bodyRadius",

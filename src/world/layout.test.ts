@@ -1,112 +1,8 @@
 import {describe, expect, it} from "vitest";
 
-import {enclosingCircle, makeRoom, reach, relax, type Disc} from "./layout";
+import {makeRoom, reach, relax, type Disc} from "./layout";
 
 const EXACT = 12;
-
-describe("enclosingCircle", () => {
-  it("is empty, of radius zero, for a body with no organelles", () => {
-    expect(enclosingCircle([]).radius).toBe(0);
-  });
-
-  it("is the disc itself for a single organelle", () => {
-    expect(enclosingCircle([{x: 0.3, y: -0.2, radius: 0.1}])).toEqual({
-      x: 0.3,
-      y: -0.2,
-      radius: 0.1,
-    });
-  });
-
-  it("spans two apart discs along the line of their centres", () => {
-    // Discs at x = 0 (r 1) and x = 4 (r 2): the span runs from −1 to 6.
-    const circle = enclosingCircle([
-      {x: 0, y: 0, radius: 1},
-      {x: 4, y: 0, radius: 2},
-    ]);
-
-    expect(circle.x).toBeCloseTo(2.5, EXACT);
-    expect(circle.y).toBeCloseTo(0, EXACT);
-    expect(circle.radius).toBeCloseTo(3.5, EXACT);
-  });
-
-  it("is the larger disc when it contains the other", () => {
-    const circle = enclosingCircle([
-      {x: 0.2, y: 0, radius: 0.1},
-      {x: 0, y: 0, radius: 1},
-    ]);
-
-    expect(circle.x).toBeCloseTo(0, EXACT);
-    expect(circle.y).toBeCloseTo(0, EXACT);
-    expect(circle.radius).toBeCloseTo(1, EXACT);
-  });
-
-  it("touches three equal discs at the corners of an equilateral triangle", () => {
-    // Centres on the unit circle at 90°, 210° and 330°: the enclosing
-    // circle is concentric, of radius 1 + r.
-    const r = 0.3;
-    const h = Math.sqrt(3) / 2;
-    const circle = enclosingCircle([
-      {x: 0, y: 1, radius: r},
-      {x: -h, y: -0.5, radius: r},
-      {x: h, y: -0.5, radius: r},
-    ]);
-
-    expect(circle.x).toBeCloseTo(0, EXACT);
-    expect(circle.y).toBeCloseTo(0, EXACT);
-    expect(circle.radius).toBeCloseTo(1 + r, EXACT);
-  });
-
-  it("ignores a disc the pair's circle already contains", () => {
-    const circle = enclosingCircle([
-      {x: -2, y: 0, radius: 1},
-      {x: 0, y: 0.5, radius: 0.5},
-      {x: 2, y: 0, radius: 1},
-    ]);
-
-    expect(circle.x).toBeCloseTo(0, EXACT);
-    expect(circle.y).toBeCloseTo(0, EXACT);
-    expect(circle.radius).toBeCloseTo(3, EXACT);
-  });
-
-  it("finds a circle touching three unequal discs that no pair's circle contains", () => {
-    const discs: Disc[] = [
-      {x: 0, y: 0, radius: 1},
-      {x: 5, y: 0, radius: 0.5},
-      {x: 2, y: 4, radius: 1.5},
-    ];
-    const circle = enclosingCircle(discs);
-
-    // Internally tangent to all three: each disc's far edge lies on it.
-    for (const disc of discs) {
-      expect(
-        Math.hypot(disc.x - circle.x, disc.y - circle.y) + disc.radius,
-      ).toBeCloseTo(circle.radius, 9);
-    }
-  });
-
-  it("contains every disc and touches at least one, over many random layouts", () => {
-    const unit = seededUnit(7);
-
-    for (let trial = 0; trial < 300; trial++) {
-      const count = 1 + Math.floor(unit() * 12);
-      const discs: Disc[] = Array.from({length: count}, () => ({
-        x: unit() * 4 - 2,
-        y: unit() * 4 - 2,
-        radius: 0.05 + unit() * 0.6,
-      }));
-      const circle = enclosingCircle(discs);
-      const reach = discs.map(
-        (disc) =>
-          Math.hypot(disc.x - circle.x, disc.y - circle.y) + disc.radius,
-      );
-
-      for (const distance of reach) {
-        expect(distance).toBeLessThanOrEqual(circle.radius + 1e-9);
-      }
-      expect(Math.max(...reach)).toBeCloseTo(circle.radius, 9);
-    }
-  });
-});
 
 describe("reach", () => {
   it("is zero for a body with no organelles", () => {
@@ -274,8 +170,8 @@ describe("relax", () => {
       }
     });
 
-    // The Enclosing Circle of these two discs is centred between them, and
-    // its far edge lies past the Reach: a slide along a ray from that centre
+    // A circle round these two discs is centred between them, and its far
+    // edge lies past the Reach: a slide along a ray from that centre
     // can overshoot the Reach by more than 2·r. From the origin it cannot.
     it("slides an organelle inserted among off-centre ones no farther than 2·r past the Reach", () => {
       const before = [
@@ -341,7 +237,7 @@ describe("makeRoom", () => {
     for (let trial = 0; trial < TRIALS; trial++) {
       const before = relax(randomLayout(unit, 1 + Math.floor(unit() * 12)));
       const room = {
-        ...pointInside(unit, enclosingCircle(before)),
+        ...pointInside(unit, {x: 0, y: 0, radius: reach(before)}),
         radius: unit() * 0.4,
       };
       const cleared = makeRoom(before, room);

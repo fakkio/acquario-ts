@@ -110,7 +110,7 @@ cap(energy) = kCapEnergy × cytoplasmArea
 
 Energy has no exchange and no ambient value, so maintenance is the only thing that drains it, and a full energy store throttles respiration. `kCapEnergy` is energy's own coefficient, because energy is not a carbon or oxygen quantity and its unit is fixed independently by `β = 1`.
 
-Taking concentrations and the energy cap over the cytoplasm area makes an organelle's area a storage cost as well as an energy one (ADR-0029). A smaller cytoplasm holds less energy and holds the same carbon at a higher concentration, which leaks sooner. `cytoplasmThickness > 0` keeps that area strictly positive. Direct competition for a single internal volume is not in v0.2: no storage organelle exists to make it matter.
+Taking concentrations and the energy cap over the cytoplasm area makes an organelle's area a storage cost as well as an energy one (ADR-0029). A smaller cytoplasm holds less energy and holds the same carbon at a higher concentration, which leaks sooner. `cytoplasmRadius > 0` keeps that area strictly positive. Direct competition for a single internal volume is not in v0.2: no storage organelle exists to make it matter.
 
 Until M7.5 every diffusible had a cap too, `kCap × cytoplasmArea`, at 1 for CO₂ and O₂ and 1.5 for food (ADR-0022). Every reaction was throttled on its products' headroom. M7.5 removed those caps because the CO₂ one starved organisms that still held food and O₂ (ADR-0035).
 
@@ -302,7 +302,7 @@ maintenance = c₀ + β · cytoplasmArea
 
 With no organelles this is v0.1's `c₀ + β·area` exactly. `β_type` says what a type's tissue costs relative to cytoplasm; in v0.2 every type's is `β` (ADR-0032). There is no construction cost at birth: a child's mass is still `ρ · bodyArea`, and everything else an organelle costs it pays per tick.
 
-That combination is what makes the size/number trade-off real. Effectiveness scales with radius, so dividing an organelle's area into `n` pieces raises its output as `√n` at the same area cost, and a split always looks attractive. Two things push back: every piece pays its own overhead, and more circles need a wider enclosing circle, so the body, its cytoplasm and a child's mass grow. The overhead is what bounds the count, and it gives each type a closed-form optimal organelle radius, the same shape as `r_opt`:
+That combination is what makes the size/number trade-off real. Effectiveness scales with radius, so dividing an organelle's area into `n` pieces raises its output as `√n` at the same area cost, and a split always looks attractive. Two things push back: every piece pays its own overhead, and more circles add area and push the reach out, so the body, its cytoplasm and a child's mass grow. The overhead is what bounds the count, and it gives each type a closed-form optimal organelle radius, the same shape as `r_opt`:
 
 ```text
 r*_type = c_type / k_type

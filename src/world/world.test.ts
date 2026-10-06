@@ -1201,10 +1201,10 @@ describe("fertility mode (M4)", () => {
 
 describe("generation 0 (M5)", () => {
   const LADDER: readonly Founder[] = [0.8, 1.2, 1.8, 2.6].map(
-    (cytoplasmThickness, i) => ({
+    (cytoplasmRadius, i) => ({
       x: 10 + 10 * i,
       y: 4 + 8 * i,
-      genome: {...BASELINE_GENOME, cytoplasmThickness, lineageHue: 0.2 * i},
+      genome: {...BASELINE_GENOME, cytoplasmRadius, lineageHue: 0.2 * i},
     }),
   );
 
@@ -1234,7 +1234,7 @@ describe("generation 0 (M5)", () => {
     const population = getPopulation(
       createWorld(1234, {
         generation0: {
-          baselineGenome: {...BASELINE_GENOME, cytoplasmThickness: 2.5},
+          baselineGenome: {...BASELINE_GENOME, cytoplasmRadius: 2.5},
         },
       }),
     );
@@ -1251,7 +1251,7 @@ describe("generation 0 (M5)", () => {
       hashAfter(
         createWorld(1234, {
           generation0: {
-            baselineGenome: {...BASELINE_GENOME, cytoplasmThickness: 2.5},
+            baselineGenome: {...BASELINE_GENOME, cytoplasmRadius: 2.5},
           },
         }),
         60,
@@ -1266,9 +1266,7 @@ describe("generation 0 (M5)", () => {
 
     expect(population).toHaveLength(LADDER.length);
     for (const [i, organism] of population.entries()) {
-      expect(organism.cytoplasmThickness).toBe(
-        LADDER[i].genome.cytoplasmThickness,
-      );
+      expect(organism.cytoplasmRadius).toBe(LADDER[i].genome.cytoplasmRadius);
       expect(organism.x).toBe(LADDER[i].x);
       expect(organism.y).toBe(LADDER[i].y);
       expect(organism.lineageHue).toBe(LADDER[i].genome.lineageHue);
@@ -1398,7 +1396,9 @@ describe("a body with neurons (M7)", () => {
         (sum, organelle) => sum + Math.PI * organelle.radius ** 2,
         0,
       );
-      expect(organism.bodyRadius).toBeGreaterThan(organism.cytoplasmThickness);
+      expect(organism.bodyRadius).toBeGreaterThanOrEqual(
+        organism.cytoplasmRadius,
+      );
       expect(organism.cytoplasmArea).toBeCloseTo(
         bodyArea(organism) - organelleArea,
         12,
@@ -1406,9 +1406,7 @@ describe("a body with neurons (M7)", () => {
       for (const organelle of organism.organelles) {
         expect(
           Math.hypot(organelle.x, organelle.y) + organelle.radius,
-        ).toBeLessThanOrEqual(
-          organism.bodyRadius - organism.cytoplasmThickness + 1e-9,
-        );
+        ).toBeLessThanOrEqual(organism.bodyRadius + 1e-9);
       }
     }
   });
@@ -1516,7 +1514,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
 });
 
 describe("placeFounders (M7)", () => {
-  it("stores each founder's layout relaxed and recentred, so its genome holds the body it builds (ADR-0034)", () => {
+  it("stores each founder's layout relaxed, so its genome holds the body it builds (ADR-0034)", () => {
     const {population} = placeFounders(createRngStream(1234), [
       {
         x: 20,
@@ -1533,8 +1531,6 @@ describe("placeFounders (M7)", () => {
     ]);
     const founder = population[0];
 
-    // Equal to rounding: recentring a layout already centred moves it by
-    // the last bits of a centre that computes to ~1e-16 rather than 0.
     expect(founder.genome.genes).toHaveLength(founder.organelles.length);
     for (const [i, gene] of founder.genome.genes.entries()) {
       const organelle = founder.organelles[i];

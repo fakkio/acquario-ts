@@ -41,10 +41,10 @@ const EMPTY_POOLS: Pools = {food: 0, carbonDioxide: 0, oxygen: 0};
 /** A genome that always clears the threshold gate and always splits its
  * remainder evenly, so a test can focus on whichever draw or cost it is
  * actually about. */
-function eagerGenome(cytoplasmThickness = 1): Genome {
+function eagerGenome(cytoplasmRadius = 1): Genome {
   return {
     ...BASELINE_GENOME,
-    cytoplasmThickness,
+    cytoplasmRadius,
     mitosisEnergyThreshold: 0,
     childAllocationRatio: 0.5,
   };
@@ -77,7 +77,7 @@ describe("evaluateMitosis", () => {
   });
 
   it("clears the gate at exactly the threshold", () => {
-    const genome = {...BASELINE_GENOME, cytoplasmThickness: 1};
+    const genome = {...BASELINE_GENOME, cytoplasmRadius: 1};
     const organism = organismWith(5, 5, genome, 42);
     const cap = capFor(organism, "energy");
     organism.energy = genome.mitosisEnergyThreshold * cap;
@@ -118,8 +118,8 @@ describe("evaluateMitosis", () => {
 
     expect(birthSmall).not.toBeNull();
     expect(birthLarge).not.toBeNull();
-    expect(birthSmall?.genome.cytoplasmThickness).not.toBe(
-      birthLarge?.genome.cytoplasmThickness,
+    expect(birthSmall?.genome.cytoplasmRadius).not.toBe(
+      birthLarge?.genome.cytoplasmRadius,
     );
     expect(birthSmall?.rng).toEqual(birthLarge?.rng);
   });
@@ -626,7 +626,7 @@ describe("appendBirths", () => {
 
   it("constructs a child carrying the pending birth's genome, position and stores", () => {
     const birth: PendingBirth = {
-      genome: {...BASELINE_GENOME, cytoplasmThickness: 0.8, lineageHue: 0.2},
+      genome: {...BASELINE_GENOME, cytoplasmRadius: 0.8, lineageHue: 0.2},
       x: 5,
       y: 5,
       rng: createRngStream(99),
