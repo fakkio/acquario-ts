@@ -80,7 +80,7 @@ const BAR_WIDTH = 20;
 const bar = (have: number, need: number): string => {
   const ratio = need > 0 ? have / need : 1;
   const filled = Math.round(Math.min(Math.max(ratio, 0), 1) * BAR_WIDTH);
-  return `${"█".repeat(filled)}${"░".repeat(BAR_WIDTH - filled)} ${(ratio * 100).toFixed(0)}%`;
+  return `[${"#".repeat(filled)}${"-".repeat(BAR_WIDTH - filled)}] ${(ratio * 100).toFixed(0)}%`;
 };
 
 /** How close the organism is to mitosis, one bar per condition the mitosis step
