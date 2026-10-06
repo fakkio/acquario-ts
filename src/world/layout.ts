@@ -31,6 +31,9 @@ const ROUNDING_SLACK = 1e-12;
  * genome's origin (glossary: Enclosing Circle). */
 const EMPTY_CIRCLE: Disc = {x: 0, y: 0, radius: 0};
 
+/** The genome's origin, the body's fixed centre (ADR-0036). */
+const ORIGIN = {x: 0, y: 0};
+
 /** A direction for the degenerate case where two centres coincide and the
  * geometry offers none: fixed, so the result stays a function of the input. */
 const FALLBACK_DIRECTION = {x: 1, y: 0};
@@ -74,28 +77,46 @@ export function enclosingCircle(discs: readonly Disc[]): Disc {
 }
 
 /**
+ * The **Reach** of a layout (ADR-0036): the farthest edge of any disc from
+ * the genome's origin, `max (|p| + r)`, and zero with no discs. Measured from
+ * the fixed origin the body is centred on, not from any circle the discs
+ * enclose.
+ */
+export function reach(discs: readonly Disc[]): number {
+  let farthest = 0;
+  for (const disc of discs) {
+    farthest = Math.max(farthest, distance(disc.x, disc.y) + disc.radius);
+  }
+  return farthest;
+}
+
+/**
  * Pushes overlapping discs apart until none overlap, moving positions and
  * nothing else: every other field of every disc, and their order, comes back
  * as it went in. A layout with no overlaps comes back unchanged.
  *
- * It meets ADR-0028's relaxation contract by construction: after one event
- * on a layout with no overlaps, the Enclosing Circle grows by at most the
- * diameter the event added plus the distance it moved an organelle. Each
- * round names a culprit, a disc with the most overlapping partners, and
- * tries two moves on every such disc, keeping whichever leaves the smaller
- * Enclosing Circle (earliest in genome order, push before slide, on a tie):
+ * It meets ADR-0036's relaxation contract by construction: after one event
+ * on a layout with no overlaps, the Reach (measured from the genome's fixed
+ * origin) grows by at most the diameter the event added plus the distance it
+ * moved an organelle. Each round names a culprit, a disc with the most
+ * overlapping partners, and tries two moves on every such disc, keeping
+ * whichever leaves the smaller Reach (earliest in genome order, push before
+ * slide, on a tie):
  *
  * - **push** every other disc straight away from the culprit by the
  *   culprit's deepest overlap `s`. The map `p ↦ p + s·û` is the gradient of
  *   the convex `|p|²/2 + s·|p|`, so it never brings two discs closer: it
  *   clears the culprit's overlaps, creates none, and moves each disc by
- *   exactly `s`. A disc that grew by `Δd/2` in radius, or moved by `d`,
- *   overlaps by at most that, so the circle grows by at most `Δd` or `d`.
- * - **slide** the culprit alone outward, along the ray from the centre of
- *   the others' Enclosing Circle through it, to the first point where it
- *   overlaps nothing. It stops at most at `R + r`, so the circle grows by at
- *   most `2r`: the bound for an inserted disc, which a push cannot give when
- *   the insertion lands deep inside a large organelle.
+ *   exactly `s`, so no `|p|` grows by more than `s`. A disc that grew by
+ *   `Δd/2` in radius, or moved by `d`, overlaps by at most that, so the
+ *   Reach grows by at most `Δd` or `d`.
+ * - **slide** the culprit alone outward, along the ray from the origin
+ *   through it, to the first point where it overlaps nothing. Past
+ *   `Reach + r` of the others it overlaps nothing, so it stops at most
+ *   there, its far edge at most `2r` past the Reach: the bound for an
+ *   inserted disc, which a push cannot give when the insertion lands deep
+ *   inside a large organelle. The ray starts at the origin and not at the
+ *   others' Enclosing Circle, whose far edge can lie past the Reach.
  *
  * After one event every overlap involves the disc it touched, so that disc
  * is among the culprits and one round ends the relaxation. Every round
@@ -133,7 +154,7 @@ export function relax<T extends Disc>(discs: readonly T[]): T[] {
         pushAway(layout, layout[culprit], deepestOverlapOf(layout, culprit)),
         slideOut(layout, culprit),
       ]) {
-        const radius = enclosingCircle(candidate).radius;
+        const radius = reach(candidate);
         if (radius < bestRadius) {
           best = candidate;
           bestRadius = radius;
@@ -152,8 +173,8 @@ export function relax<T extends Disc>(discs: readonly T[]): T[] {
  * its two pieces will fill and has the others make way.
  *
  * On a layout with no overlaps it creates none, and moves each disc by at
- * most how far `room` reaches past the disc it replaces, so the Enclosing
- * Circle grows by no more than that. A room that overlaps nothing moves
+ * most how far `room` reaches past the disc it replaces, so the Reach
+ * grows by no more than that. A room that overlaps nothing moves
  * nothing.
  */
 export function makeRoom<T extends Disc>(discs: readonly T[], room: Disc): T[] {
@@ -189,11 +210,11 @@ function pushAway<T extends Disc>(
 }
 
 /** The slide move of `relax`: disc `index` alone, moved outward to the first
- * free point on the ray from the others' Enclosing Circle's centre. */
+ * free point on the ray from the genome's origin. */
 function slideOut<T extends Disc>(discs: readonly T[], index: number): T[] {
   const moving = discs[index];
   const others = discs.filter((_, i) => i !== index);
-  const origin = enclosingCircle(others);
+  const origin = ORIGIN;
   const offsetX = moving.x - origin.x;
   const offsetY = moving.y - origin.y;
   const direction = unitVector(offsetX, offsetY);
