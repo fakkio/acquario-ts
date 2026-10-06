@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 
-import type {OrganismView} from "../world";
+import {BASELINE_GENOME, type OrganismView} from "../world";
 import {foldCarrierStatistics, foldGeneStatistics} from "./geneStatistics";
 
 /** Only the genes and the body radius matter to this fold; the rest of
@@ -17,6 +17,7 @@ function organismView(overrides: Partial<OrganismView>): OrganismView {
     generation: 0,
     mitosisEnergyThreshold: 0.75,
     childAllocationRatio: 0.5,
+    genome: BASELINE_GENOME,
     energy: 0,
     oxygen: 0,
     carbonDioxide: 0,

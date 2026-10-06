@@ -94,11 +94,9 @@ export function evaluateMitosis(
     return null;
   }
 
-  const maxChildArea = birthCostCeiling(organism.genome, roster);
-  if (
-    organism.energy < mitosisEnergyCost(maxChildArea) ||
-    organism.food < mitosisMassCost(maxChildArea)
-  ) {
+  const ceiling = birthCosts(organism.genome, roster);
+  const maxChildArea = ceiling.area;
+  if (organism.energy < ceiling.energy || organism.food < ceiling.food) {
     return null;
   }
 
@@ -167,6 +165,24 @@ export function evaluateMitosis(
     oxygen: childStores.oxygen,
     carbonDioxide: childStores.carbonDioxide,
     food: childStores.food,
+  };
+}
+
+/**
+ * What the Worst-Case Birth Gate (ADR-0027) asks a parent to hold: the energy
+ * and the food of the most expensive child its mutation law could produce.
+ * One function for the gate and for the inspector that shows it, so the two
+ * cannot disagree.
+ */
+export function birthCosts(
+  genome: Genome,
+  roster: readonly OrganelleType[],
+): {readonly area: number; readonly energy: number; readonly food: number} {
+  const area = birthCostCeiling(genome, roster);
+  return {
+    area,
+    energy: mitosisEnergyCost(area),
+    food: mitosisMassCost(area),
   };
 }
 

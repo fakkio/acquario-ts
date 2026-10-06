@@ -288,7 +288,7 @@ window.addEventListener("resize", () => {
 // (above) deliberately does not repaint any more — this loop is the sole
 // caller of `repaint` now, so a tick landing and an animation frame firing
 // can never double-draw the same frame.
-const inspector = mountInspector();
+const inspector = mountInspector(ROSTER);
 const animate = (nowMs: number): void => {
   selection = updateSelection(
     selection,

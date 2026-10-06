@@ -98,6 +98,9 @@ export interface OrganismView {
    */
   readonly mitosisEnergyThreshold: number;
   readonly childAllocationRatio: number;
+  /** The whole genome, on the view so the inspector can price the costliest
+   * child this organism could bear (`birthCosts`). Read-only like the rest. */
+  readonly genome: Genome;
   readonly energy: number;
   readonly oxygen: number;
   readonly carbonDioxide: number;

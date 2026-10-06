@@ -1,7 +1,9 @@
 import {
+  birthCosts,
   bodyAreaOfRadius,
   capFor,
   maintenanceBreakdown,
+  type OrganelleType,
   type OrganismView,
   type Resource,
   type TickFlows,
@@ -49,32 +51,47 @@ const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
   return terms.length === 0 ? "    (no change)" : `    ${terms.join("  ")}`;
 };
 
-/** A store against its cap and how full it is: `937.000/1000.000 (94%)`. */
+/** A store against its cap and how full it is, with its concentration (store
+ * per cytoplasm area, the quantity passive exchange reads) except for energy,
+ * which never exchanges: `937.000/1000.000 (94%)  c 1.196`. */
 const store = (organism: OrganismView, resource: Resource): string => {
   const cap = capFor(organism, resource);
-  return `${fixed(organism[resource])}/${fixed(cap)} (${(
+  const full = `${fixed(organism[resource])}/${fixed(cap)} (${(
     (organism[resource] / cap) *
     100
   ).toFixed(0)}%)`;
+  return resource === "energy"
+    ? full
+    : `${full}  c ${fixed(organism[resource] / organism.cytoplasmArea)}`;
 };
 
 const BAR_WIDTH = 20;
 
-/** How close the organism is to mitosis: its energy against the threshold the
- * mitosis step gates on (`mitosisEnergyThreshold × cap(energy)`), as a bar.
- * The step also needs the worst-case birth cost in energy and food, which the
- * view cannot price; a full bar means the threshold is met, not that a birth
- * is certain. */
-const mitosisProgress = (organism: OrganismView): string => {
-  const threshold =
-    organism.mitosisEnergyThreshold * capFor(organism, "energy");
-  const ratio = threshold > 0 ? organism.energy / threshold : 1;
+const bar = (have: number, need: number): string => {
+  const ratio = need > 0 ? have / need : 1;
   const filled = Math.round(Math.min(Math.max(ratio, 0), 1) * BAR_WIDTH);
-  const bar = "█".repeat(filled) + "░".repeat(BAR_WIDTH - filled);
-  return `${bar} ${(ratio * 100).toFixed(0)}%`;
+  return `${"█".repeat(filled)}${"░".repeat(BAR_WIDTH - filled)} ${(ratio * 100).toFixed(0)}%`;
 };
 
-export function mountInspector(): Inspector {
+/** How close the organism is to mitosis, one bar per condition the mitosis step
+ * gates on: energy against the threshold (`mitosisEnergyThreshold × cap`), and
+ * energy and food against the costliest child its mutation could produce
+ * (`birthCosts`, the Worst-Case Birth Gate). It breeds when all three are full. */
+const mitosisProgress = (
+  organism: OrganismView,
+  roster: readonly OrganelleType[],
+): string[] => {
+  const threshold =
+    organism.mitosisEnergyThreshold * capFor(organism, "energy");
+  const costs = birthCosts(organism.genome, roster);
+  return [
+    `  threshold ${bar(organism.energy, threshold)}`,
+    `  energy    ${bar(organism.energy, costs.energy)}`,
+    `  food      ${bar(organism.food, costs.food)}`,
+  ];
+};
+
+export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.top = "44px";
@@ -176,7 +193,8 @@ export function mountInspector(): Inspector {
         `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
         `  organelle areas     ${fixed(organelleArea)}`,
         "",
-        `Mitosis ${mitosisProgress(organism)}`,
+        "Mitosis",
+        ...mitosisProgress(organism, roster),
         "",
         `Maintenance${fixed(maintenance.total, 5)} / tick`,
         `  c₀                  ${fixed(maintenance.existence, 5)}`,
