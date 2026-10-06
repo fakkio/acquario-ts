@@ -49,16 +49,29 @@ const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
   return terms.length === 0 ? "    (no change)" : `    ${terms.join("  ")}`;
 };
 
-/** A store against its cap, how full it is, and its concentration (store per
- * cytoplasm area, the quantity passive exchange reads):
- * `937.000/1000.000 (94%)  c 1.196`. */
+/** A store against its cap and how full it is: `937.000/1000.000 (94%)`. */
 const store = (organism: OrganismView, resource: Resource): string => {
   const cap = capFor(organism, resource);
-  const concentration = organism[resource] / organism.cytoplasmArea;
   return `${fixed(organism[resource])}/${fixed(cap)} (${(
     (organism[resource] / cap) *
     100
-  ).toFixed(0)}%)  c ${fixed(concentration)}`;
+  ).toFixed(0)}%)`;
+};
+
+const BAR_WIDTH = 20;
+
+/** How close the organism is to mitosis: its energy against the threshold the
+ * mitosis step gates on (`mitosisEnergyThreshold × cap(energy)`), as a bar.
+ * The step also needs the worst-case birth cost in energy and food, which the
+ * view cannot price; a full bar means the threshold is met, not that a birth
+ * is certain. */
+const mitosisProgress = (organism: OrganismView): string => {
+  const threshold =
+    organism.mitosisEnergyThreshold * capFor(organism, "energy");
+  const ratio = threshold > 0 ? organism.energy / threshold : 1;
+  const filled = Math.round(Math.min(Math.max(ratio, 0), 1) * BAR_WIDTH);
+  const bar = "█".repeat(filled) + "░".repeat(BAR_WIDTH - filled);
+  return `${bar} ${(ratio * 100).toFixed(0)}%`;
 };
 
 export function mountInspector(): Inspector {
@@ -163,7 +176,9 @@ export function mountInspector(): Inspector {
         `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
         `  organelle areas     ${fixed(organelleArea)}`,
         "",
-        `Maintenance ${fixed(maintenance.total, 5)} / tick`,
+        `Mitosis ${mitosisProgress(organism)}`,
+        "",
+        `Maintenance${fixed(maintenance.total, 5)} / tick`,
         `  c₀                  ${fixed(maintenance.existence, 5)}`,
         `  cytoplasm           ${fixed(maintenance.cytoplasm, 5)}`,
         `  organelle overheads ${fixed(maintenance.organelleOverheads, 5)}`,
