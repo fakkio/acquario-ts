@@ -258,7 +258,11 @@ const loop = createRenderLoop({
   trace: () => (selection.kind === "alive" ? selection.organism : undefined),
   onAdvance: (nextWorld, fps, flows) => {
     latestWorld = nextWorld;
-    selectedFlows = flows;
+    // A frame that ran no tick reports null; keeping the last tick's flows
+    // through it stops the inspector's deltas and "(last tick)" blinking out.
+    if (flows !== null) {
+      selectedFlows = flows;
+    }
     updateHud(nextWorld, fps);
     if (isRestartDue(getPopulation(nextWorld).length, autoRestart)) {
       restart();
