@@ -29,7 +29,15 @@ Measuring `α` from a run and then testing convergence against a prediction deri
 
 ## Consequences
 
-- M2 gains a readout of mean energy income per unit radius, computed as `respirationEnergy / bodyRadius` per organism and averaged over the population, **excluding organisms whose respiration was throttled by a full energy store** in that tick — those measure their own tank, not the income available to them. Organisms at zero energy stay in: they are genuinely poor, and that is part of what the mean has to say.
+- M2 gains a readout of mean energy income per unit radius, computed as `respirationEnergy / bodyRadius` per organism and averaged over the population, **excluding organisms whose respiration was throttled by a full energy store** in that tick — those measure their own tank, not the income available to them. Organisms at zero energy stay in: they are genuinely poor, and that is part of what the mean has to say. _Amended by #75, see below._
 - Smoothing belongs to the App layer. A moving average in the world would be state crossing tick boundaries, which means it would have to enter `hashState` for the sake of one HUD row.
 - The single mean is enough for M2's purpose, which is confirming the constants are of the right order. It is **not** enough for M5's, so M5's CSV export carries `α` binned by depth: a population mean over a vertical gradient is an average of two different ecologies.
 - ADR-0011 is amended in one word: the done-criterion converges on the `r_opt` predicted by the **measured** `α`. Everything else about it stands, including that the prediction precedes the run that tests it.
+
+## Amendment (#75, M7.5): `α` measures the potential rate
+
+ADR-0035 removed the CO₂ cap. Respiration now refills the energy store within a tick, so every organism is throttled by a full energy store on every tick and the exclusion above removes the whole population: `α` read 0 at every depth.
+
+`α` is now the **potential rate**: the energy respiration would produce without the energy store's throttle, `min(rate, food, O₂) · RESPIRATION_ENERGY_YIELD`, per unit of body radius, averaged over the whole population with nobody excluded. The tick folds it from `RespirationOutcome.potentialEnergy`, outside the state hash.
+
+What it costs: the potential rate is mass action on the Cytoplasm Area, so it grows faster than linearly in `r` and sits orders of magnitude above the income an organism actually banks. It is a capacity, not the supply-limited income the linearity argument of ADR-0009 assumes, and `r_opt = 2·c₀/α` is not read against it. The test that checked `α` linear in `r` is skipped until the organelle milestones, when what `α` should be is revisited. The candidates are the effective income (Δenergy + maintenance, which the harness's income ladder already measures), a saturating respiration rate, or `RESPIRATION_ENERGY_YIELD` as an M12 lever.

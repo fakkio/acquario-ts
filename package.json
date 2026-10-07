@@ -1,7 +1,7 @@
 {
   "name": "acquario-ts",
   "description": "",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "author": "fakkio (fabiolazzaroni.dev)",
   "bugs": {
     "url": "https://github.com/fakkio/acquario-ts/issues"
@@ -37,6 +37,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "caps": "node --import ./scripts/ts-esm-resolver.mjs scripts/caps.ts",
     "calibrate": "node --import ./scripts/ts-esm-resolver.mjs scripts/calibrate.ts",
     "dev": "vite",
     "done-criteria": "node --import ./scripts/ts-esm-resolver.mjs scripts/doneCriteria.ts",

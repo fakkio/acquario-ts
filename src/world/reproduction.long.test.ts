@@ -3,7 +3,7 @@ import {beforeAll, describe, expect, it} from "vitest";
 import {totalCarbon, totalOxygen, type Pools} from "./ledger";
 import {
   STARTING_POPULATION,
-  capFor,
+  energyCap,
   type Organism,
   type OrganismView,
 } from "./organism";
@@ -33,7 +33,7 @@ import {
  * recording plainly rather than only in a code comment nobody reads twice:
  *
  * `mitosisMassCost = ρ × childArea` is forced (ADR-0019), and while
- * `K_CAP.food` still equals `ρ` it is *exactly* a same-sized child's own
+ * the food cap M7 still had still equals `ρ` it is *exactly* a same-sized child's own
  * food cap — the coincidence ADR-0022 names as a physical assertion rather
  * than a unit choice, and the one M5 buys food headroom out of. A
  * parent has to hold close to its own entire food store just to afford
@@ -46,7 +46,7 @@ import {
  * defect in this ticket's own code, since `mitosisEnergyCost` and
  * `mitosisEnergyThreshold` are the only levers M4 owns (see the ticket's
  * own risk note), and neither one touches the food side of the ledger.
- * Recalibrating `K_CAP.food`, the carbon budget or the reaction-rate
+ * Recalibrating the food cap M7 still had, the carbon budget or the reaction-rate
  * constants to change that is explicitly M5's job, not this one's.
  *
  * What priming buys, honestly: a run that actually exercises mitosis,
@@ -94,7 +94,7 @@ import {
  * constant, that is a finding about the model" — this is recorded as a
  * comment on #31 rather than forced into a passing assertion here.
  * Closing that gap for real is a pre-calibration question for M5 (moving
- * `K_CAP.food`, the carbon budget or the reaction-rate constants — never
+ * the food cap M7 still had, the carbon budget or the reaction-rate constants — never
  * `RHO`, which carries the carbon unit), not something this
  * ticket's scope owns, so #31 stays open against this finding instead of
  * being closed on a weakened test.
@@ -144,8 +144,8 @@ const RUN_TIMEOUT_MS = 60_000;
 
 function primePopulation(world: World): void {
   for (const organism of getPopulation(world) as unknown as Organism[]) {
-    organism.energy = capFor(organism, "energy");
-    organism.food = capFor(organism, "food");
+    organism.energy = energyCap(organism);
+    organism.food = 1.5 * organism.cytoplasmArea;
   }
 }
 

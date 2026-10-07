@@ -35,7 +35,7 @@ import {reportTheWorldMeasured} from "./calibration/worldHeader";
  * Run it with a candidate world by overriding constants in the environment
  * — they are read once, at module import:
  *
- *     ACQUARIO_K_PHOTO=0.2 ACQUARIO_K_CAP_FOOD=4 npm run calibrate
+ *     ACQUARIO_K_PHOTO=0.2 ACQUARIO_K_CAP_ENERGY=800 npm run calibrate
  *
  * and shorten or lengthen the looking with `CALIBRATE_*` (see
  * `calibration/settings.ts`). The sweep that loops those child processes is

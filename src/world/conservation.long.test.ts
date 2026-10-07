@@ -1,6 +1,6 @@
 import {beforeAll, describe, expect, it} from "vitest";
 
-import {capFor} from "./organism";
+import {energyCap} from "./organism";
 import {
   FIXED_DT_MS,
   advance,
@@ -118,7 +118,7 @@ describe("conservation over 100k ticks (#20)", () => {
       (organism) => organism.energy === 0,
     ).length;
     const atCapCount = run.population.filter(
-      (organism) => organism.energy >= capFor(organism, "energy"),
+      (organism) => organism.energy >= energyCap(organism),
     ).length;
 
     expect(zeroEnergyCount).toBeGreaterThan(0);
@@ -133,7 +133,7 @@ describe("conservation over 100k ticks (#20)", () => {
   // toward some other state at tick 100k, not sitting in one.
   //
   // Widened from `0.3` at #35: this world's founders start with internal
-  // CO₂ above `K_CAP.carbonDioxide` (the same finding `EXISTENCE_COST`'s
+  // CO₂ above the CO₂ cap M7 still had (the same finding `EXISTENCE_COST`'s
   // own comment in `constants.ts` records), and clearing it is slow enough
   // — thousands of ticks at some of generation 0's depths — that most of
   // this immortal population is still climbing off that transient at tick

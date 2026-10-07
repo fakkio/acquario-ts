@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest";
 
-import type {OrganismView} from "../world";
+import {BASELINE_GENOME, type OrganismView} from "../world";
 import {foldCarrierStatistics, foldGeneStatistics} from "./geneStatistics";
 
 /** Only the genes and the body radius matter to this fold; the rest of
@@ -10,13 +10,14 @@ function organismView(overrides: Partial<OrganismView>): OrganismView {
     x: 0,
     y: 0,
     bodyRadius: 1,
-    cytoplasmThickness: 1,
+    cytoplasmRadius: 1,
     cytoplasmArea: Math.PI,
     organelles: [],
     lineageHue: 0,
     generation: 0,
     mitosisEnergyThreshold: 0.75,
     childAllocationRatio: 0.5,
+    genome: BASELINE_GENOME,
     energy: 0,
     oxygen: 0,
     carbonDioxide: 0,
@@ -30,7 +31,7 @@ describe("foldGeneStatistics", () => {
     const stats = foldGeneStatistics([]);
 
     expect(stats.bodyRadius).toEqual({mean: 0, sigma: 0});
-    expect(stats.cytoplasmThickness).toEqual({mean: 0, sigma: 0});
+    expect(stats.cytoplasmRadius).toEqual({mean: 0, sigma: 0});
     expect(stats.mitosisEnergyThreshold).toEqual({mean: 0, sigma: 0});
     expect(stats.childAllocationRatio).toEqual({mean: 0, sigma: 0});
     expect(stats.lineageHue).toEqual({mean: 0, sigma: 0});
@@ -60,16 +61,16 @@ describe("foldGeneStatistics", () => {
   // From M7 the body radius is derived, not a gene: a body carrying
   // organelles is wider than its cytoplasm is thick, and the two rows
   // must not be confused.
-  it("folds cytoplasmThickness apart from the derived body radius", () => {
+  it("folds cytoplasmRadius apart from the derived body radius", () => {
     const population = [
-      organismView({cytoplasmThickness: 1, bodyRadius: 1.5}),
-      organismView({cytoplasmThickness: 2, bodyRadius: 2.5}),
+      organismView({cytoplasmRadius: 1, bodyRadius: 1.5}),
+      organismView({cytoplasmRadius: 2, bodyRadius: 2.5}),
     ];
 
     const stats = foldGeneStatistics(population);
 
-    expect(stats.cytoplasmThickness.mean).toBeCloseTo(1.5);
-    expect(stats.cytoplasmThickness.sigma).toBeCloseTo(0.5);
+    expect(stats.cytoplasmRadius.mean).toBeCloseTo(1.5);
+    expect(stats.cytoplasmRadius.sigma).toBeCloseTo(0.5);
     expect(stats.bodyRadius.mean).toBeCloseTo(2);
     expect(stats.bodyRadius.sigma).toBeCloseTo(0.5);
   });

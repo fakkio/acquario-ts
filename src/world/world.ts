@@ -193,10 +193,10 @@ interface WorldState {
   readonly initialTotalCarbon: number;
   readonly initialTotalOxygen: number;
   /**
-   * ADR-0015's `α`, in the two readings ADR-0023 asks for: this tick's
-   * respiration energy over body radius, averaged over organisms whose
-   * respiration was *not* throttled by a full energy store, from the tick
-   * that has just run — once over the whole population and once over the
+   * ADR-0015's `α` (amended by #75), in the two readings ADR-0023 asks
+   * for: this tick's *potential* respiration energy, what the reaction
+   * would produce without the energy store's throttle, over body radius,
+   * averaged over the population, from the tick that has just run — once over the whole population and once over the
    * bright band alone. Read fresh every tick and never smoothed here —
    * smoothing is the App layer's job, so a moving average never becomes
    * state this record has to carry, and stays out of `hashState` for the
@@ -508,20 +508,19 @@ interface MeasuredAlpha {
 const NO_ENERGY_PRODUCED: MeasuredAlpha = {whole: 0, bright: 0};
 
 /**
- * ADR-0015's population mean: `energyProduced / bodyRadius`, averaged over
- * every organism whose respiration this tick was *not* throttled by a full
- * energy store — those measure the size of their own tank rather than the
- * income available to them. Organisms at zero energy stay in: they are
- * genuinely poor, and that is part of what the mean has to say. Reads 0
- * for a population that is entirely throttled, the same value a tick that
- * produced no energy at all would report.
+ * ADR-0015's population mean, as amended by #75: `potentialEnergy /
+ * bodyRadius`, averaged over every organism. The potential rate is what
+ * respiration would produce without the energy store's throttle. With no
+ * CO₂ cap (ADR-0035) respiration refills the store within a tick, so
+ * excluding throttled organisms, as ADR-0015 first did, excludes everyone
+ * and `α` reads 0. Organisms at zero energy stay in: they are genuinely
+ * poor, and that is part of what the mean has to say. Reads 0 for an empty
+ * population.
  *
  * One fold producing both readings rather than two folds over the same
- * array (ADR-0023: "the same fold with one more predicate"). The depth
- * predicate sits beside the throttle predicate rather than replacing it:
- * an organism excluded from the whole-population mean is excluded from the
- * band's too, so the two numbers stay comparable — the only thing that
- * differs between them is the set, never the rule.
+ * array (ADR-0023: "the same fold with one more predicate"). The bright
+ * band's set is a subset of the whole population's, so the two numbers
+ * stay comparable.
  */
 function meanMeasuredAlpha(
   population: readonly Organism[],
@@ -533,11 +532,8 @@ function meanMeasuredAlpha(
   let brightCount = 0;
   for (let i = 0; i < population.length; i++) {
     const outcome = outcomes[i];
-    if (outcome.throttledByFullEnergyStore) {
-      continue;
-    }
     const organism = population[i];
-    const alpha = outcome.energyProduced / organism.bodyRadius;
+    const alpha = outcome.potentialEnergy / organism.bodyRadius;
     sum += alpha;
     count++;
     if (isBright(organism.y)) {

@@ -67,7 +67,7 @@ One heritable, independently mutable field of the genome.
 _Avoid_: trait, allele, parameter
 
 **Organism Gene**:
-A gene the organism has exactly once, held in the genome's fixed header rather than in its `Gene[]`: `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue`, and the body-size gene (`bodyRadius` in v0.1, **Cytoplasm Thickness** from v0.2). Never duplicated, deleted or inserted; carries no **Innovation Id**, since it is aligned by name.
+A gene the organism has exactly once, held in the genome's fixed header rather than in its `Gene[]`: `mitosisEnergyThreshold`, `childAllocationRatio`, `lineageHue`, and the body-size gene (`bodyRadius` in v0.1, **Cytoplasm Radius** from v0.2). Never duplicated, deleted or inserted; carries no **Innovation Id**, since it is aligned by name.
 _Avoid_: trait, header field, global gene
 
 **Innovation Id**:
@@ -91,16 +91,16 @@ The v0.2 duplication operator, which divides rather than copies: one organelle b
 _Avoid_: duplication (in prose it is fine; the operator is a split), copy, fission, clone
 
 **Body Radius**:
-The radius of an organism's circular body. A gene in v0.1, the only one mutating multiplicatively. From v0.2 derived: the minimum enclosing circle of the body's relaxed organelles plus the **Cytoplasm Thickness**, which is the whole radius of a body with no organelles.
+The radius of an organism's circular body. A gene in v0.1, the only one mutating multiplicatively. From v0.2 derived: the radius of the circle holding the cytoplasm's area plus every organelle's, or the **Reach** when the organelles stick out of that circle, whichever is larger. The body is centred on the genome's origin, so an organelle is born anywhere in it, and a body with no organelles has the **Cytoplasm Radius** for its radius.
 _Avoid_: size, scale
 
-**Enclosing Circle**:
-From v0.2, the smallest circle containing every organelle of a body once relaxed apart; the body is centred on it and its radius plus the **Cytoplasm Thickness** is the **Body Radius**. Empty, of radius zero, in a body with no organelles. An inserted organelle is born inside it, never in the cytoplasm around it.
-_Avoid_: MEC (in prose; fine in formulas), bounding circle, hull, layout radius
+**Reach**:
+From v0.2, the distance from a body's centre to the far edge of its farthest organelle: zero with no organelles. The body grows to it when the organelles stick out of the circle their area and the cytoplasm's would make, and never moves them back in.
+_Avoid_: extent, enclosing circle, layout radius
 
-**Cytoplasm Thickness**:
-From v0.2, the **Organism Gene** giving the width of cytoplasm around a body's organelles: body radius is the organelles' minimum enclosing circle plus this. With no organelles it is the whole body radius, so it inherits v0.1's `bodyRadius` and its multiplicative law.
-_Avoid_: margin, cytoplasm radius, body radius (that is derived)
+**Cytoplasm Radius**:
+From v0.2, the **Organism Gene** giving the radius of a circle of the cytoplasm's area, the cytoplasm a body is built with before any organelle is added to it. It inherits v0.1's `bodyRadius` and its multiplicative law, and is the whole body radius of a body with no organelles. While the **Reach** exceeds the circle the areas make, mutating it changes nothing a body shows.
+_Avoid_: cytoplasm thickness, margin, body radius (that is derived)
 
 **Mitosis Energy Threshold**:
 The gene, in `[0, 1]`, giving the fraction of its energy cap an organism must reach before attempting to reproduce.
@@ -161,12 +161,12 @@ Signed diffusion of a resource across the membrane, proportional to perimeter an
 _Avoid_: absorption, uptake, intake, osmosis
 
 **Concentration**:
-An amount divided by the area holding it — `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside (from v0.2, `internal ÷` **Cytoplasm Area**, which is the body area when there are no organelles). The only quantity the two sides of a membrane can be compared in.
-_Avoid_: density, level
+An amount divided by the area holding it: `pool ÷ aquariumArea` outside, `internal ÷ bodyArea` inside (from v0.2, `internal ÷` **Cytoplasm Area**, which is the body area when there are no organelles). The only quantity the two sides of a membrane can be compared in, and the only way a diffusible store is read: no ceiling exists to take a fraction of.
+_Avoid_: density, level, fill, percentage of cap
 
 **Cap**:
-The maximum amount of a resource an organism can hold: `kCap(resource) × bodyArea` (from v0.2 `× cytoplasmArea`, see **Cytoplasm Area**), i.e. a maximum internal concentration. One per resource, never a shared volume. Only `kCap/ρ` is physical, since `ρ` alone carries the carbon unit (ADR-0022).
-_Avoid_: capacity, limit, storage
+The most energy an organism can hold, `kCapEnergy × cytoplasmArea`. Only the energy store has one, because nothing but maintenance drains it. A full energy store throttles respiration. A diffusible store has no cap and is read as a **Concentration** (ADR-0035).
+_Avoid_: capacity, limit, storage, soft cap, cap of a diffusible
 
 **Existence Cost**:
 The flat, size-independent energy an organism pays per unit time simply for being an organism. What makes a minimum viable body size exist.
@@ -181,7 +181,7 @@ The whole energy an organism pays per unit time simply to keep being one: existe
 _Avoid_: upkeep, basal cost, body cost (that is one of its two terms)
 
 **Cytoplasm Area**:
-From v0.2, the part of a body not occupied by organelles: `bodyArea − Σ organelleArea`, strictly positive because **Cytoplasm Thickness** is. What holds the stores, so caps and internal concentrations are taken over it, and what the body cost is charged on.
+From v0.2, the part of a body not occupied by organelles: `bodyArea − Σ organelleArea`, at least the circle's area of the **Cytoplasm Radius**, more when the **Reach** inflates the body. What holds the stores, so caps and internal concentrations are taken over it, and what the body cost is charged on.
 _Avoid_: free area, internal capacity, storage area
 
 **Organelle Overhead**:
@@ -197,7 +197,7 @@ The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable i
 _Avoid_: ideal size, target radius
 
 **Energy Income Coefficient**:
-`α`, the energy an organism earns per tick per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Bright Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
+`α`, the energy an organism's respiration would produce per tick, without the energy store's throttle (the potential rate, ADR-0015 as amended by #75), per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Bright Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
 _Avoid_: income rate, efficiency, alpha (alone, in prose)
 
 ### World
@@ -335,7 +335,7 @@ A named place on an organelle, or on the body, where synapses attach: an input p
 _Avoid_: pin, channel, socket, input/output (alone)
 
 **Innate Sense**:
-An output **Port** of the body itself, present in every organism at no cost: a store over its cap, the light at the body's centre, or which way the body's axis points. The passive version of what a sensor organelle would improve.
+An output **Port** of the body itself, present in every organism at no cost: how full a store is (energy over its cap, a diffusible by its concentration), the light at the body's centre, or which way the body's axis points. The passive version of what a sensor organelle would improve.
 _Avoid_: sensor (reserved for sensor organelles, v0.3+), input neuron, perception
 
 **Actuator**:

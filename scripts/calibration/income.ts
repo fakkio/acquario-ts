@@ -1,5 +1,5 @@
 import {
-  capFor,
+  energyCap,
   createWorld,
   getPoolLevels,
   getPopulation,
@@ -135,7 +135,7 @@ type Exclusion =
   | "no window long enough";
 
 function exclusionFor(organism: OrganismView): Exclusion | null {
-  const cap = capFor(organism, "energy");
+  const cap = energyCap(organism);
   if (organism.energy <= FLOOR_ENERGY) {
     return "never off the immortal floor";
   }

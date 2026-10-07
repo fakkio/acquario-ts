@@ -13,6 +13,7 @@ import {totalCarbon, totalOxygen, type Pools} from "./ledger";
 import {applyMaintenance} from "./metabolism";
 import {
   appendBirths,
+  birthCosts,
   evaluateMitosis,
   mintBirths,
   type PendingBirth,
@@ -21,8 +22,8 @@ import {
   Organism,
   bodyArea,
   bodyAreaOfRadius,
-  capFor,
-  capForArea,
+  energyCap,
+  energyCapForArea,
 } from "./organism";
 import {createRngStream, deriveChildStream} from "./rng";
 import {carrierAt, openDraws, organismAt} from "./testing";
@@ -41,10 +42,10 @@ const EMPTY_POOLS: Pools = {food: 0, carbonDioxide: 0, oxygen: 0};
 /** A genome that always clears the threshold gate and always splits its
  * remainder evenly, so a test can focus on whichever draw or cost it is
  * actually about. */
-function eagerGenome(cytoplasmThickness = 1): Genome {
+function eagerGenome(cytoplasmRadius = 1): Genome {
   return {
     ...BASELINE_GENOME,
-    cytoplasmThickness,
+    cytoplasmRadius,
     mitosisEnergyThreshold: 0,
     childAllocationRatio: 0.5,
   };
@@ -62,9 +63,40 @@ function organismWith(
 }
 
 describe("evaluateMitosis", () => {
+  it("never throws on a parent paying exactly its ceiling, whatever its body and the events it draws", () => {
+    const parents = [
+      carrierAt(5, 5, [0.3, 0.2, 0.1], 0.3).genome,
+      carrierAt(5, 5, [0.05], 2.5).genome,
+      {
+        ...BASELINE_GENOME,
+        cytoplasmRadius: 0.3,
+        genes: [
+          {
+            type: "neuron" as const,
+            innovationId: 1,
+            radius: 0.1,
+            x: 2,
+            y: 0,
+          },
+        ],
+      },
+    ];
+    for (const parentGenome of parents) {
+      const genome = {...parentGenome, mitosisEnergyThreshold: 0};
+      const costs = birthCosts(genome, ["neuron"]);
+      for (let seed = 0; seed < 300; seed++) {
+        const organism = organismWith(5, 5, genome, seed);
+        organism.energy = costs.energy;
+        organism.food = costs.food;
+
+        expect(() => evaluateMitosis(organism, ["neuron"])).not.toThrow();
+      }
+    }
+  });
+
   it("returns null and consumes no draws when energy is below the threshold", () => {
     const organism = organismAt(5, 5, 1, 42);
-    const cap = capFor(organism, "energy");
+    const cap = energyCap(organism);
     organism.energy = organism.genome.mitosisEnergyThreshold * cap - 1e-6;
     const streamBefore = organism.rng;
 
@@ -77,9 +109,9 @@ describe("evaluateMitosis", () => {
   });
 
   it("clears the gate at exactly the threshold", () => {
-    const genome = {...BASELINE_GENOME, cytoplasmThickness: 1};
+    const genome = {...BASELINE_GENOME, cytoplasmRadius: 1};
     const organism = organismWith(5, 5, genome, 42);
-    const cap = capFor(organism, "energy");
+    const cap = energyCap(organism);
     organism.energy = genome.mitosisEnergyThreshold * cap;
     organism.food = 1000;
 
@@ -88,7 +120,7 @@ describe("evaluateMitosis", () => {
 
   it("derives the child's stream from the parent's rng before mutating the genome, so mutation can never affect it", () => {
     const organism = organismWith(5, 5, eagerGenome(), 77);
-    organism.energy = capFor(organism, "energy");
+    organism.energy = energyCap(organism);
     organism.food = 1000;
     const expectedChildStream = deriveChildStream(organism.rng).childStream;
 
@@ -107,10 +139,10 @@ describe("evaluateMitosis", () => {
     // beforehand, they cannot.
     const seed = 909;
     const small = organismWith(5, 5, eagerGenome(0.6), seed);
-    small.energy = capFor(small, "energy");
+    small.energy = energyCap(small);
     small.food = 1000;
     const large = organismWith(5, 5, eagerGenome(1.4), seed);
-    large.energy = capFor(large, "energy");
+    large.energy = energyCap(large);
     large.food = 1000;
 
     const birthSmall = evaluateMitosis(small, []);
@@ -118,18 +150,18 @@ describe("evaluateMitosis", () => {
 
     expect(birthSmall).not.toBeNull();
     expect(birthLarge).not.toBeNull();
-    expect(birthSmall?.genome.cytoplasmThickness).not.toBe(
-      birthLarge?.genome.cytoplasmThickness,
+    expect(birthSmall?.genome.cytoplasmRadius).not.toBe(
+      birthLarge?.genome.cytoplasmRadius,
     );
     expect(birthSmall?.rng).toEqual(birthLarge?.rng);
   });
 
   it("prices, debits the parent and allocates the child's stores, matching a hand-computed replica of the same draw sequence", () => {
     const organism = organismWith(5, 5, eagerGenome(), 55);
-    organism.energy = capFor(organism, "energy");
-    organism.food = capFor(organism, "food");
-    organism.oxygen = capFor(organism, "oxygen") * 0.5;
-    organism.carbonDioxide = capFor(organism, "carbonDioxide") * 0.5;
+    organism.energy = energyCap(organism);
+    organism.food = 1.5 * organism.cytoplasmArea;
+    organism.oxygen = organism.cytoplasmArea * 0.5;
+    organism.carbonDioxide = organism.cytoplasmArea * 0.5;
 
     const startEnergy = organism.energy;
     const startFood = organism.food;
@@ -149,22 +181,13 @@ describe("evaluateMitosis", () => {
     const parentFoodAfterCost = startFood - massCost;
     const parentEnergyAfterCost = startEnergy - energyCost;
 
-    const expectedChildFood = Math.min(
-      ratio * parentFoodAfterCost,
-      capForArea(childBody.cytoplasmArea, "food"),
-    );
+    const expectedChildFood = ratio * parentFoodAfterCost;
     const expectedChildEnergy = Math.min(
       ratio * parentEnergyAfterCost,
-      capForArea(childBody.cytoplasmArea, "energy"),
+      energyCapForArea(childBody.cytoplasmArea),
     );
-    const expectedChildOxygen = Math.min(
-      ratio * startOxygen,
-      capForArea(childBody.cytoplasmArea, "oxygen"),
-    );
-    const expectedChildCo2 = Math.min(
-      ratio * startCo2,
-      capForArea(childBody.cytoplasmArea, "carbonDioxide"),
-    );
+    const expectedChildOxygen = ratio * startOxygen;
+    const expectedChildCo2 = ratio * startCo2;
 
     const birth = evaluateMitosis(organism, []);
 
@@ -187,13 +210,13 @@ describe("evaluateMitosis", () => {
     expect(organism.carbonDioxide).toBeCloseTo(startCo2 - expectedChildCo2, 12);
   });
 
-  it("caps the child's share at its own caps, leaving the excess with the parent", () => {
+  it("clips the child's energy at its own cap, leaving the excess with the parent", () => {
     // A ratio of 1 with a mutated child that can end up smaller than the
     // parent forces the cap, rather than the ratio itself, to bind.
     const genome = {...eagerGenome(), childAllocationRatio: 1};
     const organism = organismWith(5, 5, genome, 9);
-    organism.energy = capFor(organism, "energy");
-    organism.food = capFor(organism, "food");
+    organism.energy = energyCap(organism);
+    organism.food = 1.5 * organism.cytoplasmArea;
 
     const birth = evaluateMitosis(organism, []);
     expect(birth).not.toBeNull();
@@ -202,21 +225,52 @@ describe("evaluateMitosis", () => {
     }
 
     const {cytoplasmArea} = deriveBody(birth.genome);
-    const childFoodCap = capForArea(cytoplasmArea, "food");
-    const childEnergyCap = capForArea(cytoplasmArea, "energy");
-    expect(birth.food).toBeLessThanOrEqual(childFoodCap + 1e-9);
-    expect(birth.energy).toBeLessThanOrEqual(childEnergyCap + 1e-9);
+    expect(birth.energy).toBeLessThanOrEqual(
+      energyCapForArea(cytoplasmArea) + 1e-9,
+    );
     // Nothing lost: whatever the child could not hold is still sitting with
     // the parent, not vanished — checked precisely by the conservation test
     // below rather than restated here.
   });
 
+  // ADR-0035: only energy has a cap, so the diffusibles go over in full even
+  // into a child whose concentration then sits above its parent's.
+  it("hands the diffusibles over in full, even above the parent's concentration", () => {
+    const genome = {...eagerGenome(), childAllocationRatio: 1};
+    let checked = 0;
+    for (let seed = 1; seed < 200; seed++) {
+      const organism = organismWith(5, 5, genome, seed);
+      organism.energy = energyCap(organism);
+      organism.food = 3 * organism.cytoplasmArea;
+      organism.oxygen = 2 * organism.cytoplasmArea;
+      organism.carbonDioxide = 2 * organism.cytoplasmArea;
+      const startOxygen = organism.oxygen;
+      const startCo2 = organism.carbonDioxide;
+      const parentConcentration = startOxygen / organism.cytoplasmArea;
+
+      const birth = evaluateMitosis(organism, []);
+      if (!birth) {
+        continue;
+      }
+      const childArea = deriveBody(birth.genome).cytoplasmArea;
+
+      expect(birth.oxygen).toBeCloseTo(startOxygen, 12);
+      expect(birth.carbonDioxide).toBeCloseTo(startCo2, 12);
+      expect(organism.oxygen).toBeCloseTo(0, 12);
+      expect(organism.carbonDioxide).toBeCloseTo(0, 12);
+      if (birth.oxygen / childArea > parentConcentration) {
+        checked++;
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
+  });
+
   it("conserves total carbon and total oxygen across one committed birth", () => {
     const organism = organismWith(5, 5, eagerGenome(), 8);
-    organism.energy = capFor(organism, "energy");
-    organism.food = capFor(organism, "food");
-    organism.oxygen = capFor(organism, "oxygen");
-    organism.carbonDioxide = capFor(organism, "carbonDioxide");
+    organism.energy = energyCap(organism);
+    organism.food = 1.5 * organism.cytoplasmArea;
+    organism.oxygen = organism.cytoplasmArea;
+    organism.carbonDioxide = organism.cytoplasmArea;
 
     const carbonBefore = totalCarbon([organism], EMPTY_POOLS);
     const oxygenBefore = totalOxygen([organism], EMPTY_POOLS);
@@ -301,8 +355,8 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
       const worstCost = unitCost * birthCostCeiling(organism.genome, []);
       // Both caps sit above the worst case's cost, so whichever store is
       // not the marginal one never binds.
-      organism.energy = capFor(organism, "energy");
-      organism.food = capFor(organism, "food");
+      organism.energy = energyCap(organism);
+      organism.food = 1.5 * organism.cytoplasmArea;
       // Spread from well below a same-sized child to above the worst case.
       organism[marginal] = worstCost * (0.75 + draw() * 0.4);
 
@@ -334,8 +388,8 @@ describe("the Worst-Case Birth Gate (ADR-0027)", () => {
     "returns no birth and draws nothing when %s pays for a same-sized child but not the worst case",
     (resource) => {
       const organism = organismWith(5, 5, eagerGenome(), 42);
-      organism.energy = capFor(organism, "energy");
-      organism.food = capFor(organism, "food");
+      organism.energy = energyCap(organism);
+      organism.food = 1.5 * organism.cytoplasmArea;
       const unitCost = resource === "food" ? RHO : MITOSIS_ENERGY_COST;
       // Halfway between a same-sized child's cost and the ceiling's.
       organism[resource] =
@@ -410,8 +464,8 @@ describe("evaluateMitosis over a roster (M7)", () => {
     const ceiling = birthCostCeiling(genome, ROSTER);
     organism.energy = 2 * MITOSIS_ENERGY_COST * ceiling;
     organism.food = 2 * RHO * ceiling;
-    organism.oxygen = capFor(organism, "oxygen");
-    organism.carbonDioxide = capFor(organism, "carbonDioxide");
+    organism.oxygen = organism.cytoplasmArea;
+    organism.carbonDioxide = organism.cytoplasmArea;
     return organism;
   }
 
@@ -466,17 +520,11 @@ describe("evaluateMitosis over a roster (M7)", () => {
         MITOSIS_ENERGY_COST * childArea + (birth?.energy ?? 0),
         9,
       );
-      // Capped from the child's Cytoplasm Area, which organelles shrink.
-      for (const resource of [
-        "energy",
-        "oxygen",
-        "carbonDioxide",
-        "food",
-      ] as const) {
-        expect(birth?.[resource]).toBeLessThanOrEqual(
-          capForArea(childBody.cytoplasmArea, resource) + 1e-12,
-        );
-      }
+      // Energy is clipped at the child's Cytoplasm Area, which organelles
+      // shrink.
+      expect(birth?.energy).toBeLessThanOrEqual(
+        energyCapForArea(childBody.cytoplasmArea) + 1e-12,
+      );
       return;
     }
     throw new Error("no seed produced a child with a different structure");
@@ -595,10 +643,10 @@ describe("Generation", () => {
       rng: createRngStream(8),
       generation,
     });
-    organism.energy = capFor(organism, "energy");
-    organism.food = capFor(organism, "food");
-    organism.oxygen = capFor(organism, "oxygen");
-    organism.carbonDioxide = capFor(organism, "carbonDioxide");
+    organism.energy = energyCap(organism);
+    organism.food = 1.5 * organism.cytoplasmArea;
+    organism.oxygen = organism.cytoplasmArea;
+    organism.carbonDioxide = organism.cytoplasmArea;
     return organism;
   };
 
@@ -626,7 +674,7 @@ describe("appendBirths", () => {
 
   it("constructs a child carrying the pending birth's genome, position and stores", () => {
     const birth: PendingBirth = {
-      genome: {...BASELINE_GENOME, cytoplasmThickness: 0.8, lineageHue: 0.2},
+      genome: {...BASELINE_GENOME, cytoplasmRadius: 0.8, lineageHue: 0.2},
       x: 5,
       y: 5,
       rng: createRngStream(99),

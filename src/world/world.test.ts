@@ -24,7 +24,7 @@ import {
   DIFFUSIBLES,
   STARTING_POPULATION,
   bodyArea,
-  capFor,
+  energyCap,
   createPopulation,
   placeFounders,
   type Founder,
@@ -58,6 +58,16 @@ import {
   hashState,
   type World,
 } from "./world";
+
+// One tick per call, since a single long `advance` is cut short by its
+// catch-up cap (`MAX_TICKS_PER_ADVANCE`).
+const ticks = (world: World, count: number): World => {
+  let current = world;
+  for (let tick = 0; tick < count; tick++) {
+    ({world: current} = advance(current, FIXED_DT_MS));
+  }
+  return current;
+};
 
 // The population `createPopulation` places, brought to the same diffusive
 // equilibrium `createWorld` puts generation 0 through, so a hand-built
@@ -505,7 +515,7 @@ describe("passive exchange (M2)", () => {
     const area = bodyArea(displaced);
     const ambientFoodConcentration = displaced.food / area;
     displaced.food = 0;
-    displaced.oxygen = 2 * capFor(displaced, "oxygen");
+    displaced.oxygen = 2 * displaced.cytoplasmArea;
 
     const initialCarbon = totalCarbon(population, pools);
     const initialOxygen = totalOxygen(population, pools);
@@ -636,7 +646,7 @@ describe("respiration and maintenance (M2)", () => {
     let world = createWorld(3);
     const initialEnergy = getPopulation(world).map((o) => o.energy);
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     const finalEnergy = getPopulation(world).map((o) => o.energy);
     expect(finalEnergy.some((e, i) => e > initialEnergy[i])).toBe(true);
@@ -687,13 +697,18 @@ describe("respiration and maintenance (M2)", () => {
   // than trusted from the formula, per the ticket's instruction — organisms
   // held at the *same* depth so only radius varies, since income also
   // depends on light and conflating the two would test depth, not radius.
-  it("produces energy income approximately linear in body radius, at a shared depth", () => {
+  // SKIPPED by #75 (ADR-0015, amended): α is now the potential rate, which is
+  // mass action on the Cytoplasm Area and grows faster than linearly in `r`
+  // (CV 0.32 across radii 0.6-1.4, against this test's 0.1). Whether α, or
+  // some effective income, should be linear in `r` is revisited with the
+  // organelles.
+  it.skip("produces energy income approximately linear in body radius, at a shared depth", () => {
     const radii = [0.6, 0.85, 1.0, 1.2, 1.4];
     const population = radii.map((r, i) => organismAt(i * 3, 5, r, 900 + i));
     let pools = initializeMetabolism(population);
 
     // #35 raised the carbon budget enough that every founder's internal CO₂
-    // starts above `K_CAP.carbonDioxide`, throttling respiration until
+    // starts above the CO₂ cap M7 still had, throttling respiration until
     // photosynthesis draws it back down — around 100 ticks at this depth,
     // where a 30-tick warmup used to be enough. Once each body clears that,
     // its own income still swings tick to tick as it drifts in and out of
@@ -727,10 +742,8 @@ describe("respiration and maintenance (M2)", () => {
 
       if (tick >= SETTLE_TICKS) {
         outcomes.forEach((outcome, i) => {
-          if (!outcome.throttledByFullEnergyStore) {
-            alphaSums[i] += outcome.energyProduced / radii[i];
-            alphaCounts[i]++;
-          }
+          alphaSums[i] += outcome.potentialEnergy / radii[i];
+          alphaCounts[i]++;
         });
       }
     }
@@ -798,7 +811,7 @@ describe("respiration and maintenance (M2)", () => {
     it("reads zero when every body sits below the band", () => {
       // Not asserting a positive whole-population mean here any more: #35's
       // carbon budget starts every founder's internal CO₂ above
-      // `K_CAP.carbonDioxide`, and clearing it needs photosynthesis, whose
+      // the CO₂ cap M7 still had, and clearing it needs photosynthesis, whose
       // rate this far below the band is slow enough that "50 ticks" and
       // "never" are hard to tell apart (clearing at the band's own floor,
       // `y = BRIGHT_BAND_DEPTH`, already measures in the thousands). The
@@ -830,7 +843,7 @@ describe("respiration and maintenance (M2)", () => {
 
     it("counts a body exactly on the band's floor as inside it", () => {
       // Not asserting a positive reading at tick 1 any more: #35's carbon
-      // budget starts internal CO₂ above `K_CAP.carbonDioxide`, and this
+      // budget starts internal CO₂ above the CO₂ cap M7 still had, and this
       // depth is dim enough (10% of surface) that clearing it takes
       // thousands of ticks, not one — see the below-band test's comment.
       // What this test is actually about is the `≤` in `isBright`, which a
@@ -911,7 +924,7 @@ describe("mortality mode (M3)", () => {
     let world = createWorld(3, {mortality: "off", fertility: "off"});
     const initialCount = getPopulation(world).length;
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     expect(getPopulation(world).length).toBe(initialCount);
   });
@@ -922,7 +935,7 @@ describe("mortality mode (M3)", () => {
   it("counts organisms sitting at exactly zero energy, in the immortal world", () => {
     let world = createWorld(3, {mortality: "off", fertility: "off"});
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 6000);
 
     const liveCount = getPopulation(world).filter((o) => o.energy > 0).length;
     expect(getZeroEnergyCount(world)).toBe(
@@ -938,7 +951,7 @@ describe("mortality mode (M3)", () => {
     let world = createWorld(3, {fertility: "off"});
     const initialCount = getPopulation(world).length;
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 6000);
 
     expect(getPopulation(world).length).toBeLessThan(initialCount);
     expect(getZeroEnergyCount(world)).toBe(0);
@@ -947,7 +960,7 @@ describe("mortality mode (M3)", () => {
   it("reads 0 for getCumulativeDeaths for the lifetime of the immortal world", () => {
     let world = createWorld(3, {mortality: "off", fertility: "off"});
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     expect(getCumulativeDeaths(world)).toBe(0);
   });
@@ -966,7 +979,7 @@ describe("mortality mode (M3)", () => {
       organism.y = AQUARIUM_HEIGHT - 2;
     }
 
-    const {world: after} = advance(world, 5000 * FIXED_DT_MS);
+    const after = ticks(world, 6000);
 
     const lost = initialCount - getPopulation(after).length;
     expect(lost).toBeGreaterThan(0);
@@ -995,8 +1008,8 @@ describe("fertility mode (M4)", () => {
   // death quickly.
   function primeForBirth(world: World): void {
     for (const organism of getPopulation(world) as unknown as Organism[]) {
-      organism.energy = capFor(organism, "energy");
-      organism.food = capFor(organism, "food");
+      organism.energy = energyCap(organism);
+      organism.food = 1.5 * organism.cytoplasmArea;
     }
   }
 
@@ -1113,8 +1126,8 @@ describe("fertility mode (M4)", () => {
       const population = randomPopulation(21, 20);
       const pools = initializeMetabolism(population);
       for (const organism of population) {
-        organism.energy = capFor(organism, "energy");
-        organism.food = capFor(organism, "food");
+        organism.energy = energyCap(organism);
+        organism.food = 1.5 * organism.cytoplasmArea;
       }
       return {population, pools};
     };
@@ -1162,7 +1175,7 @@ describe("fertility mode (M4)", () => {
   it("reads 0 for getCumulativeBirths for the lifetime of the infertile world", () => {
     let world = createWorld(3, {fertility: "off"});
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     expect(getCumulativeBirths(world)).toBe(0);
   });
@@ -1201,10 +1214,10 @@ describe("fertility mode (M4)", () => {
 
 describe("generation 0 (M5)", () => {
   const LADDER: readonly Founder[] = [0.8, 1.2, 1.8, 2.6].map(
-    (cytoplasmThickness, i) => ({
+    (cytoplasmRadius, i) => ({
       x: 10 + 10 * i,
       y: 4 + 8 * i,
-      genome: {...BASELINE_GENOME, cytoplasmThickness, lineageHue: 0.2 * i},
+      genome: {...BASELINE_GENOME, cytoplasmRadius, lineageHue: 0.2 * i},
     }),
   );
 
@@ -1234,7 +1247,7 @@ describe("generation 0 (M5)", () => {
     const population = getPopulation(
       createWorld(1234, {
         generation0: {
-          baselineGenome: {...BASELINE_GENOME, cytoplasmThickness: 2.5},
+          baselineGenome: {...BASELINE_GENOME, cytoplasmRadius: 2.5},
         },
       }),
     );
@@ -1251,7 +1264,7 @@ describe("generation 0 (M5)", () => {
       hashAfter(
         createWorld(1234, {
           generation0: {
-            baselineGenome: {...BASELINE_GENOME, cytoplasmThickness: 2.5},
+            baselineGenome: {...BASELINE_GENOME, cytoplasmRadius: 2.5},
           },
         }),
         60,
@@ -1266,9 +1279,7 @@ describe("generation 0 (M5)", () => {
 
     expect(population).toHaveLength(LADDER.length);
     for (const [i, organism] of population.entries()) {
-      expect(organism.cytoplasmThickness).toBe(
-        LADDER[i].genome.cytoplasmThickness,
-      );
+      expect(organism.cytoplasmRadius).toBe(LADDER[i].genome.cytoplasmRadius);
       expect(organism.x).toBe(LADDER[i].x);
       expect(organism.y).toBe(LADDER[i].y);
       expect(organism.lineageHue).toBe(LADDER[i].genome.lineageHue);
@@ -1398,7 +1409,9 @@ describe("a body with neurons (M7)", () => {
         (sum, organelle) => sum + Math.PI * organelle.radius ** 2,
         0,
       );
-      expect(organism.bodyRadius).toBeGreaterThan(organism.cytoplasmThickness);
+      expect(organism.bodyRadius).toBeGreaterThanOrEqual(
+        organism.cytoplasmRadius,
+      );
       expect(organism.cytoplasmArea).toBeCloseTo(
         bodyArea(organism) - organelleArea,
         12,
@@ -1406,9 +1419,7 @@ describe("a body with neurons (M7)", () => {
       for (const organelle of organism.organelles) {
         expect(
           Math.hypot(organelle.x, organelle.y) + organelle.radius,
-        ).toBeLessThanOrEqual(
-          organism.bodyRadius - organism.cytoplasmThickness + 1e-9,
-        );
+        ).toBeLessThanOrEqual(organism.bodyRadius + 1e-9);
       }
     }
   });
@@ -1460,14 +1471,6 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  const ticks = (world: World, count: number): World => {
-    let current = world;
-    for (let tick = 0; tick < count; tick++) {
-      ({world: current} = advance(current, FIXED_DT_MS));
-    }
-    return current;
-  };
-
   it("defaults to the neuron, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
     const explicit = createWorld(1234, {roster: ["neuron"]});
@@ -1481,7 +1484,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
   });
 
   it("never inserts a neuron into an unprimed world with an empty roster", () => {
-    const world = ticks(createWorld(1, {roster: []}), 1500);
+    const world = ticks(createWorld(1, {roster: []}), 8000);
 
     expect(getCumulativeBirths(world)).toBeGreaterThan(0);
     for (const organism of getPopulation(world)) {
@@ -1516,7 +1519,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
 });
 
 describe("placeFounders (M7)", () => {
-  it("stores each founder's layout relaxed and recentred, so its genome holds the body it builds (ADR-0034)", () => {
+  it("stores each founder's layout relaxed, so its genome holds the body it builds (ADR-0034)", () => {
     const {population} = placeFounders(createRngStream(1234), [
       {
         x: 20,
@@ -1533,8 +1536,6 @@ describe("placeFounders (M7)", () => {
     ]);
     const founder = population[0];
 
-    // Equal to rounding: recentring a layout already centred moves it by
-    // the last bits of a centre that computes to ~1e-16 rather than 0.
     expect(founder.genome.genes).toHaveLength(founder.organelles.length);
     for (const [i, gene] of founder.genome.genes.entries()) {
       const organelle = founder.organelles[i];

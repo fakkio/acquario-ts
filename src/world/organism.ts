@@ -3,12 +3,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {
-  GENERATION_0_MUTATION_SCALE,
-  K_CAP,
-  K_CAP_ENERGY,
-  RHO,
-} from "./constants";
+import {GENERATION_0_MUTATION_SCALE, K_CAP_ENERGY, RHO} from "./constants";
 import {
   BASELINE_GENOME,
   deriveBody,
@@ -48,7 +43,7 @@ export const MAX_RADIUS_FACTOR = 1.4;
 
 /**
  * The largest body generation 0 places — no longer, from M4 on, the largest
- * body the world allows. The radius grows from `cytoplasmThickness`, a gene
+ * body the world allows. The radius grows from `cytoplasmRadius`, a gene
  * with range `> 0` mutating multiplicatively (v0.1's `bodyRadius` until M7),
  * so once reproduction exists there is no largest radius
  * to derive a world-wide ceiling from; the ledger is the only ceiling left,
@@ -76,7 +71,7 @@ export interface OrganismView {
   readonly bodyRadius: number;
   /** The gene the body radius grows from, on the view from M7 so the HUD
    * can show it apart from the radius it no longer is. */
-  readonly cytoplasmThickness: number;
+  readonly cytoplasmRadius: number;
   /** The derived body's Cytoplasm Area, the denominator of every cap and
    * internal concentration (ADR-0029). */
   readonly cytoplasmArea: number;
@@ -98,6 +93,9 @@ export interface OrganismView {
    */
   readonly mitosisEnergyThreshold: number;
   readonly childAllocationRatio: number;
+  /** The whole genome, on the view so the inspector can price the costliest
+   * child this organism could bear (`birthCosts`). Read-only like the rest. */
+  readonly genome: Genome;
   readonly energy: number;
   readonly oxygen: number;
   readonly carbonDioxide: number;
@@ -129,8 +127,8 @@ export interface OrganismInit {
 /**
  * One of the four quantities an organism holds internally (glossary:
  * Resource). Named as a union rather than folded into `Organism`'s field
- * list so `capFor` can be written once against the resource instead of once
- * per field.
+ * list so `RESOURCES` and the mitosis split can be written once against the
+ * resource instead of once per field.
  */
 export type Resource = "energy" | "oxygen" | "carbonDioxide" | "food";
 
@@ -163,20 +161,6 @@ export const RESOURCES: readonly Resource[] = [
 ];
 
 /**
- * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
- * size: `coefficient × cytoplasmArea` (ADR-0029). The three diffusibles'
- * coefficients come from `K_CAP`'s own per-resource table, spread in whole
- * rather than listed again here, so a diffusible added later cannot be
- * given a cap in one place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
- * outside that table, because its unit is fixed independently by `β = 1`
- * rather than by coincidence of notation.
- */
-const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
-  energy: K_CAP_ENERGY,
-  ...K_CAP,
-};
-
-/**
  * A mutable class instance, per ADR-0013's choice of OOP over SoA: the tick
  * moves a body by writing to it, rather than by allocating a replacement
  * population every one of sixty ticks a second.
@@ -190,8 +174,8 @@ const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
  * reads, in `grid.ts`, `motion.ts`, `separation.ts` and `render.ts`; from
  * M7 it is the derived radius rather than a gene.
  *
- * No rotation and no angular velocity: `x`/`y` is the Enclosing Circle's
- * centre, and an organelle sits in the world at that position plus its own.
+ * No rotation and no angular velocity: `x`/`y` is the body's centre, the
+ * genome's origin, and an organelle sits in the world at that position plus its own.
  * Rotation arrives with the first torque (M8), the thruster's.
  *
  * The four internal resource stores arrive in M2. They are plain mutable
@@ -234,8 +218,8 @@ export class Organism {
     return this.body.cytoplasmArea;
   }
 
-  get cytoplasmThickness(): number {
-    return this.genome.cytoplasmThickness;
+  get cytoplasmRadius(): number {
+    return this.genome.cytoplasmRadius;
   }
 
   get organelles(): readonly OrganelleGene[] {
@@ -299,22 +283,21 @@ export function bodyMass(organism: Organism): number {
   return bodyMassOfRadius(organism.bodyRadius);
 }
 
-/** The maximum amount of `resource` a body with `cytoplasmArea` can hold —
- * `capFor`'s sibling for a body with no `Organism` yet, a child mitosis is
- * still pricing from its `deriveBody`. */
-export function capForArea(cytoplasmArea: number, resource: Resource): number {
-  return CAP_COEFFICIENT[resource] * cytoplasmArea;
+/** The most energy a body with `cytoplasmArea` can hold: `K_CAP_ENERGY ×
+ * cytoplasmArea` (ADR-0029). The only cap in the world (ADR-0035): food,
+ * O₂ and CO₂ are read as concentrations, and passive exchange corrects
+ * whatever a store holds above the ambient level. `energyCap`'s sibling for
+ * a body with no `Organism` yet, a child mitosis is still pricing from its
+ * `deriveBody`. */
+export function energyCapForArea(cytoplasmArea: number): number {
+  return K_CAP_ENERGY * cytoplasmArea;
 }
 
-/** The maximum amount of `resource` this organism can hold right now — a
- * maximum internal concentration, scaled by its own Cytoplasm Area, since
- * organelles take space that holds no stores (ADR-0029). Accepts an
- * `OrganismView` too; see `bodyArea`. */
-export function capFor(
-  organism: Organism | OrganismView,
-  resource: Resource,
-): number {
-  return capForArea(organism.cytoplasmArea, resource);
+/** The most energy this organism can hold right now, scaled by its own
+ * Cytoplasm Area, since organelles take space that holds no stores
+ * (ADR-0029). Accepts an `OrganismView` too; see `bodyArea`. */
+export function energyCap(organism: Organism | OrganismView): number {
+  return energyCapForArea(organism.cytoplasmArea);
 }
 
 export interface PopulationDraw {
@@ -453,8 +436,9 @@ export interface Founder {
  * Each founder's organelles get their Innovation Ids here, from the world's
  * counter, in placement order and then genome order: the counter's first
  * mints. Organelle positions are not taken at their word: the genome a
- * founder is built from holds its layout relaxed apart and recentred on its
- * Enclosing Circle, as every genome does (ADR-0034).
+ * founder is built from holds its layout relaxed apart, as every genome does
+ * (ADR-0034), and not moved otherwise: the body is centred on the genome's
+ * origin (ADR-0036).
  */
 export function placeFounders(
   globalRng: RngStream,
@@ -473,7 +457,7 @@ export function placeFounders(
         y: draft.y,
       })),
     };
-    // The body's organelles are the layout relaxed and recentred, which is
+    // The body's organelles are the layout relaxed, which is
     // what a genome holds (ADR-0034): stored as the genes, nothing is left
     // for construction to fix.
     const genes = deriveBody(minted).organelles;
@@ -495,7 +479,7 @@ export function placeFounders(
  * folds in, including the two M4 adds — `mitosisEnergyThreshold` and
  * `childAllocationRatio` — per the rule: what enters the hash is what the
  * next tick reads, and a gene left out is a gene the invariant silently
- * stops covering. `cytoplasmThickness` folds into the slot `bodyRadius`
+ * stops covering. `cytoplasmRadius` folds into the slot `bodyRadius`
  * held, and with no organelles it is the same number, so a world of
  * Minimal Organisms hashes as it did in M6 (#59).
  *
@@ -522,7 +506,7 @@ export function foldPopulation(
     }
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmThickness)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}`,
     );
   }
 

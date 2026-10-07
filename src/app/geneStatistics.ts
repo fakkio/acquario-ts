@@ -9,7 +9,7 @@ export interface PopulationGeneStatistics {
   /** The derived body radius, not a gene since M7, but folded with the
    * genes because it is what the population looks like on screen. */
   readonly bodyRadius: GeneStat;
-  readonly cytoplasmThickness: GeneStat;
+  readonly cytoplasmRadius: GeneStat;
   readonly mitosisEnergyThreshold: GeneStat;
   readonly childAllocationRatio: GeneStat;
   readonly lineageHue: GeneStat;
@@ -43,8 +43,8 @@ export function foldGeneStatistics(
 ): PopulationGeneStatistics {
   return {
     bodyRadius: stat(population.map((organism) => organism.bodyRadius)),
-    cytoplasmThickness: stat(
-      population.map((organism) => organism.cytoplasmThickness),
+    cytoplasmRadius: stat(
+      population.map((organism) => organism.cytoplasmRadius),
     ),
     mitosisEnergyThreshold: stat(
       population.map((organism) => organism.mitosisEnergyThreshold),
