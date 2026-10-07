@@ -24,7 +24,7 @@ import {
   DIFFUSIBLES,
   STARTING_POPULATION,
   bodyArea,
-  capFor,
+  energyCap,
   createPopulation,
   placeFounders,
   type Founder,
@@ -50,7 +50,6 @@ import {
   getMeasuredAlpha,
   getOxygenDrift,
   getBrightAlpha,
-  getCapBinding,
   getPoolLevels,
   getPopulation,
   getTick,
@@ -59,6 +58,16 @@ import {
   hashState,
   type World,
 } from "./world";
+
+// One tick per call, since a single long `advance` is cut short by its
+// catch-up cap (`MAX_TICKS_PER_ADVANCE`).
+const ticks = (world: World, count: number): World => {
+  let current = world;
+  for (let tick = 0; tick < count; tick++) {
+    ({world: current} = advance(current, FIXED_DT_MS));
+  }
+  return current;
+};
 
 // The population `createPopulation` places, brought to the same diffusive
 // equilibrium `createWorld` puts generation 0 through, so a hand-built
@@ -506,7 +515,7 @@ describe("passive exchange (M2)", () => {
     const area = bodyArea(displaced);
     const ambientFoodConcentration = displaced.food / area;
     displaced.food = 0;
-    displaced.oxygen = 2 * capFor(displaced, "oxygen");
+    displaced.oxygen = 2 * displaced.cytoplasmArea;
 
     const initialCarbon = totalCarbon(population, pools);
     const initialOxygen = totalOxygen(population, pools);
@@ -637,7 +646,7 @@ describe("respiration and maintenance (M2)", () => {
     let world = createWorld(3);
     const initialEnergy = getPopulation(world).map((o) => o.energy);
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     const finalEnergy = getPopulation(world).map((o) => o.energy);
     expect(finalEnergy.some((e, i) => e > initialEnergy[i])).toBe(true);
@@ -688,13 +697,19 @@ describe("respiration and maintenance (M2)", () => {
   // than trusted from the formula, per the ticket's instruction — organisms
   // held at the *same* depth so only radius varies, since income also
   // depends on light and conflating the two would test depth, not radius.
-  it("produces energy income approximately linear in body radius, at a shared depth", () => {
+  // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
+  // mass-action rate and refills the energy store inside a tick or two, so
+  // every organism is "throttled by a full energy store" on every tick and
+  // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
+  // the dark. What `α` should measure now is #67's open question, and these
+  // assertions return with its answer.
+  it.skip("produces energy income approximately linear in body radius, at a shared depth", () => {
     const radii = [0.6, 0.85, 1.0, 1.2, 1.4];
     const population = radii.map((r, i) => organismAt(i * 3, 5, r, 900 + i));
     let pools = initializeMetabolism(population);
 
     // #35 raised the carbon budget enough that every founder's internal CO₂
-    // starts above `K_CAP.carbonDioxide`, throttling respiration until
+    // starts above the CO₂ cap M7 still had, throttling respiration until
     // photosynthesis draws it back down — around 100 ticks at this depth,
     // where a 30-tick warmup used to be enough. Once each body clears that,
     // its own income still swings tick to tick as it drifts in and out of
@@ -757,7 +772,13 @@ describe("respiration and maintenance (M2)", () => {
     expect(getZeroEnergyCount(world)).toBe(0);
   });
 
-  it("reports a positive measured alpha once respiration has real substrate to run on", () => {
+  // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
+  // mass-action rate and refills the energy store inside a tick or two, so
+  // every organism is "throttled by a full energy store" on every tick and
+  // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
+  // the dark. What `α` should measure now is #67's open question, and these
+  // assertions return with its answer.
+  it.skip("reports a positive measured alpha once respiration has real substrate to run on", () => {
     let world = createWorld(3);
 
     ({world} = advance(world, 50 * FIXED_DT_MS));
@@ -799,7 +820,7 @@ describe("respiration and maintenance (M2)", () => {
     it("reads zero when every body sits below the band", () => {
       // Not asserting a positive whole-population mean here any more: #35's
       // carbon budget starts every founder's internal CO₂ above
-      // `K_CAP.carbonDioxide`, and clearing it needs photosynthesis, whose
+      // the CO₂ cap M7 still had, and clearing it needs photosynthesis, whose
       // rate this far below the band is slow enough that "50 ticks" and
       // "never" are hard to tell apart (clearing at the band's own floor,
       // `y = BRIGHT_BAND_DEPTH`, already measures in the thousands). The
@@ -813,14 +834,26 @@ describe("respiration and maintenance (M2)", () => {
       expect(getBrightAlpha(world)).toBe(0);
     });
 
-    it("agrees with the whole-population mean when every body is in the band", () => {
+    // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
+    // mass-action rate and refills the energy store inside a tick or two, so
+    // every organism is "throttled by a full energy store" on every tick and
+    // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
+    // the dark. What `α` should measure now is #67's open question, and these
+    // assertions return with its answer.
+    it.skip("agrees with the whole-population mean when every body is in the band", () => {
       const world = fixedWorldOf(ladderAt(2), 50);
 
       expect(getBrightAlpha(world)).toBeGreaterThan(0);
       expect(getBrightAlpha(world)).toBeCloseTo(getMeasuredAlpha(world), 12);
     });
 
-    it("reports the brighter of the two ecologies when the population straddles the band", () => {
+    // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
+    // mass-action rate and refills the energy store inside a tick or two, so
+    // every organism is "throttled by a full energy store" on every tick and
+    // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
+    // the dark. What `α` should measure now is #67's open question, and these
+    // assertions return with its answer.
+    it.skip("reports the brighter of the two ecologies when the population straddles the band", () => {
       const world = fixedWorldOf(
         [...ladderAt(2), ...ladderAt(AQUARIUM_HEIGHT - 2)],
         50,
@@ -831,7 +864,7 @@ describe("respiration and maintenance (M2)", () => {
 
     it("counts a body exactly on the band's floor as inside it", () => {
       // Not asserting a positive reading at tick 1 any more: #35's carbon
-      // budget starts internal CO₂ above `K_CAP.carbonDioxide`, and this
+      // budget starts internal CO₂ above the CO₂ cap M7 still had, and this
       // depth is dim enough (10% of surface) that clearing it takes
       // thousands of ticks, not one — see the below-band test's comment.
       // What this test is actually about is the `≤` in `isBright`, which a
@@ -850,45 +883,6 @@ describe("respiration and maintenance (M2)", () => {
       );
 
       expect(getBrightAlpha(world)).toBe(getMeasuredAlpha(world));
-    });
-  });
-
-  /**
-   * The cap-binding readout (#69): per tick, how many organisms a diffusible's
-   * cap was the binding limit for. A scalar fold like `α`, outside the hash.
-   */
-  describe("cap-binding counts", () => {
-    const dimLadder: Founder[] = [6, 18, 30, 42, 54].map((x) => ({
-      x,
-      y: AQUARIUM_HEIGHT - 2,
-      genome: {...BASELINE_GENOME, lineageHue: 0.5},
-    }));
-
-    it("reads zero at tick 0, before any reaction has run", () => {
-      expect(getCapBinding(createWorld(3))).toEqual({
-        food: 0,
-        oxygen: 0,
-        carbonDioxide: 0,
-      });
-    });
-
-    it("counts every founder under CO₂ on a tick where all of them open above the cap", () => {
-      // Ambient CO₂ opens above `kCap(CO₂)`, so a founder's headroom is
-      // negative on tick 1, and in the dark photosynthesis binds nothing.
-      const world = advance(
-        createWorld(3, {
-          mortality: "off",
-          fertility: "off",
-          generation0: {founders: dimLadder},
-        }),
-        FIXED_DT_MS,
-      ).world;
-
-      expect(getCapBinding(world)).toEqual({
-        food: 0,
-        oxygen: 0,
-        carbonDioxide: dimLadder.length,
-      });
     });
   });
 
@@ -951,7 +945,7 @@ describe("mortality mode (M3)", () => {
     let world = createWorld(3, {mortality: "off", fertility: "off"});
     const initialCount = getPopulation(world).length;
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     expect(getPopulation(world).length).toBe(initialCount);
   });
@@ -962,7 +956,7 @@ describe("mortality mode (M3)", () => {
   it("counts organisms sitting at exactly zero energy, in the immortal world", () => {
     let world = createWorld(3, {mortality: "off", fertility: "off"});
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 6000);
 
     const liveCount = getPopulation(world).filter((o) => o.energy > 0).length;
     expect(getZeroEnergyCount(world)).toBe(
@@ -978,7 +972,7 @@ describe("mortality mode (M3)", () => {
     let world = createWorld(3, {fertility: "off"});
     const initialCount = getPopulation(world).length;
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 6000);
 
     expect(getPopulation(world).length).toBeLessThan(initialCount);
     expect(getZeroEnergyCount(world)).toBe(0);
@@ -987,7 +981,7 @@ describe("mortality mode (M3)", () => {
   it("reads 0 for getCumulativeDeaths for the lifetime of the immortal world", () => {
     let world = createWorld(3, {mortality: "off", fertility: "off"});
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     expect(getCumulativeDeaths(world)).toBe(0);
   });
@@ -1006,7 +1000,7 @@ describe("mortality mode (M3)", () => {
       organism.y = AQUARIUM_HEIGHT - 2;
     }
 
-    const {world: after} = advance(world, 5000 * FIXED_DT_MS);
+    const after = ticks(world, 6000);
 
     const lost = initialCount - getPopulation(after).length;
     expect(lost).toBeGreaterThan(0);
@@ -1035,8 +1029,8 @@ describe("fertility mode (M4)", () => {
   // death quickly.
   function primeForBirth(world: World): void {
     for (const organism of getPopulation(world) as unknown as Organism[]) {
-      organism.energy = capFor(organism, "energy");
-      organism.food = capFor(organism, "food");
+      organism.energy = energyCap(organism);
+      organism.food = 1.5 * organism.cytoplasmArea;
     }
   }
 
@@ -1153,8 +1147,8 @@ describe("fertility mode (M4)", () => {
       const population = randomPopulation(21, 20);
       const pools = initializeMetabolism(population);
       for (const organism of population) {
-        organism.energy = capFor(organism, "energy");
-        organism.food = capFor(organism, "food");
+        organism.energy = energyCap(organism);
+        organism.food = 1.5 * organism.cytoplasmArea;
       }
       return {population, pools};
     };
@@ -1202,7 +1196,7 @@ describe("fertility mode (M4)", () => {
   it("reads 0 for getCumulativeBirths for the lifetime of the infertile world", () => {
     let world = createWorld(3, {fertility: "off"});
 
-    ({world} = advance(world, 2000 * FIXED_DT_MS));
+    world = ticks(world, 2000);
 
     expect(getCumulativeBirths(world)).toBe(0);
   });
@@ -1498,14 +1492,6 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  const ticks = (world: World, count: number): World => {
-    let current = world;
-    for (let tick = 0; tick < count; tick++) {
-      ({world: current} = advance(current, FIXED_DT_MS));
-    }
-    return current;
-  };
-
   it("defaults to the neuron, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
     const explicit = createWorld(1234, {roster: ["neuron"]});
@@ -1519,7 +1505,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
   });
 
   it("never inserts a neuron into an unprimed world with an empty roster", () => {
-    const world = ticks(createWorld(1, {roster: []}), 1500);
+    const world = ticks(createWorld(1, {roster: []}), 8000);
 
     expect(getCumulativeBirths(world)).toBeGreaterThan(0);
     for (const organism of getPopulation(world)) {

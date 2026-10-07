@@ -3,12 +3,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {
-  GENERATION_0_MUTATION_SCALE,
-  K_CAP,
-  K_CAP_ENERGY,
-  RHO,
-} from "./constants";
+import {GENERATION_0_MUTATION_SCALE, K_CAP_ENERGY, RHO} from "./constants";
 import {
   BASELINE_GENOME,
   deriveBody,
@@ -132,8 +127,8 @@ export interface OrganismInit {
 /**
  * One of the four quantities an organism holds internally (glossary:
  * Resource). Named as a union rather than folded into `Organism`'s field
- * list so `capFor` can be written once against the resource instead of once
- * per field.
+ * list so `RESOURCES` and the mitosis split can be written once against the
+ * resource instead of once per field.
  */
 export type Resource = "energy" | "oxygen" | "carbonDioxide" | "food";
 
@@ -164,20 +159,6 @@ export const RESOURCES: readonly Resource[] = [
   "carbonDioxide",
   "food",
 ];
-
-/**
- * A cap is a maximum internal *concentration* (ADR-0003), not a bucket
- * size: `coefficient × cytoplasmArea` (ADR-0029). The three diffusibles'
- * coefficients come from `K_CAP`'s own per-resource table, spread in whole
- * rather than listed again here, so a diffusible added later cannot be
- * given a cap in one place and forgotten in the other. Energy carries `K_CAP_ENERGY` and sits
- * outside that table, because its unit is fixed independently by `β = 1`
- * rather than by coincidence of notation.
- */
-const CAP_COEFFICIENT: Readonly<Record<Resource, number>> = {
-  energy: K_CAP_ENERGY,
-  ...K_CAP,
-};
 
 /**
  * A mutable class instance, per ADR-0013's choice of OOP over SoA: the tick
@@ -302,22 +283,21 @@ export function bodyMass(organism: Organism): number {
   return bodyMassOfRadius(organism.bodyRadius);
 }
 
-/** The maximum amount of `resource` a body with `cytoplasmArea` can hold —
- * `capFor`'s sibling for a body with no `Organism` yet, a child mitosis is
- * still pricing from its `deriveBody`. */
-export function capForArea(cytoplasmArea: number, resource: Resource): number {
-  return CAP_COEFFICIENT[resource] * cytoplasmArea;
+/** The most energy a body with `cytoplasmArea` can hold: `K_CAP_ENERGY ×
+ * cytoplasmArea` (ADR-0029). The only cap in the world (ADR-0035): food,
+ * O₂ and CO₂ are read as concentrations, and passive exchange corrects
+ * whatever a store holds above the ambient level. `energyCap`'s sibling for
+ * a body with no `Organism` yet, a child mitosis is still pricing from its
+ * `deriveBody`. */
+export function energyCapForArea(cytoplasmArea: number): number {
+  return K_CAP_ENERGY * cytoplasmArea;
 }
 
-/** The maximum amount of `resource` this organism can hold right now — a
- * maximum internal concentration, scaled by its own Cytoplasm Area, since
- * organelles take space that holds no stores (ADR-0029). Accepts an
- * `OrganismView` too; see `bodyArea`. */
-export function capFor(
-  organism: Organism | OrganismView,
-  resource: Resource,
-): number {
-  return capForArea(organism.cytoplasmArea, resource);
+/** The most energy this organism can hold right now, scaled by its own
+ * Cytoplasm Area, since organelles take space that holds no stores
+ * (ADR-0029). Accepts an `OrganismView` too; see `bodyArea`. */
+export function energyCap(organism: Organism | OrganismView): number {
+  return energyCapForArea(organism.cytoplasmArea);
 }
 
 export interface PopulationDraw {

@@ -116,7 +116,7 @@ export const NEURON_TICKS = setting("NEURON_TICKS", 100_000);
 export const NEURON_SAMPLE_EVERY = setting("NEURON_SAMPLE_EVERY", 2_500);
 
 /**
- * The cap-binding run (#69): the Reference World at persistence's own 100k,
+ * The soft-caps run (#69, #71): the Reference World at persistence's own 100k,
  * for the same reason the neuron run uses it.
  */
 export const CAPS_TICKS = setting("CAPS_TICKS", 100_000);

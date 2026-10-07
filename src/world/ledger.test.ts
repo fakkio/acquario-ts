@@ -9,7 +9,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {bodyArea, capFor} from "./organism";
+import {bodyArea, energyCap} from "./organism";
 import {organismAt} from "./testing";
 
 // A hand-picked crowd rather than `randomPopulation`: the closed-form
@@ -70,7 +70,7 @@ describe("initializeMetabolism", () => {
     initializeMetabolism(population);
 
     for (const organism of population) {
-      expect(organism.energy).toBeCloseTo(capFor(organism, "energy") / 2, 12);
+      expect(organism.energy).toBeCloseTo(energyCap(organism) / 2, 12);
     }
   });
 });

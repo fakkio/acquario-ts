@@ -2,7 +2,7 @@ import {
   AQUARIUM_AREA,
   birthCosts,
   bodyAreaOfRadius,
-  capFor,
+  energyCap,
   maintenanceBreakdown,
   type OrganelleType,
   type OrganismView,
@@ -56,7 +56,7 @@ const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
 /** Energy against its cap and how full it is, the one store with a ceiling
  * (ADR-0035): `937.000/1000.000 (94%)`. */
 const energyStore = (organism: OrganismView): string => {
-  const cap = capFor(organism, "energy");
+  const cap = energyCap(organism);
   return `${fixed(organism.energy)}/${fixed(cap)} (${(
     (organism.energy / cap) *
     100
@@ -91,8 +91,7 @@ const mitosisProgress = (
   organism: OrganismView,
   roster: readonly OrganelleType[],
 ): string[] => {
-  const threshold =
-    organism.mitosisEnergyThreshold * capFor(organism, "energy");
+  const threshold = organism.mitosisEnergyThreshold * energyCap(organism);
   const costs = birthCosts(organism.genome, roster);
   return [
     `  threshold ${bar(organism.energy, threshold)}`,

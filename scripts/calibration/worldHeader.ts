@@ -83,11 +83,4 @@ export function reportTheWorldMeasured(): void {
     ["constant", "value"],
     scalarConstants().map(([name, value]) => [name, num(value, 6)]),
   );
-  table(
-    ["K_CAP", "value"],
-    Object.entries(constants.K_CAP).map(([name, value]) => [
-      name,
-      num(value, 6),
-    ]),
-  );
 }

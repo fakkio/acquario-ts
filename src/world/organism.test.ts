@@ -5,7 +5,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {K_CAP, K_CAP_ENERGY} from "./constants";
+import {K_CAP_ENERGY} from "./constants";
 import {BASELINE_GENOME, deriveBody, type Genome} from "./genome";
 import {EMPTY_HASH} from "./hash";
 import {
@@ -17,9 +17,8 @@ import {
   STARTING_POPULATION,
   bodyArea,
   bodyMass,
-  capFor,
+  energyCap,
   createPopulation,
-  DIFFUSIBLES,
   foldPopulation,
   placeFounders,
   type Founder,
@@ -422,40 +421,21 @@ describe("internal resource stores", () => {
     ).toBeUndefined();
   });
 
-  it("caps each diffusible at its own K_CAP entry times Cytoplasm Area", () => {
+  // ADR-0035: only energy has a cap, so the module offers no way to ask for
+  // a diffusible's.
+  it("caps energy at K_CAP_ENERGY times Cytoplasm Area", () => {
     const organism = organismWith();
 
-    for (const resource of DIFFUSIBLES) {
-      expect(capFor(organism, resource)).toBeCloseTo(
-        K_CAP[resource] * organism.cytoplasmArea,
-        12,
-      );
-    }
-  });
-
-  // The table is per-resource from M5 (ADR-0022). #36 gives food the
-  // headroom above ρ that ADR-0022 promised; oxygen and CO₂ stay at 1.
-  it("gives food headroom above ρ while oxygen and CO2 stay at 1", () => {
-    expect(K_CAP.oxygen).toBe(1);
-    expect(K_CAP.carbonDioxide).toBe(1);
-    expect(K_CAP.food).toBeGreaterThan(1);
-  });
-
-  it("caps energy at its own coefficient rather than sharing K_CAP", () => {
-    const organism = organismWith();
-
-    expect(capFor(organism, "energy")).toBeCloseTo(
+    expect(energyCap(organism)).toBeCloseTo(
       K_CAP_ENERGY * organism.cytoplasmArea,
       12,
     );
-    expect(K_CAP_ENERGY).not.toBe(K_CAP.food);
   });
 
-  it("scales every cap with the organism's own Cytoplasm Area", () => {
+  it("scales the energy cap with the organism's own Cytoplasm Area", () => {
     const small = organismWith({cytoplasmRadius: 1});
     const large = organismWith({cytoplasmRadius: 2});
 
-    expect(capFor(large, "food")).toBeGreaterThan(capFor(small, "food"));
-    expect(capFor(large, "energy")).toBeGreaterThan(capFor(small, "energy"));
+    expect(energyCap(large)).toBeGreaterThan(energyCap(small));
   });
 });

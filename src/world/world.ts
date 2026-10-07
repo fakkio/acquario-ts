@@ -16,7 +16,6 @@ import {
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
-  type PhotosynthesisOutcome,
   type RespirationOutcome,
 } from "./metabolism";
 import {
@@ -32,7 +31,6 @@ import {
   createPopulation,
   foldPopulation,
   placeFounders,
-  type Diffusible,
   type Founder,
   type Organism,
   type OrganismView,
@@ -206,13 +204,6 @@ interface WorldState {
    */
   readonly measuredAlpha: MeasuredAlpha;
   /**
-   * #69's readout, until the law that removes the caps lands (ADR-0035): this
-   * tick's count, per diffusible, of the organisms whose reaction that
-   * diffusible's cap was the binding limit of. Folded and exposed the way
-   * `measuredAlpha` is, so it stays out of `hashState`.
-   */
-  readonly capBinding: CapBinding;
-  /**
    * How many organisms have died since this world's creation, summed across
    * every tick rather than read per-tick: `advance` can run up to
    * `MAX_TICKS_PER_ADVANCE` ticks inside one catch-up frame, and a per-tick
@@ -297,7 +288,6 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     // No tick has run yet, so both readings report the value a tick that
     // produced no energy at all would.
     measuredAlpha: NO_ENERGY_PRODUCED,
-    capBinding: NO_CAP_BINDING,
     cumulativeDeaths: 0,
     cumulativeBirths: 0,
     nextInnovationId,
@@ -376,12 +366,11 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   //    `grantEnvironment`, so it reads this tick's settled CO₂ rather than
   //    last tick's, and reads light off the same seam even though the
   //    reaction never calls `exchange` itself.
-  const photosynthesisOutcomes = state.population.map((organism) => {
+  for (const organism of state.population) {
     tracer.start(organism);
-    const outcome = applyPhotosynthesis(organism, grantEnvironment);
+    applyPhotosynthesis(organism, grantEnvironment);
     tracer.end("photosynthesis", organism);
-    return outcome;
-  });
+  }
   // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
   //    so an illuminated organism nets light → energy within this tick
   //    (ADR-0006, and the load-bearing comment on `applyRespiration`).
@@ -416,10 +405,6 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   }
   const measuredAlpha = meanMeasuredAlpha(
     state.population,
-    respirationOutcomes,
-  );
-  const capBinding = countCapBinding(
-    photosynthesisOutcomes,
     respirationOutcomes,
   );
   // 6. Brownian motion.
@@ -495,40 +480,10 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
     population,
     tick: state.tick + 1,
     measuredAlpha,
-    capBinding,
     cumulativeDeaths: state.cumulativeDeaths + remains.length,
     cumulativeBirths: state.cumulativeBirths + births.length,
     nextInnovationId: minted.nextInnovationId,
   };
-}
-
-/** How many organisms a diffusible's cap bound this tick (#69). */
-export type CapBinding = Readonly<Record<Diffusible, number>>;
-
-const NO_CAP_BINDING: CapBinding = {food: 0, oxygen: 0, carbonDioxide: 0};
-
-/**
- * Folds the reactions' own reports into per-diffusible counts: photosynthesis
- * can be bound by the food or the oxygen store, respiration by the CO₂ store.
- * Like `meanMeasuredAlpha`, it reads outcomes the tick already has and
- * touches no state.
- */
-function countCapBinding(
-  photosynthesis: readonly PhotosynthesisOutcome[],
-  respiration: readonly RespirationOutcome[],
-): CapBinding {
-  let food = 0;
-  let oxygen = 0;
-  let carbonDioxide = 0;
-  for (const outcome of photosynthesis) {
-    food += outcome.boundByCap.food ? 1 : 0;
-    oxygen += outcome.boundByCap.oxygen ? 1 : 0;
-  }
-  for (const outcome of respiration) {
-    carbonDioxide += outcome.boundByCarbonDioxideCap ? 1 : 0;
-  }
-
-  return {food, oxygen, carbonDioxide};
 }
 
 /**
@@ -750,15 +705,6 @@ export function getOxygenDrift(world: World): number {
  * App layer's job, so it adds no state here. */
 export function getMeasuredAlpha(world: World): number {
   return toState(world).measuredAlpha.whole;
-}
-
-/**
- * #69's readout: per diffusible, how many organisms its cap bound in the tick
- * that has just run. Raw and per tick, like `getMeasuredAlpha`; the harness
- * sums it over a run. Removed with the caps.
- */
-export function getCapBinding(world: World): CapBinding {
-  return toState(world).capBinding;
 }
 
 /**
