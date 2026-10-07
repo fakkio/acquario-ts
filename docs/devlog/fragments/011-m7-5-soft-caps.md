@@ -59,3 +59,40 @@ Prettier lanciato su tutto `src` ha toccato anche file che non c'entravano (`dea
 ---
 
 Il verdetto del primo commit è stato respinto dal pre-commit: `no-useless-assignment` su un ciclo `do … while` che assegnava `px` e `py` per poi leggerli solo nella condizione. Riscritto come funzione ricorsiva che restituisce il punto.
+
+---
+
+> scegli un ticket di 67 e implementalo
+
+Terza delega identica. Questa volta i ticket liberi erano due, #69 e #74, perché #73 era chiuso e #74 aspettava solo lui. L'agente ha scelto #69 seguendo l'ordine che #67 stesso dichiara (strumento, tabella "prima", legge, schermo, tabella "dopo") e non per gusto. #74 è rimasto lì, libero.
+
+---
+
+"Il tappo ha fatto da limite" sembra una frase con un solo significato, e il ticket la usa senza definirla. L'agente ha dovuto scegliere cosa conta: la prima versione era "lo spazio rimasto nel tappo è il più piccolo di tutti i limiti della reazione". Una scelta di esecuzione, dentro un perimetro fissato dal ticket.
+
+---
+
+La prima definizione contava come "legato dal tappo" anche un organismo al buio, senza cibo, con la CO₂ sopra il tappo: lo spazio rimasto è negativo, quindi il più piccolo, e la reazione non sarebbe partita lo stesso. Non l'ha visto Fabio e non l'ha visto l'agente: l'ha visto il sotto-agente della revisione. Corretto con una condizione in più: contano solo i casi in cui gli altri limiti sono tutti positivi, cioè in cui la reazione sarebbe partita senza il tappo.
+
+---
+
+Lo stesso sotto-agente ha trovato un secondo difetto, più brutto perché silenzioso: le percentuali erano divise per la popolazione dopo morti e nascite, mentre i conteggi vengono dalla popolazione che ha reagito. I neonati gonfiavano il denominatore, i morti sparivano. La prima corsa lunga della tabella "prima", già finita e già in un file, andava buttata e rifatta da capo. Una misura corretta nei numeri e storta nel rapporto.
+
+---
+
+Un mio taglio su una riga di testo del report ha mangiato metà della frase ("respiration by CO₂," e poi niente). L'ho visto solo rileggendo l'output della corsa, non nel codice. Un commit a parte per rimettere una riga.
+
+---
+
+- il tappo della CO₂ lega circa il 10% degli organismi-tick su tutti e cinque i semi (9.5–11.5%), la previsione diceva almeno 20%
+- l'O₂ lega tra 8.6% e 10.9% su quattro semi, la previsione diceva meno di 5%; il seme 7 legge 0.2%
+- il cibo legge 0.0%, come previsto
+- la concentrazione interna massima di CO₂ è 1.03–1.05, cioè quasi il valore di apertura dei fondatori (1.04): mai sopra di più
+
+---
+
+Il seme 7 è un'altra storia: popolazione finale 162 e Generazione media 48.7, contro 33–37 e 7–15 degli altri quattro. Il tappo dell'O₂ lo lega quasi mai. Nessuno, per ora, ha una spiegazione.
+
+---
+
+La banda scura, "prima": vuota, ogni raggio della scala muore, tra il tick 7 (r = 0.25) e il tick 198 (r = 8). La previsione 1 lo dava per scontato (REFUTED), e ha avuto ragione. È la parte della previsione che non ha bisogno di essere giudicata dopo.
