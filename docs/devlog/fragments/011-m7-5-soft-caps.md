@@ -34,7 +34,7 @@ Seconda delega identica, e di nuovo un solo ticket libero: #73, perché #69 e #7
 
 ---
 
-L'ADR-0036 dice che il limite sull'area, `R_area_max`, è "in forma chiusa ed esatto": tetto della citoplasma, più l'area degli organelli del genitore, più `M_max` volte il massimo che un evento può aggiungere. Non regge appena gli eventi si concatenano. Far crescere due volte lo stesso organello dà `π r² ((1+δ)⁴ − 1)`, cioè `4δ + 6δ² + …`, mentre due volte il massimo di un singolo passo dà `4δ + 2δ²`. Il termine che manca è piccolo, e ha un nome: ADR-0034 lo chiamava "slack", margine lasciato dagli operatori, e a `M_max = 1` non si vede mai.
+L'ADR-0036 dice che il limite sull'area, `R_area_max`, è "in forma chiusa ed esatto": il citoplasma al suo passo più grande, più l'area degli organelli del genitore, più `M_max` volte il massimo che un evento può aggiungere. Non regge appena gli eventi si concatenano. Far crescere due volte lo stesso organello dà `π r² ((1+δ)⁴ − 1)`, cioè `4δ + 6δ² + …`, mentre due volte il massimo di un singolo passo dà `4δ + 2δ²`. Il termine che manca è piccolo, e ha un nome: ADR-0034 lo chiamava "slack", margine lasciato dagli operatori, e a `M_max = 1` non si vede mai.
 
 ---
 
