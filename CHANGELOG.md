@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `npm run caps`: the Reference World over seeds 7–11 at 100k ticks, reporting each seed's minimum population, births, mean Generation, each diffusible's highest internal concentration next to its ledger's ambient total, `α_bright` and population `α` in a Fixed Population, and the dark ladder. Reported, never gated (ADR-0024).
+- `npm run neuron` also reports how often the Reach exceeds the area radius among carriers, which term (area or reach) sets the Birth Cost Ceiling, and the neuron's carrier fraction next to #66's figure (ADR-0036).
+- Devlog article 011, _Il tappo che nessuno aveva deciso_.
+
+### Changed
+
+- **Only the energy store has a hard cap** (ADR-0035). Photosynthesis runs at `min(rate, CO₂ available)`, respiration at `min(rate, food, O₂, energy headroom)`. Food, O₂ and CO₂ have no cap: a diffusible store is read as a Concentration, and passive exchange corrects any excess. `K_CAP` for the diffusibles is deleted; `K_CAP_ENERGY` is the only cap coefficient. A child's allocation is clipped on energy only.
+- The body is its cytoplasm plus its organelles, an organelle can be born anywhere in it, and the relaxation contract holds on the Reach from the body's fixed origin (ADR-0036). The Enclosing Circle is retired.
+- `α` measures the potential rate (`min(rate, food, O₂)·yield` per unit radius, nobody excluded), since a world with a single cap puts every organism under ADR-0015's exclusion. Its linearity test is skipped, with ADR-0015 amended.
+- The inspector reads each diffusible store as its internal concentration against ambient; energy keeps its cap and percentage.
+- The golden hash is re-recorded on M7.5's world and runs 8000 ticks, since the first birth now falls after tick 6000.
+- `vision.md` and ADR-0035 carry the measured before/after: persistence holds on all five seeds, `α_bright` 1594 → 901, population `α` 1159 → 251, births 2,893 → 588, mean Generation 4.0–6.1, and the dark ladder is still empty at 30k ticks. No world constant moved.
+
 ## [0.1.2] - 2026-10-06
 
 ### Added
