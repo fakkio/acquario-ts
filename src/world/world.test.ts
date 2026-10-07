@@ -697,12 +697,11 @@ describe("respiration and maintenance (M2)", () => {
   // than trusted from the formula, per the ticket's instruction — organisms
   // held at the *same* depth so only radius varies, since income also
   // depends on light and conflating the two would test depth, not radius.
-  // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
-  // mass-action rate and refills the energy store inside a tick or two, so
-  // every organism is "throttled by a full energy store" on every tick and
-  // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
-  // the dark. What `α` should measure now is #67's open question, and these
-  // assertions return with its answer.
+  // SKIPPED by #75 (ADR-0015, amended): α is now the potential rate, which is
+  // mass action on the Cytoplasm Area and grows faster than linearly in `r`
+  // (CV 0.32 across radii 0.6-1.4, against this test's 0.1). Whether α, or
+  // some effective income, should be linear in `r` is revisited with the
+  // organelles.
   it.skip("produces energy income approximately linear in body radius, at a shared depth", () => {
     const radii = [0.6, 0.85, 1.0, 1.2, 1.4];
     const population = radii.map((r, i) => organismAt(i * 3, 5, r, 900 + i));
@@ -743,10 +742,8 @@ describe("respiration and maintenance (M2)", () => {
 
       if (tick >= SETTLE_TICKS) {
         outcomes.forEach((outcome, i) => {
-          if (!outcome.throttledByFullEnergyStore) {
-            alphaSums[i] += outcome.energyProduced / radii[i];
-            alphaCounts[i]++;
-          }
+          alphaSums[i] += outcome.potentialEnergy / radii[i];
+          alphaCounts[i]++;
         });
       }
     }
@@ -772,13 +769,7 @@ describe("respiration and maintenance (M2)", () => {
     expect(getZeroEnergyCount(world)).toBe(0);
   });
 
-  // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
-  // mass-action rate and refills the energy store inside a tick or two, so
-  // every organism is "throttled by a full energy store" on every tick and
-  // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
-  // the dark. What `α` should measure now is #67's open question, and these
-  // assertions return with its answer.
-  it.skip("reports a positive measured alpha once respiration has real substrate to run on", () => {
+  it("reports a positive measured alpha once respiration has real substrate to run on", () => {
     let world = createWorld(3);
 
     ({world} = advance(world, 50 * FIXED_DT_MS));
@@ -834,26 +825,14 @@ describe("respiration and maintenance (M2)", () => {
       expect(getBrightAlpha(world)).toBe(0);
     });
 
-    // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
-    // mass-action rate and refills the energy store inside a tick or two, so
-    // every organism is "throttled by a full energy store" on every tick and
-    // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
-    // the dark. What `α` should measure now is #67's open question, and these
-    // assertions return with its answer.
-    it.skip("agrees with the whole-population mean when every body is in the band", () => {
+    it("agrees with the whole-population mean when every body is in the band", () => {
       const world = fixedWorldOf(ladderAt(2), 50);
 
       expect(getBrightAlpha(world)).toBeGreaterThan(0);
       expect(getBrightAlpha(world)).toBeCloseTo(getMeasuredAlpha(world), 12);
     });
 
-    // SKIPPED by #70 (ADR-0035): with no CO₂ cap, respiration runs at its
-    // mass-action rate and refills the energy store inside a tick or two, so
-    // every organism is "throttled by a full energy store" on every tick and
-    // ADR-0015 excludes them all: `α` reads 0 everywhere, in the light and in
-    // the dark. What `α` should measure now is #67's open question, and these
-    // assertions return with its answer.
-    it.skip("reports the brighter of the two ecologies when the population straddles the band", () => {
+    it("reports the brighter of the two ecologies when the population straddles the band", () => {
       const world = fixedWorldOf(
         [...ladderAt(2), ...ladderAt(AQUARIUM_HEIGHT - 2)],
         50,

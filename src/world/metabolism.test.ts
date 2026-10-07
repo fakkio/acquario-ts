@@ -469,6 +469,23 @@ describe("applyRespiration", () => {
     expect(outcome.throttledByFullEnergyStore).toBe(true);
   });
 
+  it("reports the potential energy a full store would have throttled away (#75)", () => {
+    const organism = organismAt(0, 0, 1);
+    const area = bodyArea(organism);
+    organism.food = 0.5 * area;
+    organism.oxygen = 0.4 * area;
+    const rate = K_RESP * 0.5 * 0.4 * area;
+    organism.energy = energyCap(organism);
+
+    const outcome = applyRespiration(organism);
+
+    expect(outcome.energyProduced).toBe(0);
+    expect(outcome.potentialEnergy).toBeCloseTo(
+      rate * RESPIRATION_ENERGY_YIELD,
+      12,
+    );
+  });
+
   it("does not report a full-energy throttle when substrate, not the energy cap, is what binds", () => {
     const organism = organismAt(0, 0, 1);
     organism.food = 1e-9;

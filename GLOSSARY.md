@@ -197,7 +197,7 @@ The body radius maximising reproductive rate, `r_opt = 2·c₀/α`, computable i
 _Avoid_: ideal size, target radius
 
 **Energy Income Coefficient**:
-`α`, the energy an organism earns per tick per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Bright Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
+`α`, the energy an organism's respiration would produce per tick, without the energy store's throttle (the potential rate, ADR-0015 as amended by #75), per unit of its body radius: the slope of the income line, and what `c₀` is solved against. A field over the aquarium and a function of time, so it is measured over the **Bright Band** in a **Fixed Population** rather than declared (ADR-0015, ADR-0023).
 _Avoid_: income rate, efficiency, alpha (alone, in prose)
 
 ### World

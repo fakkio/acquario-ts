@@ -136,6 +136,13 @@ export interface RespirationOutcome {
    * maintenance spends any of it. The numerator of one organism's `α`. */
   readonly energyProduced: number;
   /**
+   * The energy this reaction would have produced had the energy store had
+   * room: `min(rate, food, O₂)` times the yield, with no headroom term. The
+   * numerator of one organism's `α` (ADR-0015, amended by #75). Equal to
+   * `energyProduced` whenever the store is not the binding limit.
+   */
+  readonly potentialEnergy: number;
+  /**
    * Whether the energy store's headroom, not the substrate or the rate,
    * was the binding limit. An organism throttled this way is
    * measuring the size of its own tank rather than the income available
@@ -190,10 +197,11 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
   const energyHeadroom =
     (energyCap(organism) - organism.energy) / RESPIRATION_ENERGY_YIELD;
 
-  const reacted = Math.max(
+  const potentialReacted = Math.max(
     0,
-    Math.min(rate, foodAvailable, oxygenAvailable, energyHeadroom),
+    Math.min(rate, foodAvailable, oxygenAvailable),
   );
+  const reacted = Math.max(0, Math.min(potentialReacted, energyHeadroom));
 
   organism.food -= reacted;
   organism.oxygen -= reacted;
@@ -203,6 +211,7 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
 
   return {
     energyProduced,
+    potentialEnergy: potentialReacted * RESPIRATION_ENERGY_YIELD,
     throttledByFullEnergyStore:
       energyHeadroom <= rate &&
       energyHeadroom <= foodAvailable &&
