@@ -96,3 +96,63 @@ Il seme 7 è un'altra storia: popolazione finale 162 e Generazione media 48.7, c
 ---
 
 La banda scura, "prima": vuota, ogni raggio della scala muore, tra il tick 7 (r = 0.25) e il tick 198 (r = 8). La previsione 1 lo dava per scontato (REFUTED), e ha avuto ragione. È la parte della previsione che non ha bisogno di essere giudicata dopo.
+
+---
+
+> scegli un ticket di 67 e implementalo
+
+Quarta delega identica. Questa volta #67 aveva già #69 chiuso, #73 chiuso, #74 libero e #70 sbloccato. L'agente ha scelto #70, la legge, e non #74, lo strumento: l'ordine dichiarato in #67 mette la legge prima. Di nuovo una scelta di ordine, non di gusto, e di nuovo dell'agente.
+
+---
+
+Il ticket diceva "i commenti sui tappi vanno riscritti secondo l'ADR-0035". L'agente ha cancellato la tabella `K_CAP` e ha riscritto i commenti vicini, ma i riferimenti a `K_CAP.food` e `K_CAP.carbonDioxide` dentro i commenti dei test sono rimasti. Non li ha visti l'agente: li ha elencati il sotto-agente della revisione, che li ha trovati con una grep. Nessun linter guarda i commenti.
+
+---
+
+La legge nuova sta in tre righe: la fotosintesi corre a `min(tasso, CO₂)`, la respirazione a `min(tasso, cibo, O₂, spazio per l'energia)`. Il resto del ticket, quasi tutto, è stato togliere: `capFor` è diventata `energyCap`, la fotosintesi non restituisce più niente, i conteggi di #69 sono spariti, la tabella `K_CAP` pure. Un ticket che aggiunge una riga di legge e ne cancella cento di scaffale.
+
+---
+
+Il primo `npm test` dopo la legge ha dato dieci rossi. Dieci rossi, tutti per la stessa ragione che nessuno aveva previsto: la previsione 6 del ticket diceva "meno nascite", non "la prima nascita al tick 6307 invece che al 125".
+
+---
+
+- seme 1, mondo con roster vuoto: prima nascita al tick 6307 (prima della legge: 125)
+- seme 2: 7254. Seme 3: 9576
+- prima morte tra 1405 e 1572 su tutti e tre, prima della legge al 43
+- la ragione: ora la respirazione consuma il cibo al suo ritmo di azione di massa, e il cibo interno sta intorno a 0.4 per area, mentre il cancello della massa chiede quasi 1
+
+---
+
+Metà dei rossi non erano rossi veri. I test chiamavano `advance(world, 2000 * FIXED_DT_MS)` credendo di far girare 2000 tick, ma `advance` si ferma a 240 per chiamata (il tetto del recupero, `MAX_TICKS_PER_ADVANCE`). Per anni quei test hanno girato 240 tick e nessuno se n'è accorto, perché nel vecchio mondo la prima morte stava al tick 43 e 240 bastavano. Il mondo nuovo li ha scoperti.
+
+---
+
+Il test d'oro. Il ticket dice di rigistrarlo e di descriverlo come "la legge del mondo minimo e non più di M6". L'agente ha dovuto allungare la corsa da 2000 a 8000 tick, perché il test pretende una nascita e una morte dentro la finestra e la prima nascita ormai sta al 6307. Il vecchio valore, `d22057a8`, non tornerà mai più: è il primo hash d'oro che muore per una ragione di legge e non per un errore.
+
+---
+
+L'ordine con cui le cose si sono rivelate: prima l'energia (E% 0.99 già al tick 500), poi la mancanza di nascite, poi la `α` a zero. La `α` l'ha vista l'agente per ultima, cercando perché quattro test sulla `α` positiva non cadevano per caso: a un tick la respirazione riempie il serbatoio dell'energia da metà a pieno. Con la sonda: profondità 2 (luce piena) e profondità 38 (buio), `α` esattamente 0.00 a tutti i tick fino al 2000.
+
+---
+
+La `α` vale zero ovunque perché l'ADR-0015 esclude gli organismi frenati dal serbatoio pieno, e con la legge nuova lo sono tutti, sempre. È la trappola che il commento di `K_CAP_ENERGY` raccontava già: "un mondo sempre al tetto non ha nessun tick fuori dall'esclusione da misurare". Scritta per un'altra strada (alzare il cibo ambiente), tornata dalla porta dell'ADR-0035. Nessuno l'aveva messa in conto: né l'ADR, né la grill, né la previsione, che dava per scontato che `α_bright` si muovesse "di meno del 5%".
+
+---
+
+L'agente ha saltato quattro test sulla `α` (`it.skip`, con un commento che dice perché) invece di inventare una nuova definizione di `α`. Una scelta di perimetro, e dell'agente: cosa debba misurare la `α` dopo la legge è una decisione di progetto, quindi di Fabio, e nel ticket non c'è. Il sotto-agente della revisione ha notato che un `skip` senza ticket non lo segue nessuno.
+
+---
+
+Il verdetto della corsa lunga: la persistenza regge su tutti e cinque i semi, e la gate di #67 passa. Minimi 9–17, finali 20–74, nascite 79–153, Generazione media 3.95–6.10. Contro M7: Generazione media 7.3–48.7 e nascite 144–2077. Persistono tutti, ma il seme 7 non è più quel seme speciale (prima 2077 nascite, ora 137). La previsione 6, quella a bassa fiducia, era quella giusta da aspettarsi sbagliata: l'ha avuta giusta.
+
+---
+
+- `α_bright` nella corsa di `npm run caps`: 11.29 ± 0.21 (prima 8.165 ± 0.33), cioè +38%, non il "meno del 5%" della previsione 2
+- `α` di popolazione: 5.585 ± 0.27 (prima 2.226): sale molto, come dice la previsione 3, ma contando solo i tick in cui qualcuno guadagna qualcosa
+- picco di CO₂ interna 1.57–1.59 (prima 1.03–1.05), previsto "intorno a `C_ext` + 0.4": c'è
+- la banda scura resta vuota, e muore quasi uguale: la previsione 1 ("CONFERMATA, con sopravvissuti su ogni gradino") non regge
+
+---
+
+Fabio ha chiesto, a lavoro finito: "è rimasta la velocità di diffusione massima proporzionale al perimetro vero?". Sì: `K_DIFFUSION × perimetro × gradiente`, il perimetro del corpo intero, mai toccato. Non è una domanda del ticket, e arriva proprio sul meccanismo che ora decide il sistema: lo sfiato scala col perimetro, la respirazione con l'area.
