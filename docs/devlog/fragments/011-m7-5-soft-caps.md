@@ -210,3 +210,41 @@ La domanda che resta aperta e non ha ancora una risposta verificata: perché la 
 ---
 
 Una lezione di metodo, forse la parola del pezzo: **una misura prima/dopo ha senso solo se il righello non cambia a metà**. Qui il righello (la definizione di `α`) è cambiato dentro il ticket che doveva misurare l'effetto della legge, e la tabella "dopo" di #71 sarebbe stata confrontata con un "prima" in un'altra unità. Se ne è accorto Fabio, leggendo 11.29 accanto a 901.
+
+---
+
+Fabio ha scritto "scegli un ticket di 67 e implementalo", e la scelta è stata dell'agente: #71, la tabella "dopo". Non c'era niente da costruire. Lo strumento (`npm run caps`) era già pronto dai ticket precedenti, il codice non è cambiato di una riga, e il ticket si è ridotto a lanciare cinque mondi da 100k tick e a giudicare sette punti scritti prima di misurare. Un ticket di sola lettura, in cui il lavoro vero è accettare quello che il numero dice.
+
+---
+
+Il bilancio delle sette previsioni, scritto prima di aver misurato nulla: **una confermata** (la persistenza, il cancello), **una confermata in parte** (meno nascite e Generation più bassa), **quattro smentite** (dark ladder, `α_bright`, `α` di popolazione, le quote dei cap "prima"), **una mista** (le concentrazioni massime). La previsione 6 era quella segnata "fiducia bassa, il punto che probabilmente sbaglia", ed è l'unica che ha azzeccato la direzione.
+
+---
+
+Tre numeri che sembrano un fallimento e non lo sono, o non ancora:
+
+- nascite sulle cinque seed: da 2.893 a 588
+- Generation media alla fine: da 7.3–48.7 a 4.0–6.1, su tutte e cinque le seed
+- il traguardo di M12 è Generation media ≥ 50
+
+La persistenza regge (minimi 14, 16, 17, 14, 9 contro 8, 8, 9, 8, 10), quindi il cancello è verde. Ma la previsione lo aveva detto: a minacciare M12 non è la sopravvivenza, è l'abbondanza. Il mondo senza cap tiene in vita più organismi e li fa riprodurre molto meno.
+
+---
+
+La seed 7 del "prima" era un'anomalia che stavo per scambiare per la norma: 162 organismi e Generation 48.7, contro 33–37 e 7–15 delle altre. Nel "dopo" non c'è più, e infatti il crollo delle nascite (2.077 → 137) è quasi tutto lei. Senza quella seed la caduta è più piccola, ma la direzione è la stessa su ogni seed: la Generation scende ovunque.
+
+---
+
+Una piccola punta di precisione che mi è costata un ripensamento: la previsione 5 diceva "il minimo di ogni seed almeno quanto M7". La seed 11 dà 9 contro 10. Un organismo. Ho scritto "persistenza confermata" e subito dopo "la clausola stretta cade per uno", invece di arrotondare a verde: il criterio andava letto come l'aveva scritto Fabio, non come mi faceva comodo.
+
+---
+
+Il dark ladder è ancora vuoto, ma con una differenza che vale la pena di mettere in vista: prima tutti i raggi morivano tra il tick 7 e il 198, adesso tra il 30 e il 29.072. Il raggio 1.21 arriva a 29.072 su una finestra di 30.000. Non è una conferma (la previsione chiedeva sopravvissuti), è una soglia che si è spostata di due ordini di grandezza. Con una finestra più lunga forse si apre, e non l'ho provato.
+
+---
+
+Il punto 7 mi ha detto qualcosa che non avevo chiesto: le concentrazioni di carbonio e ossigeno superano il totale ambiente di 0.05–0.11 su ogni seed, e lo facevano già prima della legge (1.83–1.86 con i cap). Quindi la legge non c'entra e la frase dell'ADR "nessuno store può stare sopra il totale ambiente" è vera per la rilassazione, non per il picco. Non so ancora perché: la spiegazione facile è l'allocazione al figlio, data per intero al rapporto, ma non l'ho misurata e l'ADR dice solo "non misurato".
+
+---
+
+Una regola di lavoro che questo ticket ha confermato: quando la previsione sbaglia, si corregge il documento, non la misura. `vision.md` diceva che il buio è "un habitat di rari corpi grandi"; nessuna corsa l'ha mai mostrato, né prima né dopo. L'ho riscritto al condizionale ("sulla carta ammette una banda", "nessuna corsa l'ha mostrata") e ho messo una sezione "Measured" nell'ADR-0035 con i numeri. La frase sbagliata restava in giro da M5 senza che nessuno la mettesse alla prova.
