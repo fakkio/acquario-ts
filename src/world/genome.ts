@@ -321,6 +321,19 @@ export function birthCostCeiling(
   genome: Genome,
   roster: readonly OrganelleType[],
 ): number {
+  const terms = birthCostCeilingTerms(genome, roster);
+  return Math.max(terms.area, terms.reach);
+}
+
+/**
+ * The two areas `birthCostCeiling` takes the larger of, apart: the area term
+ * `π·R_area_max²` and the reach term `π·Reach_max²`. A report on which one
+ * sets the ceiling reads them here, so it cannot disagree with the law.
+ */
+export function birthCostCeilingTerms(
+  genome: Genome,
+  roster: readonly OrganelleType[],
+): {readonly area: number; readonly reach: number} {
   const cytoplasm = bodyAreaOfRadius(
     genome.cytoplasmRadius * (1 + DELTA_CYTOPLASM_RADIUS),
   );
@@ -335,10 +348,10 @@ export function birthCostCeiling(
     roster,
     MAX_STRUCTURAL_EVENTS,
   );
-  return Math.max(
-    cytoplasm + worst.organelleArea,
-    bodyAreaOfRadius(worst.reach),
-  );
+  return {
+    area: cytoplasm + worst.organelleArea,
+    reach: bodyAreaOfRadius(worst.reach),
+  };
 }
 
 /**

@@ -8,7 +8,8 @@ import {
   type OrganismView,
 } from "../../src/world";
 import {C_NEURON, EXISTENCE_COST} from "../../src/world/constants";
-import {birthCostCeiling} from "../../src/world/genome";
+import {birthCostCeilingTerms} from "../../src/world/genome";
+import {reach} from "../../src/world/layout";
 import {
   heading,
   integer,
@@ -51,6 +52,14 @@ interface Sample {
    * `carriers` and `size - carriers` to read a mean. */
   readonly carrierRatioSum: number;
   readonly plainRatioSum: number;
+  /** Carriers whose Reach exceeds `R_area` (ADR-0036: the cytoplasm gene is
+   * inert for them), and the sum of how far, in length units. */
+  readonly reachDominated: number;
+  readonly reachExcessSum: number;
+  /** Ceilings set by the reach term rather than the area term, split by
+   * carrying. */
+  readonly carrierReachSet: number;
+  readonly plainReachSet: number;
 }
 
 export interface NeuronRun {
@@ -66,20 +75,41 @@ export interface NeuronRuns {
   readonly runs: readonly NeuronRun[];
 }
 
-/** The ceiling the world would price this body at, over its own area. The
- * view carries the genome's parts the ceiling reads; the two reproduction
- * genes and the hue never enter it. */
-function ceilingOverArea(organism: OrganismView): number {
-  return (
-    birthCostCeiling(
-      {
-        ...BASELINE_GENOME,
-        cytoplasmRadius: organism.cytoplasmRadius,
-        genes: organism.organelles,
-      },
-      DEFAULT_ROSTER,
-    ) / bodyArea(organism)
+/** The two terms of the ceiling the world would price this body at, each
+ * over its own area. The view carries the genome's parts the ceiling reads;
+ * the two reproduction genes and the hue never enter it. */
+function ceilingOverArea(organism: OrganismView): {
+  readonly ratio: number;
+  readonly reachSets: boolean;
+} {
+  const terms = birthCostCeilingTerms(
+    {
+      ...BASELINE_GENOME,
+      cytoplasmRadius: organism.cytoplasmRadius,
+      genes: organism.organelles,
+    },
+    DEFAULT_ROSTER,
   );
+
+  return {
+    ratio: Math.max(terms.area, terms.reach) / bodyArea(organism),
+    reachSets: terms.reach > terms.area,
+  };
+}
+
+/** `R_area` less the Reach, as ADR-0036 defines them: how far the farthest
+ * organelle edge sticks out past the circle of cytoplasm plus organelle area.
+ * Positive when the cytoplasm gene is inert. */
+function reachExcess(organism: OrganismView): number {
+  const organelleRadiiSquared = organism.organelles.reduce(
+    (sum, gene) => sum + gene.radius * gene.radius,
+    0,
+  );
+  const areaRadius = Math.sqrt(
+    organism.cytoplasmRadius ** 2 + organelleRadiiSquared,
+  );
+
+  return reach(organism.organelles) - areaRadius;
 }
 
 function runNeuron(seed: number): NeuronRun {
@@ -98,16 +128,27 @@ function runNeuron(seed: number): NeuronRun {
       let neurons = 0;
       let carrierRatioSum = 0;
       let plainRatioSum = 0;
+      let reachDominated = 0;
+      let reachExcessSum = 0;
+      let carrierReachSet = 0;
+      let plainReachSet = 0;
       for (const organism of population) {
         // M7's roster is the neuron alone, so every organelle is one.
         const count = organism.organelles.length;
-        const ratio = ceilingOverArea(organism);
+        const {ratio, reachSets} = ceilingOverArea(organism);
         if (count > 0) {
           carriers++;
           neurons += count;
           carrierRatioSum += ratio;
+          carrierReachSet += reachSets ? 1 : 0;
+          const excess = reachExcess(organism);
+          if (excess > 0) {
+            reachDominated++;
+            reachExcessSum += excess;
+          }
         } else {
           plainRatioSum += ratio;
+          plainReachSet += reachSets ? 1 : 0;
         }
       }
       minSize = Math.min(minSize, population.length);
@@ -118,6 +159,10 @@ function runNeuron(seed: number): NeuronRun {
         neurons,
         carrierRatioSum,
         plainRatioSum,
+        reachDominated,
+        reachExcessSum,
+        carrierReachSet,
+        plainReachSet,
       });
     },
   );
@@ -332,4 +377,96 @@ export function reportNeuron(costed: NeuronRuns, free: NeuronRuns): void {
   row("non-carriers", num(ceilingRatio(costed.runs, false)));
   row("carriers, c_neuron = 0", num(ceilingRatio(free.runs, true)));
   row("non-carriers, c_neuron = 0", num(ceilingRatio(free.runs, false)));
+}
+
+function pooled(
+  runs: readonly NeuronRun[],
+  pick: (sample: Sample) => number,
+): number {
+  return runs.reduce(
+    (sum, run) =>
+      sum + run.samples.reduce((inner, sample) => inner + pick(sample), 0),
+    0,
+  );
+}
+
+function share(part: number, whole: number): string {
+  return whole > 0 ? percent(part / whole) : "—";
+}
+
+/** What ADR-0036's body costs (#74): how often the Reach dominates, and which
+ * term of the ceiling sets it. Over the costed world only. */
+export function reportBody(costed: NeuronRuns): void {
+  heading("What the body costs (ADR-0036)");
+  note(
+    "  Carriers only for the Reach; the ceiling's term split is over every organism. Excess is Reach − R_area, in length units.",
+  );
+  table(
+    [
+      "seed",
+      "Reach > R_area",
+      "mean excess",
+      "carriers: reach term",
+      "others: reach term",
+    ],
+    costed.runs.map((run) => {
+      const carriers = pooled([run], (sample) => sample.carriers);
+      const dominated = pooled([run], (sample) => sample.reachDominated);
+      const plain = pooled([run], (sample) => sample.size - sample.carriers);
+
+      return [
+        String(run.seed),
+        share(dominated, carriers),
+        dominated > 0
+          ? num(pooled([run], (sample) => sample.reachExcessSum) / dominated, 4)
+          : "—",
+        share(
+          pooled([run], (sample) => sample.carrierReachSet),
+          carriers,
+        ),
+        share(
+          pooled([run], (sample) => sample.plainReachSet),
+          plain,
+        ),
+      ];
+    }),
+  );
+
+  const carriers = pooled(costed.runs, (sample) => sample.carriers);
+  const dominated = pooled(costed.runs, (sample) => sample.reachDominated);
+  const plain = pooled(costed.runs, (sample) => sample.size - sample.carriers);
+  row("carriers with Reach > R_area", share(dominated, carriers));
+  row(
+    "mean excess over those",
+    dominated > 0
+      ? num(
+          pooled(costed.runs, (sample) => sample.reachExcessSum) / dominated,
+          4,
+        )
+      : "—",
+  );
+  row(
+    "reach-set ceilings, carriers",
+    share(
+      pooled(costed.runs, (sample) => sample.carrierReachSet),
+      carriers,
+    ),
+  );
+  row(
+    "reach-set ceilings, others",
+    share(
+      pooled(costed.runs, (sample) => sample.plainReachSet),
+      plain,
+    ),
+  );
+  row(
+    "ceiling/area, carriers / others",
+    `${num(ceilingRatio(costed.runs, true))} / ${num(ceilingRatio(costed.runs, false))}`,
+  );
+  row(
+    "neuron carrier fraction, second half",
+    percent(
+      meanAndSigma(costed.runs.map((run) => settled(run, fraction))).mean,
+    ),
+  );
 }
