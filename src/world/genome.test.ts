@@ -21,7 +21,7 @@ import {
   type OrganelleGene,
 } from "./genome";
 import {bodyAreaOfRadius} from "./organism";
-import {createRngStream} from "./rng";
+import {createRngStream, nextRng} from "./rng";
 
 const SAMPLE_SEEDS = 500;
 
@@ -328,6 +328,52 @@ describe("mutateGenome's structural events", () => {
   });
 
   describe("insertion", () => {
+    // Pins the fixed order of draws (ADR-0036): the header's four, the
+    // event trials, the operator, the type, and only then the position.
+    it.runIf(MAX_STRUCTURAL_EVENTS === 1)(
+      "draws the type before the position, the position after the body's new radius is known",
+      () => {
+        for (let seed = 0; seed < 20; seed++) {
+          let stream = createRngStream(seed);
+          const unit = (): number => {
+            const draw = nextRng(stream);
+            stream = draw.stream;
+            return draw.value;
+          };
+          // Header (4), trials (M_max = 1), operator, type index.
+          for (let i = 0; i < 4 + MAX_STRUCTURAL_EVENTS + 2; i++) {
+            unit();
+          }
+          const point = (): {x: number; y: number} => {
+            const x = unit() * 2 - 1;
+            const y = unit() * 2 - 1;
+            return x * x + y * y > 1 ? point() : {x, y};
+          };
+          const {x: px, y: py} = point();
+
+          const {genome} = mutateGenome(
+            BASELINE_GENOME,
+            createRngStream(seed),
+            {
+              probability: 0,
+              roster: ["neuron"],
+              eventProbability: 1,
+              operatorWeights: only("insertion"),
+            },
+          );
+          const within =
+            Math.sqrt(
+              (bodyAreaOfRadius(BASELINE_GENOME.cytoplasmRadius) +
+                bodyAreaOfRadius(R_NEW)) /
+                Math.PI,
+            ) - R_NEW;
+
+          expect(genome.genes[0].x).toBeCloseTo(px * within, 12);
+          expect(genome.genes[0].y).toBeCloseTo(py * within, 12);
+        }
+      },
+    );
+
     it("adds organelles of radius r_new and a type from the roster, under provisional ids of their own", () => {
       for (let seed = 0; seed < 100; seed++) {
         const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed), {

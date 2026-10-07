@@ -13,6 +13,7 @@ import {totalCarbon, totalOxygen, type Pools} from "./ledger";
 import {applyMaintenance} from "./metabolism";
 import {
   appendBirths,
+  birthCosts,
   evaluateMitosis,
   mintBirths,
   type PendingBirth,
@@ -62,6 +63,37 @@ function organismWith(
 }
 
 describe("evaluateMitosis", () => {
+  it("never throws on a parent paying exactly its ceiling, whatever its body and the events it draws", () => {
+    const parents = [
+      carrierAt(5, 5, [0.3, 0.2, 0.1], 0.3).genome,
+      carrierAt(5, 5, [0.05], 2.5).genome,
+      {
+        ...BASELINE_GENOME,
+        cytoplasmRadius: 0.3,
+        genes: [
+          {
+            type: "neuron" as const,
+            innovationId: 1,
+            radius: 0.1,
+            x: 2,
+            y: 0,
+          },
+        ],
+      },
+    ];
+    for (const parentGenome of parents) {
+      const genome = {...parentGenome, mitosisEnergyThreshold: 0};
+      const costs = birthCosts(genome, ["neuron"]);
+      for (let seed = 0; seed < 300; seed++) {
+        const organism = organismWith(5, 5, genome, seed);
+        organism.energy = costs.energy;
+        organism.food = costs.food;
+
+        expect(() => evaluateMitosis(organism, ["neuron"])).not.toThrow();
+      }
+    }
+  });
+
   it("returns null and consumes no draws when energy is below the threshold", () => {
     const organism = organismAt(5, 5, 1, 42);
     const cap = capFor(organism, "energy");
