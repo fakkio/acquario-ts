@@ -5,7 +5,7 @@ import {
   CARBON_BUDGET_BASELINE_ORGANISMS,
 } from "./constants";
 import {foldString} from "./hash";
-import {bodyArea, bodyMass, capFor, type Organism} from "./organism";
+import {bodyArea, bodyMass, energyCap, type Organism} from "./organism";
 
 /**
  * The world's three global, well-mixed pools (ADR-0003). Held as an
@@ -53,7 +53,7 @@ export function initializeMetabolism(population: readonly Organism[]): Pools {
 
   // "Enough carbon for K baseline organisms": a baseline body has area π
   // (bodyRadius = 1), so K of them are worth K·π of carbon in the unit
-  // `ρ = 1` fixes — `RHO`, not `K_CAP`, which carries the same dimension
+  // `ρ = 1` fixes — `RHO`, which carries the carbon unit
   // but is a free ratio rather than a unit (ADR-0022).
   const carbonBudget = CARBON_BUDGET_BASELINE_ORGANISMS * Math.PI;
   const ambientConcentration =
@@ -69,7 +69,7 @@ export function initializeMetabolism(population: readonly Organism[]): Pools {
     organism.oxygen = AMBIENT_OXYGEN_CONCENTRATION * area;
     // Energy neither diffuses nor has an ambient value to match, so it is
     // the one store filled by fill ratio rather than by concentration.
-    organism.energy = capFor(organism, "energy") / 2;
+    organism.energy = energyCap(organism) / 2;
   }
 
   return {

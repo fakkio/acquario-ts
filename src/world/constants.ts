@@ -67,51 +67,10 @@ function tunable(name: string, committed: number): number {
 }
 
 /**
- * Each diffusible's cap coefficient: a cap of `K_CAP[resource] ×
- * cytoplasmArea` is a maximum internal *concentration*, not a bucket size
- * (ADR-0003, taken over the Cytoplasm Area from v0.2 by ADR-0029).
- *
- * Per-resource rather than a single scalar, because `kCap` was never a unit
- * (ADR-0022). It carries `ρ`'s own dimension — carbon per area — so fixing
- * both at 1 was one unit choice *plus* one silent physical assertion: that
- * an organism can hold exactly its own body's worth of a diffusible. That
- * assertion is load-bearing at mitosis, where it forces a parent to sit at
- * exactly 100% of its food store to afford a same-sized child, and it
- * collides with the throttle-never-spill rule at precisely the tick it
- * matters. Only the ratio `kCap/ρ` is physical, and `RHO` alone carries the
- * carbon unit from here on.
- *
- * Food is the one entry #36 moves, to 1.5: the headroom this comment always
- * promised. Diffusion itself never consults this table — `ExchangeSettlement`
- * only ever checks a pool's own non-negativity (`environment.ts`), so raising
- * a body's cap does not by itself pull ambient carbon in any faster, and it
- * does not by itself move `r_max` either: measured directly, `1` and `1.5`
- * give the identical peak `C_food/ρ` (1.19, seed 7) at `AMBIENT_CO2_SHARE`'s
- * own committed value (below), because a body's food concentration settles
- * below even the old cap of 1 well before diffusion or
- * `applyPhotosynthesis`'s own headroom throttle would bind. What this move
- * buys instead is ADR-0022's own promise, independent of `r_max`: a store
- * that can hold more than a same-sized child needs without every future
- * ambient split having to stay just under 1 to avoid clipping it.
- *
- * Deliberately not annotated `Record<Diffusible, number>`, which would cost
- * this module the one property it has always had: it imports nothing, so
- * nothing it holds can depend on anything that reads it. The table's
- * completeness is checked where it is consumed instead — `organism.ts`
- * spreads it into a `Record<Resource, number>`, so a diffusible missing an
- * entry here is a compile error there.
- */
-export const K_CAP = {
-  oxygen: tunable("K_CAP_OXYGEN", 1),
-  carbonDioxide: tunable("K_CAP_CARBON_DIOXIDE", 1),
-  food: tunable("K_CAP_FOOD", 1.5),
-};
-
-/**
  * Body density, and the constant that fixes the carbon unit on its own
- * (ADR-0022). `ρ = 1` collapses body mass onto body area; `K_CAP` used to
- * be described as making the same move for concentration, and does not —
- * see its comment above.
+ * (ADR-0022). `ρ = 1` collapses body mass onto body area. A diffusible
+ * has no cap coefficient to make the same move for concentration (ADR-0035:
+ * only energy has a cap), so `RHO` alone carries the carbon unit.
  *
  * **Not tunable, absolutely.** It is the carbon unit. Overriding it would
  * calibrate nothing: `s` is proportional to `ρ` through the budget, so
@@ -120,9 +79,14 @@ export const K_CAP = {
 export const RHO = 1;
 
 /**
- * Energy's own cap coefficient, outside `K_CAP`'s table because energy is
- * neither a carbon nor an oxygen quantity: its unit is fixed separately, by
- * `β = 1`, rather than by coincidence of notation. About 240 ticks of
+ * Energy's cap coefficient, the only cap coefficient in the world (ADR-0035:
+ * food, O₂ and CO₂ have none, and passive exchange corrects any excess). A
+ * cap of `K_CAP_ENERGY × cytoplasmArea` is a maximum internal *concentration*
+ * of energy, not a bucket size (ADR-0003, taken over the Cytoplasm Area by
+ * ADR-0029). Energy is neither a carbon nor an oxygen quantity: its unit is
+ * fixed by `β = 1`, rather than by coincidence of notation. Energy keeps a
+ * hard cap because nothing but maintenance drains it, so respiration is
+ * throttled by its headroom. About 240 ticks of
  * autonomy for a baseline body at the respiration rate M2's later slices
  * land.
  *
@@ -366,10 +330,12 @@ export const RESPIRATION_ENERGY_YIELD = tunable(
  * #35's own reading — seeds 7–11, `α_bright = 6.067 ± 0.40`, giving 4.55 —
  * was measured before `AMBIENT_CO2_SHARE` moved, and it said so at the
  * time: that noise came from every founder's internal CO₂ starting above
- * `K_CAP.carbonDioxide`'s ceiling of 1, throttling respiration until
+ * the CO₂ cap of 1 that M7 still had, throttling respiration until
  * photosynthesis drew it back down, and retuning `AMBIENT_CO2_SHARE` was
  * explicitly left to #36. #36's own retuning — `AMBIENT_CO2_SHARE` to 0.6,
- * `K_CAP.food` to 1.5, everything else unmoved (see their own comments) —
+ * the food cap to 1.5, everything else unmoved (see their own comments) —
+ * and ADR-0035 (M7.5) later deleted the diffusibles' caps outright, so that
+ * noise no longer exists; `c₀` is not re-solved until M12 —
  * changes the ambient environment `α` is measured against, so it is
  * re-measured against that calibrated world: same seeds, `SETTLE_TICKS`
  * shortened for the same reason its own comment records,
@@ -393,8 +359,8 @@ export const EXISTENCE_COST = tunable("EXISTENCE_COST", 6.24);
  * The body-cost coefficient `β` in maintenance's area-scaled half, `β ×
  * area`. Fixed at 1 by construction, the same calibration move that fixes
  * `ρ`: it is what lets a baseline body's body cost read simply as its own
- * area. (`K_CAP` was once described as a third such move and is not — see
- * its own comment.)
+ * area. (A diffusible cap coefficient was once called a third such move and
+ * was not; ADR-0035 deleted them.)
  *
  * **Not tunable, absolutely.** It is the energy unit, and `c₀` is solved
  * against an `α` measured in that unit; moving it would move the scale the
@@ -415,18 +381,15 @@ export const BODY_COST_COEFFICIENT = 1;
 export const MUTATION_PROBABILITY = tunable("MUTATION_PROBABILITY", 0.25);
 
 /**
- * `cytoplasmThickness`'s multiplicative step size: a mutation applies `× (1 +
+ * `cytoplasmRadius`'s multiplicative step size: a mutation applies `× (1 +
  * u·δ)` or its reciprocal with equal probability. Chosen, together with
  * `GENERATION_0_MUTATION_SCALE`, so that scaling it by 5 reproduces
  * generation 0's `[1/1.4, 1.4]` spread — the range M1 already calibrated —
  * from a single ordinary birth's step. It was v0.1's `bodyRadius` step, and
- * the thickness inherits it unchanged (ADR-0028): with no organelles the
- * thickness is the whole radius.
+ * the radius inherits it unchanged (ADR-0036): with no organelles the
+ * cytoplasm radius is the whole body radius.
  */
-export const DELTA_CYTOPLASM_THICKNESS = tunable(
-  "DELTA_CYTOPLASM_THICKNESS",
-  0.08,
-);
+export const DELTA_CYTOPLASM_RADIUS = tunable("DELTA_CYTOPLASM_RADIUS", 0.08);
 
 /**
  * `mitosisEnergyThreshold`'s additive step size, clamped to `[0, 1]`. Small
@@ -458,7 +421,7 @@ export const DELTA_LINEAGE_HUE = tunable("DELTA_LINEAGE_HUE", 0.02);
 /**
  * Multiplies every δ above for generation 0 only, so founders spread across
  * the range a lineage would otherwise take many generations to explore.
- * Derived, not picked: `DELTA_CYTOPLASM_THICKNESS × 5 = 0.4` puts founder
+ * Derived, not picked: `DELTA_CYTOPLASM_RADIUS × 5 = 0.4` puts founder
  * radii in `[1/1.4, 1.4]` of the baseline, whose top end is exactly
  * `MAX_RADIUS_FACTOR` — generation 0's spread stays what M1 calibrated it
  * to.
@@ -547,7 +510,7 @@ export const SPLIT_WEIGHT = tunable("SPLIT_WEIGHT", 0.1);
 export const SPLIT_HALF_WIDTH = tunable("SPLIT_HALF_WIDTH", 0.3);
 
 /** The radius an inserted organelle is born at, one for every type. Small,
- * so an insertion grows the Enclosing Circle by at most `2·r_new`.
+ * so an insertion grows the Reach by at most `2·r_new`.
  *
  * 0.02, not the 0.05 #58 started from, for the reason `M_max` is 1. At
  * `M_max = 1` on the Reference World (#63, seeds 7–11, 100k ticks): 0.05
@@ -567,7 +530,7 @@ export const R_NEW = tunable("R_NEW", 0.02);
 export const R_MIN = tunable("R_MIN", R_NEW / 2);
 
 /** An organelle radius's symmetric multiplicative step, `× (1 + u·δ)` or its
- * reciprocal: the same law and the same step as `cytoplasmThickness`. */
+ * reciprocal: the same law and the same step as `cytoplasmRadius`. */
 export const DELTA_ORGANELLE_RADIUS = tunable("DELTA_ORGANELLE_RADIUS", 0.08);
 
 /** An organelle position's Cartesian step, at most this many of the

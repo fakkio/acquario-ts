@@ -1,5 +1,7 @@
 # The nervous system is a CTRNN wired through ports
 
+> **Amended by [ADR-0035](./0035-only-the-energy-store-has-a-hard-cap.md).** Food, O₂ and CO₂ have no cap any more, so their innate senses can no longer read "the store over its cap". The `energy` sense stands. The diffusibles' row is reopened for M11, whose grill starts from three candidates: `c / (1 + c)`, saturating and 0.5 at concentration 1; `c_int / (c_int + c_ext)`, which reads which way exchange runs and is 0.5 at equilibrium; and `min(c, 1)`.
+
 v0.2's neuron is a non-spiking leaky integrator with `vision.md`'s input-scaling bug fixed. Integrate-and-fire is kept only as a superset that a newborn neuron has switched off. Every organelle type declares named input and output **Ports**, and a synapse joins an output port to an input port. The body itself is an endpoint whose output ports are the **Innate Senses**. v0.2 has no sensor organelles, and the thruster is its only **Actuator**. Settled in #48. This amends ADR-0028's reserved ids.
 
 ## The neuron

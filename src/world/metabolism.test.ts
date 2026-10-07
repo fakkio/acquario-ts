@@ -4,10 +4,10 @@ import {
   BODY_COST_COEFFICIENT,
   C_NEURON,
   EXISTENCE_COST,
-  K_CAP,
   K_CAP_ENERGY,
   K_DIFFUSION,
   K_PHOTO,
+  K_RESP,
   RESPIRATION_ENERGY_YIELD,
 } from "./constants";
 import type {Environment, Vec2} from "./environment";
@@ -18,7 +18,7 @@ import {
   applyPhotosynthesis,
   applyRespiration,
 } from "./metabolism";
-import {bodyArea, capFor, type Diffusible} from "./organism";
+import {bodyArea, energyCap, type Diffusible} from "./organism";
 import {carrierAt, organismAt} from "./testing";
 
 /**
@@ -283,24 +283,34 @@ describe("applyPhotosynthesis", () => {
     expect(organism.oxygen).toBeLessThanOrEqual(1e-9);
   });
 
-  it("never pushes food past its cap when food headroom is the binding limit", () => {
-    const organism = organismAt(0, 0, 1);
-    organism.carbonDioxide = bodyArea(organism); // plenty of substrate
-    organism.food = capFor(organism, "food") - 1e-9; // almost full
+  // ADR-0035: food and O₂ have no cap, so a full store of either holds more
+  // and never stops fixation.
+  it("fixes at its rate whatever the food and oxygen stores hold", () => {
+    const empty = organismAt(0, 0, 1);
+    const stuffed = organismAt(0, 0, 1);
+    const area = bodyArea(empty);
+    empty.carbonDioxide = 0.2 * area;
+    stuffed.carbonDioxide = 0.2 * area;
+    stuffed.food = 5 * area;
+    stuffed.oxygen = 5 * area;
+    const rate = K_PHOTO * 0.2 * 1 * (2 * empty.bodyRadius);
 
-    applyPhotosynthesis(organism, stubLightEnvironment(1));
+    applyPhotosynthesis(empty, stubLightEnvironment(1));
+    applyPhotosynthesis(stuffed, stubLightEnvironment(1));
 
-    expect(organism.food).toBeLessThanOrEqual(capFor(organism, "food"));
+    expect(empty.food).toBeCloseTo(rate, 12);
+    expect(stuffed.food - 5 * area).toBeCloseTo(rate, 12);
+    expect(stuffed.oxygen - 5 * area).toBeCloseTo(rate, 12);
   });
 
-  it("never pushes oxygen past its cap when oxygen headroom is the binding limit", () => {
+  it("is limited by the CO2 it has when that is below its rate", () => {
     const organism = organismAt(0, 0, 1);
-    organism.carbonDioxide = bodyArea(organism);
-    organism.oxygen = capFor(organism, "oxygen") - 1e-9;
+    organism.carbonDioxide = 1e-9;
 
     applyPhotosynthesis(organism, stubLightEnvironment(1));
 
-    expect(organism.oxygen).toBeLessThanOrEqual(capFor(organism, "oxygen"));
+    expect(organism.carbonDioxide).toBeGreaterThanOrEqual(0);
+    expect(organism.food).toBeLessThanOrEqual(1e-9);
   });
 
   it("discards no product: CO2 lost exactly matches food and oxygen gained", () => {
@@ -421,30 +431,59 @@ describe("applyRespiration", () => {
     expect(organism.food).toBeGreaterThanOrEqual(0);
   });
 
-  it("never pushes CO2 past its cap when CO2 headroom is the binding limit", () => {
-    const organism = organismAt(0, 0, 1);
-    organism.food = bodyArea(organism);
-    organism.oxygen = bodyArea(organism);
-    organism.carbonDioxide = capFor(organism, "carbonDioxide") - 1e-9;
-    organism.energy = 0;
+  // ADR-0035, and #65's panel frozen into a test: a CO₂ store that is full,
+  // or far over the ambient level, never starves an organism that has fuel.
+  it("respires at its mass-action rate whatever its CO2, above ambient and above 1", () => {
+    for (const co2Concentration of [0, 0.5, 1, 1.04, 3]) {
+      const organism = organismAt(0, 0, 1);
+      const area = bodyArea(organism);
+      organism.food = 0.5 * area;
+      organism.oxygen = 0.4 * area;
+      organism.carbonDioxide = co2Concentration * area;
+      organism.energy = 0;
+      const rate = K_RESP * 0.5 * 0.4 * area;
 
-    applyRespiration(organism);
+      const outcome = applyRespiration(organism);
 
-    expect(organism.carbonDioxide).toBeLessThanOrEqual(
-      capFor(organism, "carbonDioxide"),
-    );
+      expect(outcome.energyProduced).toBeCloseTo(
+        rate * RESPIRATION_ENERGY_YIELD,
+        12,
+      );
+      expect(outcome.throttledByFullEnergyStore).toBe(false);
+      expect(organism.carbonDioxide).toBeCloseTo(
+        co2Concentration * area + rate,
+        12,
+      );
+    }
   });
 
   it("throttles by a full energy store, never spilling energy past its cap, and reports the throttle", () => {
     const organism = organismAt(0, 0, 1);
     organism.food = bodyArea(organism);
     organism.oxygen = bodyArea(organism);
-    organism.energy = capFor(organism, "energy") - 1e-9;
+    organism.energy = energyCap(organism) - 1e-9;
 
     const outcome = applyRespiration(organism);
 
-    expect(organism.energy).toBeLessThanOrEqual(capFor(organism, "energy"));
+    expect(organism.energy).toBeLessThanOrEqual(energyCap(organism));
     expect(outcome.throttledByFullEnergyStore).toBe(true);
+  });
+
+  it("reports the potential energy a full store would have throttled away (#75)", () => {
+    const organism = organismAt(0, 0, 1);
+    const area = bodyArea(organism);
+    organism.food = 0.5 * area;
+    organism.oxygen = 0.4 * area;
+    const rate = K_RESP * 0.5 * 0.4 * area;
+    organism.energy = energyCap(organism);
+
+    const outcome = applyRespiration(organism);
+
+    expect(outcome.energyProduced).toBe(0);
+    expect(outcome.potentialEnergy).toBeCloseTo(
+      rate * RESPIRATION_ENERGY_YIELD,
+      12,
+    );
   });
 
   it("does not report a full-energy throttle when substrate, not the energy cap, is what binds", () => {
@@ -620,21 +659,12 @@ describe("a body with neurons", () => {
     }
   });
 
-  it("caps every store over its Cytoplasm Area, the body's area minus the neurons'", () => {
+  it("caps energy over its Cytoplasm Area, the body's area minus the neurons'", () => {
     const organism = carrierAt(0, 0, [0.2, 0.3]);
     const cytoplasmArea =
       bodyArea(organism) - Math.PI * (0.2 * 0.2 + 0.3 * 0.3);
 
-    expect(capFor(organism, "energy")).toBeCloseTo(
-      K_CAP_ENERGY * cytoplasmArea,
-      9,
-    );
-    for (const resource of ["oxygen", "carbonDioxide", "food"] as const) {
-      expect(capFor(organism, resource)).toBeCloseTo(
-        K_CAP[resource] * cytoplasmArea,
-        9,
-      );
-    }
+    expect(energyCap(organism)).toBeCloseTo(K_CAP_ENERGY * cytoplasmArea, 9);
   });
 
   it("exchanges nothing once its stores over the Cytoplasm Area match the water outside", () => {

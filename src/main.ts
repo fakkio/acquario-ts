@@ -179,9 +179,9 @@ const updateHud = (currentWorld: World, fps: number): void => {
   const population = getPopulation(currentWorld);
   const geneStats = foldGeneStatistics(population);
   hud.setField(
-    "geneCytoplasmThickness",
-    "Cytoplasm thickness (μ±σ)",
-    formatStat(geneStats.cytoplasmThickness),
+    "geneCytoplasmRadius",
+    "Cytoplasm radius (μ±σ)",
+    formatStat(geneStats.cytoplasmRadius),
   );
   hud.setField(
     "bodyRadius",
@@ -258,7 +258,11 @@ const loop = createRenderLoop({
   trace: () => (selection.kind === "alive" ? selection.organism : undefined),
   onAdvance: (nextWorld, fps, flows) => {
     latestWorld = nextWorld;
-    selectedFlows = flows;
+    // A frame that ran no tick reports null; keeping the last tick's flows
+    // through it stops the inspector's deltas and "(last tick)" blinking out.
+    if (flows !== null) {
+      selectedFlows = flows;
+    }
     updateHud(nextWorld, fps);
     if (isRestartDue(getPopulation(nextWorld).length, autoRestart)) {
       restart();
@@ -284,7 +288,7 @@ window.addEventListener("resize", () => {
 // (above) deliberately does not repaint any more — this loop is the sole
 // caller of `repaint` now, so a tick landing and an animation frame firing
 // can never double-draw the same frame.
-const inspector = mountInspector();
+const inspector = mountInspector(ROSTER);
 const animate = (nowMs: number): void => {
   selection = updateSelection(
     selection,
@@ -292,7 +296,7 @@ const animate = (nowMs: number): void => {
     getTick(latestWorld),
     nowMs,
   );
-  inspector.render(selection, selectedFlows);
+  inspector.render(selection, selectedFlows, getPoolLevels(latestWorld));
   repaint(nowMs);
   requestAnimationFrame(animate);
 };

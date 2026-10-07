@@ -11,7 +11,7 @@ import {ORGANELLE_TYPES} from "./organelles";
 import {
   DIFFUSIBLES,
   bodyAreaOfRadius,
-  capFor,
+  energyCap,
   type Organism,
   type OrganismView,
 } from "./organism";
@@ -26,7 +26,7 @@ import {
  *
  * Two areas, never confused (ADR-0029). Every internal concentration is a
  * store over the **Cytoplasm Area**, the space that holds it, and so is
- * every cap. What the body meets the world with stays the whole body's:
+ * the energy cap. What the body meets the world with stays the whole body's:
  * the perimeter exchange crosses and the diameter photosynthesis projects
  * toward the light. With no organelles the two areas are the same number.
  */
@@ -97,16 +97,16 @@ export function applyPassiveExchange(
  * fixes carbon a floor-dwelling twin cannot approach, and complete darkness
  * fixes nothing at all.
  *
- * **Throttle, never spill.** The reaction runs at the minimum of its rate,
- * the CO₂ actually available, and the headroom left in the food and oxygen
- * stores — spilling either product past its cap would create carbon or
- * oxygen out of nothing and break the invariant on the first tick that ran
- * long enough to fill one.
+ * **Limited by its substrate alone** (ADR-0035). The reaction runs at the
+ * minimum of its rate and the CO₂ actually available: food and O₂ have no
+ * cap, so a full store of either holds more and never stops fixation. The
+ * stores conserve exactly either way, and passive exchange vents whatever
+ * a store holds above the ambient level.
  *
  * Runs after both of step 2's exchange sub-passes, so `organism.carbonDioxide`
  * already reflects this tick's settled grant rather than last tick's — the
- * substrate and headroom this throttles against are the exact numbers the
- * settlement struck, not optimistic ones.
+ * substrate this limits against is the exact number the settlement struck,
+ * not an optimistic one.
  */
 export function applyPhotosynthesis(
   organism: Organism,
@@ -119,13 +119,8 @@ export function applyPhotosynthesis(
 
   const rate = K_PHOTO * internalCo2Concentration * light * diameter;
   const substrateAvailable = organism.carbonDioxide;
-  const foodHeadroom = capFor(organism, "food") - organism.food;
-  const oxygenHeadroom = capFor(organism, "oxygen") - organism.oxygen;
 
-  const fixed = Math.max(
-    0,
-    Math.min(rate, substrateAvailable, foodHeadroom, oxygenHeadroom),
-  );
+  const fixed = Math.max(0, Math.min(rate, substrateAvailable));
 
   organism.carbonDioxide -= fixed;
   organism.food += fixed;
@@ -141,8 +136,15 @@ export interface RespirationOutcome {
    * maintenance spends any of it. The numerator of one organism's `α`. */
   readonly energyProduced: number;
   /**
-   * Whether the energy store's headroom, not the substrate or the CO₂
-   * cap, was the binding limit. An organism throttled this way is
+   * The energy this reaction would have produced had the energy store had
+   * room: `min(rate, food, O₂)` times the yield, with no headroom term. The
+   * numerator of one organism's `α` (ADR-0015, amended by #75). Equal to
+   * `energyProduced` whenever the store is not the binding limit.
+   */
+  readonly potentialEnergy: number;
+  /**
+   * Whether the energy store's headroom, not the substrate or the rate,
+   * was the binding limit. An organism throttled this way is
    * measuring the size of its own tank rather than the income available
    * to it, so ADR-0015 excludes it from the population mean.
    */
@@ -174,10 +176,11 @@ export interface RespirationOutcome {
  * only with perimeter, so a larger body's respiration stays supply-limited
  * rather than pegged at some internal ceiling of its own.
  *
- * **Throttle, never spill**, exactly as photosynthesis is: the reaction
- * runs at the minimum of its rate, the food and O₂ actually available, and
- * the headroom left in the CO₂ store. It is throttled by the energy
- * store's headroom too, even though spilling energy would not break
+ * **Limited by its substrates and by the one cap there is** (ADR-0035): the
+ * reaction runs at the minimum of its rate, the food and O₂ actually
+ * available, and the headroom left in the energy store. CO₂ has no cap, so
+ * a full CO₂ store never starves an organism that has fuel; exchange vents
+ * it. Energy is throttled even though spilling it would not break
  * conservation — energy is not part of either ledger — on the grounds that
  * nothing burns fuel with nowhere to put the result. Without that rule a
  * sated organism would strip-mine the food pool for a product it has no
@@ -191,15 +194,14 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
 
   const foodAvailable = organism.food;
   const oxygenAvailable = organism.oxygen;
-  const co2Headroom =
-    capFor(organism, "carbonDioxide") - organism.carbonDioxide;
   const energyHeadroom =
-    (capFor(organism, "energy") - organism.energy) / RESPIRATION_ENERGY_YIELD;
+    (energyCap(organism) - organism.energy) / RESPIRATION_ENERGY_YIELD;
 
-  const reacted = Math.max(
+  const potentialReacted = Math.max(
     0,
-    Math.min(rate, foodAvailable, oxygenAvailable, co2Headroom, energyHeadroom),
+    Math.min(rate, foodAvailable, oxygenAvailable),
   );
+  const reacted = Math.max(0, Math.min(potentialReacted, energyHeadroom));
 
   organism.food -= reacted;
   organism.oxygen -= reacted;
@@ -209,11 +211,11 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
 
   return {
     energyProduced,
+    potentialEnergy: potentialReacted * RESPIRATION_ENERGY_YIELD,
     throttledByFullEnergyStore:
       energyHeadroom <= rate &&
       energyHeadroom <= foodAvailable &&
-      energyHeadroom <= oxygenAvailable &&
-      energyHeadroom <= co2Headroom,
+      energyHeadroom <= oxygenAvailable,
   };
 }
 

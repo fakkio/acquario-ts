@@ -102,7 +102,9 @@ export interface AlphaReport {
 export function reportAlpha(): AlphaReport {
   const runs = seeds().map((seed) => ({seed, run: measureAlpha(seed)}));
 
-  heading("α — energy income per unit radius, in a fixed population");
+  heading(
+    "α — potential respiration rate per unit radius, in a fixed population",
+  );
   note(
     `  Mortality off, fertility off (ADR-0015's instrument). Generation 0 as the app`,
   );

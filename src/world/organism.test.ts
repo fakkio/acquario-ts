@@ -5,7 +5,7 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {K_CAP, K_CAP_ENERGY} from "./constants";
+import {K_CAP_ENERGY} from "./constants";
 import {BASELINE_GENOME, deriveBody, type Genome} from "./genome";
 import {EMPTY_HASH} from "./hash";
 import {
@@ -17,9 +17,8 @@ import {
   STARTING_POPULATION,
   bodyArea,
   bodyMass,
-  capFor,
+  energyCap,
   createPopulation,
-  DIFFUSIBLES,
   foldPopulation,
   placeFounders,
   type Founder,
@@ -68,7 +67,7 @@ describe("createPopulation", () => {
   it("gives founders pairwise-distinct values in all three functional genes", () => {
     const population = populationFor(7);
     const thicknesses = population.map(
-      (organism) => organism.genome.cytoplasmThickness,
+      (organism) => organism.genome.cytoplasmRadius,
     );
     const thresholds = population.map(
       (organism) => organism.genome.mitosisEnergyThreshold,
@@ -172,7 +171,7 @@ describe("createPopulation from an explicit baseline genome", () => {
   // The done-criteria runs vary the starting point as well as the seed
   // (ADR-0025), so the genome founders are mutated from has to be an
   // argument rather than a module-level constant.
-  const LARGE_BASELINE: Genome = {...BASELINE_GENOME, cytoplasmThickness: 2.5};
+  const LARGE_BASELINE: Genome = {...BASELINE_GENOME, cytoplasmRadius: 2.5};
 
   it("defaults to BASELINE_GENOME, so an omitted argument changes nothing", () => {
     expect(createPopulation(createRngStream(7)).population).toEqual(
@@ -188,10 +187,10 @@ describe("createPopulation from an explicit baseline genome", () => {
 
     for (const radius of radii) {
       expect(radius).toBeGreaterThan(
-        MIN_RADIUS_FACTOR * LARGE_BASELINE.cytoplasmThickness * 0.99,
+        MIN_RADIUS_FACTOR * LARGE_BASELINE.cytoplasmRadius * 0.99,
       );
       expect(radius).toBeLessThan(
-        MAX_RADIUS_FACTOR * LARGE_BASELINE.cytoplasmThickness * 1.01,
+        MAX_RADIUS_FACTOR * LARGE_BASELINE.cytoplasmRadius * 1.01,
       );
     }
   });
@@ -211,10 +210,10 @@ describe("createPopulation from an explicit baseline genome", () => {
 
 describe("placeFounders", () => {
   const ladder: readonly Founder[] = [1, 1.5, 2, 2.5].map(
-    (cytoplasmThickness, i) => ({
+    (cytoplasmRadius, i) => ({
       x: 10 + 5 * i,
       y: 3 + 2 * i,
-      genome: {...BASELINE_GENOME, cytoplasmThickness, lineageHue: 0.1 * i},
+      genome: {...BASELINE_GENOME, cytoplasmRadius, lineageHue: 0.1 * i},
     }),
   );
 
@@ -291,7 +290,7 @@ describe("the reproduction genes on the view", () => {
   it("exposes all four genes through the view", () => {
     const view: OrganismView = organism;
 
-    expect(view.cytoplasmThickness).toBe(organism.genome.cytoplasmThickness);
+    expect(view.cytoplasmRadius).toBe(organism.genome.cytoplasmRadius);
     expect(view.lineageHue).toBe(organism.genome.lineageHue);
     expect(view.mitosisEnergyThreshold).toBe(
       organism.genome.mitosisEnergyThreshold,
@@ -306,7 +305,7 @@ describe("the derived body on the view", () => {
   // M7 splits the gene from the body it builds: the HUD shows both, and
   // the App layer reads caps and concentrations off the Cytoplasm Area.
   it("reads the body radius and Cytoplasm Area off the body the genome builds", () => {
-    const genome: Genome = {...BASELINE_GENOME, cytoplasmThickness: 1.7};
+    const genome: Genome = {...BASELINE_GENOME, cytoplasmRadius: 1.7};
     const view: OrganismView = new Organism({
       x: 1,
       y: 2,
@@ -315,7 +314,7 @@ describe("the derived body on the view", () => {
     });
     const body = deriveBody(genome);
 
-    expect(view.cytoplasmThickness).toBe(1.7);
+    expect(view.cytoplasmRadius).toBe(1.7);
     expect(view.bodyRadius).toBe(body.radius);
     expect(view.cytoplasmArea).toBe(body.cytoplasmArea);
   });
@@ -349,7 +348,7 @@ describe("foldPopulation", () => {
   it.each([
     [
       "cytoplasm thickness",
-      {cytoplasmThickness: BASE_GENOME.cytoplasmThickness + 0.0000001},
+      {cytoplasmRadius: BASE_GENOME.cytoplasmRadius + 0.0000001},
     ],
     [
       "mitosis energy threshold",
@@ -389,7 +388,7 @@ describe("internal resource stores", () => {
       y: 4,
       genome: {
         ...BASELINE_GENOME,
-        cytoplasmThickness: 2,
+        cytoplasmRadius: 2,
         lineageHue: 0.5,
         ...genomeChange,
       },
@@ -422,40 +421,21 @@ describe("internal resource stores", () => {
     ).toBeUndefined();
   });
 
-  it("caps each diffusible at its own K_CAP entry times Cytoplasm Area", () => {
+  // ADR-0035: only energy has a cap, so the module offers no way to ask for
+  // a diffusible's.
+  it("caps energy at K_CAP_ENERGY times Cytoplasm Area", () => {
     const organism = organismWith();
 
-    for (const resource of DIFFUSIBLES) {
-      expect(capFor(organism, resource)).toBeCloseTo(
-        K_CAP[resource] * organism.cytoplasmArea,
-        12,
-      );
-    }
-  });
-
-  // The table is per-resource from M5 (ADR-0022). #36 gives food the
-  // headroom above ρ that ADR-0022 promised; oxygen and CO₂ stay at 1.
-  it("gives food headroom above ρ while oxygen and CO2 stay at 1", () => {
-    expect(K_CAP.oxygen).toBe(1);
-    expect(K_CAP.carbonDioxide).toBe(1);
-    expect(K_CAP.food).toBeGreaterThan(1);
-  });
-
-  it("caps energy at its own coefficient rather than sharing K_CAP", () => {
-    const organism = organismWith();
-
-    expect(capFor(organism, "energy")).toBeCloseTo(
+    expect(energyCap(organism)).toBeCloseTo(
       K_CAP_ENERGY * organism.cytoplasmArea,
       12,
     );
-    expect(K_CAP_ENERGY).not.toBe(K_CAP.food);
   });
 
-  it("scales every cap with the organism's own Cytoplasm Area", () => {
-    const small = organismWith({cytoplasmThickness: 1});
-    const large = organismWith({cytoplasmThickness: 2});
+  it("scales the energy cap with the organism's own Cytoplasm Area", () => {
+    const small = organismWith({cytoplasmRadius: 1});
+    const large = organismWith({cytoplasmRadius: 2});
 
-    expect(capFor(large, "food")).toBeGreaterThan(capFor(small, "food"));
-    expect(capFor(large, "energy")).toBeGreaterThan(capFor(small, "energy"));
+    expect(energyCap(large)).toBeGreaterThan(energyCap(small));
   });
 });

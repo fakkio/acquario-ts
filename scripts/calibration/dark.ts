@@ -1,7 +1,7 @@
 import {
   AQUARIUM_AREA,
   bodyAreaOfRadius,
-  capFor,
+  energyCap,
   createWorld,
   getPoolLevels,
   getPopulation,
@@ -67,7 +67,7 @@ interface DarkRung {
 /** Read off the view, so the cap is the founder's own Cytoplasm Area's
  * rather than one recomputed here from the rung's radius. */
 function energyFraction(organism: OrganismView): number {
-  return organism.energy / capFor(organism, "energy");
+  return organism.energy / energyCap(organism);
 }
 
 function measureRung(radius: number): DarkRung {

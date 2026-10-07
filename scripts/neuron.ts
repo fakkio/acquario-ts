@@ -2,6 +2,7 @@ import {
   measureNeuron,
   measureNeuronWithoutCost,
   nodeProcess,
+  reportBody,
   reportNeuron,
 } from "./calibration/neuron";
 import {heading, note, rendered} from "./calibration/report";
@@ -32,6 +33,7 @@ async function main(): Promise<void> {
   const baseline = measureNeuronWithoutCost();
   const costed = measureNeuron();
   reportNeuron(costed, await baseline);
+  reportBody(costed);
 
   console.log(rendered().trimEnd());
 }

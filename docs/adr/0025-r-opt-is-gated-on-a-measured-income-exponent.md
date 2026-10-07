@@ -1,5 +1,7 @@
 # `r_opt` is gated on a measured income exponent and a maximum reproductive radius
 
+> **Note ([ADR-0035](./0035-only-the-energy-store-has-a-hard-cap.md)).** The fallback below "waits" when the O₂ store is full. From ADR-0035 no store but energy is ever full. The fallback was declined at #36, so nothing live depends on this.
+
 `r_opt = 2·c₀/α` rests on energy income being linear in `r`. The mitosis mass gate works against that linearity, and the conflict produces a **maximum reproductive radius** that appears nowhere in the closed form. M5 therefore measures both — the fitted exponent `n` in `income ∝ r^n`, and `r_max` — and gates on them before treating convergence on `r_opt` as meaning anything. If the gates fail, a pre-authorised law change fires: mitosis's mass cost is paid in internal **carbon**, food first and then CO₂, which removes the conflict outright.
 
 ## The conflict

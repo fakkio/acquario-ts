@@ -59,7 +59,7 @@ export function runTicksWatching(
 }
 
 /**
- * A genome that differs from the baseline in Cytoplasm Thickness alone, and
+ * A genome that differs from the baseline in Cytoplasm Radius alone, and
  * carries no organelles, so the thickness is the body's whole radius and a
  * ladder of thicknesses is a ladder of radii. Every
  * measurement here runs in a **fixed population** or an infertile one, so
@@ -68,8 +68,8 @@ export function runTicksWatching(
  * organism a founder the app places is, apart from the one gene under
  * measurement.
  */
-export function genomeOfThickness(cytoplasmThickness: number): Genome {
-  return {...BASELINE_GENOME, cytoplasmThickness};
+export function genomeOfThickness(cytoplasmRadius: number): Genome {
+  return {...BASELINE_GENOME, cytoplasmRadius};
 }
 
 /**

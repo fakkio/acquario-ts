@@ -36,16 +36,6 @@ describe("constant overrides", () => {
     expect(K_PHOTO).toBe(0.25);
   });
 
-  it("takes the environment's value for one entry of the cap table", async () => {
-    vi.stubEnv("ACQUARIO_K_CAP_FOOD", "4");
-
-    const {K_CAP} = await importConstants();
-
-    expect(K_CAP.food).toBe(4);
-    expect(K_CAP.oxygen).toBe(1);
-    expect(K_CAP.carbonDioxide).toBe(1);
-  });
-
   it("leaves the constants that carry a unit unreachable", async () => {
     vi.stubEnv("ACQUARIO_RHO", "7");
 

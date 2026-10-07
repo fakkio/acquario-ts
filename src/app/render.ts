@@ -4,7 +4,7 @@ import type {DeathEffects} from "./deathEffects";
 import {
   AQUARIUM_HEIGHT,
   AQUARIUM_WIDTH,
-  capFor,
+  energyCap,
   getGridOccupancy,
   getPopulation,
   lightAt,
@@ -140,12 +140,7 @@ export function renderWorld(
 
   const population = getPopulation(world);
   for (const organism of population) {
-    drawBody(
-      ctx,
-      organism,
-      organism.energy / capFor(organism, "energy"),
-      worldScale,
-    );
+    drawBody(ctx, organism, organism.energy / energyCap(organism), worldScale);
   }
 
   if (options.selected && population.includes(options.selected)) {

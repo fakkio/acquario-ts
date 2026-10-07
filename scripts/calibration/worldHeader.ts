@@ -47,7 +47,7 @@ export function reportTheWorldMeasured(): void {
   row("bright band", `y ≤ ${num(BRIGHT_BAND_DEPTH)}`);
   row(
     "baseline genome",
-    `thickness=${num(BASELINE_GENOME.cytoplasmThickness)}, threshold=${num(BASELINE_GENOME.mitosisEnergyThreshold)}, allocation=${num(BASELINE_GENOME.childAllocationRatio)}`,
+    `cytoplasmRadius=${num(BASELINE_GENOME.cytoplasmRadius)}, threshold=${num(BASELINE_GENOME.mitosisEnergyThreshold)}, allocation=${num(BASELINE_GENOME.childAllocationRatio)}`,
   );
 
   // Generation 0's own summed body area is what the ambient concentration
@@ -82,12 +82,5 @@ export function reportTheWorldMeasured(): void {
   table(
     ["constant", "value"],
     scalarConstants().map(([name, value]) => [name, num(value, 6)]),
-  );
-  table(
-    ["K_CAP", "value"],
-    Object.entries(constants.K_CAP).map(([name, value]) => [
-      name,
-      num(value, 6),
-    ]),
   );
 }

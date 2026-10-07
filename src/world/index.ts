@@ -7,13 +7,15 @@ export {
   type OrganelleType,
 } from "./organelles";
 export {type Pools} from "./ledger";
+export {birthCosts} from "./mitosis";
 export {maintenanceBreakdown, type MaintenanceBreakdown} from "./metabolism";
 export {BRIGHT_BAND_DEPTH, isBright, lightAt} from "./light";
 export {
   bodyArea,
   bodyAreaOfRadius,
-  capFor,
-  capForArea,
+  energyCap,
+  energyCapForArea,
+  type Diffusible,
   type Founder,
   type OrganismView,
   type Resource,

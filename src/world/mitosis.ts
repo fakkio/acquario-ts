@@ -12,8 +12,8 @@ import {
   Organism,
   RESOURCES,
   bodyAreaOfRadius,
-  capFor,
-  capForArea,
+  energyCap,
+  energyCapForArea,
   type Resource,
 } from "./organism";
 import {deriveChildStream, drawUnitVector, type RngStream} from "./rng";
@@ -89,16 +89,14 @@ export function evaluateMitosis(
   roster: readonly OrganelleType[],
 ): PendingBirth | null {
   const thresholdEnergy =
-    organism.genome.mitosisEnergyThreshold * capFor(organism, "energy");
+    organism.genome.mitosisEnergyThreshold * energyCap(organism);
   if (organism.energy < thresholdEnergy) {
     return null;
   }
 
-  const maxChildArea = birthCostCeiling(organism.genome, roster);
-  if (
-    organism.energy < mitosisEnergyCost(maxChildArea) ||
-    organism.food < mitosisMassCost(maxChildArea)
-  ) {
+  const ceiling = birthCosts(organism.genome, roster);
+  const maxChildArea = ceiling.area;
+  if (organism.energy < ceiling.energy || organism.food < ceiling.food) {
     return null;
   }
 
@@ -126,11 +124,13 @@ export function evaluateMitosis(
   organism.energy -= energyCost;
 
   // `childAllocationRatio` splits what remains after both costs, across
-  // all four resources including energy (ADR-0019). A child that cannot
-  // hold its full share receives up to its own caps — computed from its
-  // own Cytoplasm Area via `capForArea`, since no `Organism` for it exists
-  // yet to hand `capFor` — and the excess simply stays subtracted from
-  // nothing: `organism[resource]` only ever loses the granted amount.
+  // all four resources including energy (ADR-0019). Only energy has a cap
+  // (ADR-0035): a child that cannot hold its full energy share receives up
+  // to its own cap — computed from its own Cytoplasm Area via
+  // `energyCapForArea`, since no `Organism` for it exists yet to hand
+  // `energyCap` — and the excess stays with the parent. Food, O₂ and CO₂
+  // are handed over in full, even into a child whose concentration then
+  // sits above its parent's: it vents the difference through exchange.
   const ratio = organism.genome.childAllocationRatio;
   const childStores: Record<Resource, number> = {
     energy: 0,
@@ -140,10 +140,10 @@ export function evaluateMitosis(
   };
   for (const resource of RESOURCES) {
     const desired = ratio * organism[resource];
-    const granted = Math.min(
-      desired,
-      capForArea(childBody.cytoplasmArea, resource),
-    );
+    const granted =
+      resource === "energy"
+        ? Math.min(desired, energyCapForArea(childBody.cytoplasmArea))
+        : desired;
     organism[resource] -= granted;
     childStores[resource] = granted;
   }
@@ -167,6 +167,24 @@ export function evaluateMitosis(
     oxygen: childStores.oxygen,
     carbonDioxide: childStores.carbonDioxide,
     food: childStores.food,
+  };
+}
+
+/**
+ * What the Worst-Case Birth Gate (ADR-0027) asks a parent to hold: the energy
+ * and the food of the most expensive child its mutation law could produce.
+ * One function for the gate and for the inspector that shows it, so the two
+ * cannot disagree.
+ */
+export function birthCosts(
+  genome: Genome,
+  roster: readonly OrganelleType[],
+): {readonly area: number; readonly energy: number; readonly food: number} {
+  const area = birthCostCeiling(genome, roster);
+  return {
+    area,
+    energy: mitosisEnergyCost(area),
+    food: mitosisMassCost(area),
   };
 }
 

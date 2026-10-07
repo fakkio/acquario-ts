@@ -2,7 +2,7 @@ import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
   DELETION_WEIGHT,
   DELTA_CHILD_ALLOCATION_RATIO,
-  DELTA_CYTOPLASM_THICKNESS,
+  DELTA_CYTOPLASM_RADIUS,
   DELTA_LINEAGE_HUE,
   DELTA_MITOSIS_ENERGY_THRESHOLD,
   INSERTION_WEIGHT,
@@ -14,7 +14,7 @@ import {
   SPLIT_WEIGHT,
   STRUCTURAL_EVENT_PROBABILITY,
 } from "./constants";
-import {enclosingCircle, makeRoom, relax} from "./layout";
+import {makeRoom, reach, relax} from "./layout";
 import {
   ORGANELLE_TYPES,
   type OrganelleType,
@@ -68,15 +68,15 @@ export type Gene = OrganelleGene;
  * v0.2's shape (ADR-0028): a fixed header of **Organism Genes**, the genes
  * an organism has exactly once, plus `genes`, the structural genes, which
  * grow and shrink as structure evolves. The header is v0.1's four genes
- * with `cytoplasmThickness` in place of `bodyRadius`: the body is no longer
+ * with `cytoplasmRadius` in place of `bodyRadius`: the body is no longer
  * a gene but a consequence of the layout (`deriveBody`), and with no
- * organelles the thickness is the whole radius.
+ * organelles the cytoplasm radius is the whole body radius.
  *
  * The header's declaration order is its draw order in `mutateGenome`, so
- * `cytoplasmThickness` sits where `bodyRadius` did.
+ * `cytoplasmRadius` sits where `bodyRadius` did.
  */
 export interface Genome {
-  readonly cytoplasmThickness: number;
+  readonly cytoplasmRadius: number;
   readonly mitosisEnergyThreshold: number;
   readonly childAllocationRatio: number;
   readonly lineageHue: number;
@@ -87,7 +87,7 @@ export interface Genome {
  * The single minimal genome generation 0 is independently mutated from
  * (glossary: Baseline Genome). It carries no organelles, so a baseline
  * organism is v0.1's Minimal Organism (ADR-0028), and its
- * `cytoplasmThickness` is the baseline radius, 1 by definition
+ * `cytoplasmRadius` is the baseline radius, 1 by definition
  * (`GLOSSARY.md`). `mitosisEnergyThreshold` and
  * `childAllocationRatio` are provisional, measured against the current
  * constants rather than derived — a baseline parent's energy cap is
@@ -104,7 +104,7 @@ export interface Genome {
  * that satisfies the record's shape and nothing more.
  */
 export const BASELINE_GENOME: Genome = {
-  cytoplasmThickness: BASELINE_BODY_RADIUS,
+  cytoplasmRadius: BASELINE_BODY_RADIUS,
   mitosisEnergyThreshold: 0.75,
   childAllocationRatio: 0.5,
   lineageHue: 0,
@@ -242,13 +242,13 @@ export function mutateGenome(
   const scale = options.scale ?? 1;
   const draws = openDraws(stream);
 
-  const cytoplasmThickness = draws.fires(probability)
+  const cytoplasmRadius = draws.fires(probability)
     ? mutateMultiplicatively(
-        genome.cytoplasmThickness,
+        genome.cytoplasmRadius,
         draws,
-        DELTA_CYTOPLASM_THICKNESS * scale,
+        DELTA_CYTOPLASM_RADIUS * scale,
       )
-    : genome.cytoplasmThickness;
+    : genome.cytoplasmRadius;
 
   const mitosisEnergyThreshold = draws.fires(probability)
     ? clampUnitInterval(
@@ -274,6 +274,7 @@ export function mutateGenome(
     options.roster === undefined
       ? genome.genes
       : mutateStructure(genome.genes, draws, {
+          cytoplasmRadius,
           roster: options.roster,
           eventProbability:
             options.eventProbability ?? STRUCTURAL_EVENT_PROBABILITY,
@@ -282,7 +283,7 @@ export function mutateGenome(
 
   return {
     genome: {
-      cytoplasmThickness,
+      cytoplasmRadius,
       mitosisEnergyThreshold,
       childAllocationRatio,
       lineageHue,
@@ -297,23 +298,18 @@ export function mutateGenome(
  * `genome` can have under `mutateGenome`'s default options, the margin the
  * Worst-Case Birth Gate prices before anything is drawn. A guarantee the
  * mutation law makes by construction, never a bound enforced by rejecting
- * draws above it — that would bring the Birth Sieve back from the other
+ * draws above it, which would bring the Birth Sieve back from the other
  * side.
  *
- * ADR-0028's `π·R_max²`, with `R_max = enclosing radius + M_max ·
- * maxEventGrowth + t·(1 + δ)`: the parent's Enclosing Circle, the most its
- * structural events can grow it (`maxStructuralGrowth`), and the largest
- * thickness `mutateMultiplicatively` can draw, since its magnitude draw
- * stays below 1. `maxEventGrowth` counts only the operators with a valid
- * target in the parent's genome (ADR-0034), so with no organelles and an
+ * ADR-0036's `π·max(R_area_max², Reach_max²)`. The area bound is the
+ * cytoplasm at its largest step plus the parent's organelle area plus what
+ * `M_max` events can add to it; the reach bound is the parent's reach plus
+ * what the same events can add to it. Both are read off each type's
+ * declared laws by walking every sequence of `M_max` events the parent's
+ * genome and the roster allow (`worstCaseBody`), so an event that acts on an
+ * organelle an earlier one grew or created is priced too. Only operators
+ * with a valid target are walked (ADR-0034), so with no organelles and an
  * empty roster this is v0.1's ceiling exactly.
- *
- * The bound is read off the parent's own genome. A later event acts on a
- * genome an earlier one changed, an organelle grown a step or newly
- * splittable; the slack the operators leave (a size step or a split moves
- * the circle by half what is priced) covers that at `M_max = 2`, and the
- * property test in `genome.test.ts` is what says so for the constants a
- * sweep tries.
  *
  * `roster` is the one the child's mutation runs with, required so that the
  * ceiling and the law cannot be given different ones.
@@ -325,71 +321,115 @@ export function birthCostCeiling(
   genome: Genome,
   roster: readonly OrganelleType[],
 ): number {
-  return bodyAreaOfRadius(
-    deriveBody(genome).enclosingRadius +
-      maxStructuralGrowth(genome.genes, roster) +
-      genome.cytoplasmThickness * (1 + DELTA_CYTOPLASM_THICKNESS),
-  );
+  const terms = birthCostCeilingTerms(genome, roster);
+  return Math.max(terms.area, terms.reach);
 }
 
 /**
- * What a genome builds (ADR-0028): the body is derived from the layout,
- * never inherited as a number of its own. Pure, so mitosis can price a child
- * from its genome before any `Organism` for it exists.
+ * The two areas `birthCostCeiling` takes the larger of, apart: the area term
+ * `π·R_area_max²` and the reach term `π·Reach_max²`. A report on which one
+ * sets the ceiling reads them here, so it cannot disagree with the law.
+ */
+export function birthCostCeilingTerms(
+  genome: Genome,
+  roster: readonly OrganelleType[],
+): {readonly area: number; readonly reach: number} {
+  const cytoplasm = bodyAreaOfRadius(
+    genome.cytoplasmRadius * (1 + DELTA_CYTOPLASM_RADIUS),
+  );
+  const parent = relax(genome.genes);
+  const worst = worstCaseBody(
+    {
+      organelleArea: sumOrganelleArea(parent),
+      reach: reach(parent),
+      organelles: parent.map(({type, radius}) => ({type, radius})),
+    },
+    cytoplasm,
+    roster,
+    MAX_STRUCTURAL_EVENTS,
+  );
+  return {
+    area: cytoplasm + worst.organelleArea,
+    reach: bodyAreaOfRadius(worst.reach),
+  };
+}
+
+/**
+ * What a genome builds (ADR-0036): the body is derived from the cytoplasm
+ * radius and the organelles, never inherited as a number of its own. Pure, so
+ * mitosis can price a child from its genome before any `Organism` for it
+ * exists.
  */
 export interface Body {
-  /** The Enclosing Circle's radius plus the Cytoplasm Thickness. */
+  /** `max(R_area, reach)`: the body is a circle of this radius centred on the
+   * genome's origin. */
   readonly radius: number;
   /**
-   * The body's area minus every organelle's (glossary: Cytoplasm Area):
-   * the space that holds the stores, so caps, internal concentrations and
-   * `β` read it rather than the whole body (ADR-0029).
+   * The body's area minus every organelle's (glossary: Cytoplasm Area), at
+   * least the cytoplasm radius's own area: the space that holds the stores,
+   * so caps, internal concentrations and `β` read it rather than the whole
+   * body (ADR-0029).
    */
   readonly cytoplasmArea: number;
-  /** The Enclosing Circle's radius, 0 with no organelles. */
-  readonly enclosingRadius: number;
+  /** The farthest edge of any organelle from the origin, 0 with none. */
+  readonly reach: number;
   /**
    * The organelles, in genome order, relaxed apart and positioned relative
-   * to the Enclosing Circle's centre, which is the body's centre: an
-   * organelle sits in the world at the organism's position plus its own,
-   * with no rotation until the first torque (M8).
+   * to the body's centre, the genome's origin: an organelle sits in the world
+   * at the organism's position plus its own, with no rotation until the
+   * first torque (M8).
    */
   readonly organelles: readonly OrganelleGene[];
 }
 
 /**
- * Derives the body a genome builds (ADR-0028): the organelles relaxed apart
- * (`relax`), their Enclosing Circle, and the cytoplasm wrapped around it.
- * A genome in the world already holds a relaxed, recentred layout
- * (ADR-0034), and relaxing it again moves nothing; the relaxation here is
- * what puts a hand-written layout into that form (`placeFounders`).
+ * Derives the body a genome builds (ADR-0036): the organelles relaxed apart
+ * (`relax`), and a body of the cytoplasm's area plus theirs, widened to their
+ * reach if any of them sticks out of it. Nothing recentres: the genome's
+ * origin is the body's centre. A genome in the world already holds a relaxed
+ * layout, and relaxing it again moves nothing; the relaxation here is what
+ * puts a hand-written layout into that form (`placeFounders`).
  *
- * With no organelles the Enclosing Circle is empty: the radius is the
- * thickness alone and the whole body is cytoplasm, v0.1's Minimal Organism
- * to the last bit.
+ * With no organelles the radius is the cytoplasm radius itself, to the last
+ * bit: v0.1's Minimal Organism.
  */
 export function deriveBody(genome: Genome): Body {
   const relaxed = relax(genome.genes);
-  const circle = enclosingCircle(relaxed);
-  const radius = circle.radius + genome.cytoplasmThickness;
-  let organelleArea = 0;
-  for (const gene of relaxed) {
-    organelleArea += bodyAreaOfRadius(gene.radius);
-  }
+  const organelleArea = sumOrganelleArea(relaxed);
+  const organelleReach = reach(relaxed);
+  const radius = Math.max(
+    areaRadius(genome.cytoplasmRadius, organelleArea),
+    organelleReach,
+  );
 
   return {
     radius,
     cytoplasmArea: bodyAreaOfRadius(radius) - organelleArea,
-    enclosingRadius: circle.radius,
-    organelles: relaxed.map((gene) => ({
-      ...gene,
-      x: gene.x - circle.x,
-      y: gene.y - circle.y,
-    })),
+    reach: organelleReach,
+    organelles: relaxed,
   };
 }
 
+/** `R_area`: the radius of a circle of the cytoplasm's area plus
+ * `organelleArea`, which is the cytoplasm radius itself with none. */
+function areaRadius(cytoplasmRadius: number, organelleArea: number): number {
+  return organelleArea === 0
+    ? cytoplasmRadius
+    : Math.sqrt((bodyAreaOfRadius(cytoplasmRadius) + organelleArea) / Math.PI);
+}
+
+function sumOrganelleArea(discs: readonly {readonly radius: number}[]): number {
+  let area = 0;
+  for (const disc of discs) {
+    area += bodyAreaOfRadius(disc.radius);
+  }
+  return area;
+}
+
 interface StructuralLaw {
+  /** The child's own cytoplasm radius, already mutated: the body an
+   * insertion is born in is sized with it. */
+  readonly cytoplasmRadius: number;
   readonly roster: readonly OrganelleType[];
   readonly eventProbability: number;
   readonly weights: OperatorWeights;
@@ -404,9 +444,9 @@ interface StructuralLaw {
  * the law never becomes a rejection sampler.
  *
  * The layout is relaxed after every event, since the relaxation contract is
- * stated per event, and recentred on its Enclosing Circle once all of them
- * are applied: the relaxed, recentred layout is what the child's genome
- * holds. A child no event touched keeps its parent's genes as they are.
+ * stated per event, and nothing recentres it (ADR-0036): the relaxed layout
+ * is what the child's genome holds. A child no event touched keeps its
+ * parent's genes as they are.
  *
  * With an empty roster and no organelles no operator can ever find a
  * target, and this draws nothing at all, so a world with an empty roster
@@ -440,6 +480,7 @@ function mutateStructure(
       law.roster,
       draws,
       provisionalId,
+      law.cytoplasmRadius,
     );
     if (changed !== null) {
       layout = relax(changed);
@@ -447,15 +488,7 @@ function mutateStructure(
     }
   }
 
-  if (!touched) {
-    return genes;
-  }
-  const centre = enclosingCircle(layout);
-  return layout.map((gene) => ({
-    ...gene,
-    x: gene.x - centre.x,
-    y: gene.y - centre.y,
-  }));
+  return touched ? layout : genes;
 }
 
 /** The operator a draw `u` picks, walking the weights in `OPERATORS`'
@@ -491,6 +524,7 @@ function applyEvent(
   roster: readonly OrganelleType[],
   draws: MutationDraws,
   provisionalId: () => number,
+  cytoplasmRadius: number,
 ): Gene[] | null {
   switch (operator) {
     case "parameterChange": {
@@ -513,19 +547,26 @@ function applyEvent(
         return null;
       }
       const type = roster[draws.index(roster.length)];
-      // An empty Enclosing Circle is a point at the origin, and the first
-      // organelle is born there without a draw (ADR-0034).
-      const circle = enclosingCircle(layout);
-      const offset =
-        layout.length === 0 ? {x: 0, y: 0} : draws.pointInUnitDisc();
+      // The radius the body will have with the new organelle's area added
+      // comes first, and the position is drawn after it, uniform by area
+      // over the disc that holds the whole organelle (ADR-0036).
+      const bodyRadius = Math.max(
+        areaRadius(
+          cytoplasmRadius,
+          sumOrganelleArea(layout) + bodyAreaOfRadius(R_NEW),
+        ),
+        reach(layout),
+      );
+      const offset = draws.pointInUnitDisc();
+      const within = bodyRadius - R_NEW;
       return [
         ...layout,
         {
           type,
           innovationId: provisionalId(),
           radius: R_NEW,
-          x: circle.x + offset.x * circle.radius,
-          y: circle.y + offset.y * circle.radius,
+          x: offset.x * within,
+          y: offset.y * within,
         },
       ];
     }
@@ -590,7 +631,7 @@ function changeParameter(
  * pieces lie tangent along a drawn direction, filling the circle of radius
  * `r·(√f + √(1−f))` centred where the organelle was, and the other
  * organelles first make way for that circle (`makeRoom`). That circle is at
- * most `√2·r`, so the Enclosing Circle grows by at most `(√2 − 1)·r`,
+ * most `√2·r`, so the Reach grows by at most `(√2 − 1)·r`,
  * inside the `2(√2 − 1)·r` the ceiling prices.
  *
  * The first piece keeps the original's id and its place in the genome; the
@@ -632,7 +673,7 @@ function split(
  * floor. Clamping that piece up would add the area a split exists to
  * conserve (ADR-0034).
  */
-function isSplitTarget(gene: Gene): boolean {
+function isSplitTarget(gene: PricedOrganelle): boolean {
   return (
     gene.radius * Math.sqrt(0.5 - SPLIT_HALF_WIDTH) >= radiusFloor(gene.type)
   );
@@ -649,76 +690,130 @@ function radiusFloor(type: OrganelleType): number {
   return 0;
 }
 
+/** An organelle as the ceiling's walk tracks it: only what the operators'
+ * laws read. */
+interface PricedOrganelle {
+  readonly type: OrganelleType;
+  readonly radius: number;
+}
+
+/** What a sequence of events leaves of a body, bounded from above: the
+ * organelles' total area, their reach, and the organelles themselves, so the
+ * next event can act on what an earlier one grew or made. */
+interface PricedBody {
+  readonly organelleArea: number;
+  readonly reach: number;
+  readonly organelles: readonly PricedOrganelle[];
+}
+
 /**
- * The most one event can grow the Enclosing Circle of `genes`, over the
- * operators with a valid target there (ADR-0028, ADR-0034), read off each
- * type's declared laws rather than found by trying mutations:
+ * The largest organelle area and the largest reach any sequence of `events`
+ * structural events can leave `body` with (ADR-0036's `R_area_max` and
+ * `Reach_max`), over the operators with a valid target at each step and read
+ * off each type's declared laws rather than found by trying mutations. Every
+ * choice of event is walked, and the two bounds are the maxima over them.
+ * `cytoplasmArea` is the child's cytoplasm at its largest step.
  *
- * - insertion, with a non-empty roster: `2·r_new`, or `r_new` into an empty
- *   circle;
- * - a symmetric multiplicative radius: twice the largest step it can take,
- *   `2·δ·r` above its floor;
- * - a Cartesian step: `δ·r`;
- * - a Split of a valid target: `2(√2 − 1)·r`;
- * - a deletion grows nothing.
+ * Each event's effect on the reach is ADR-0028's contract restated on it
+ * (`relax`): an event that adds `Δd` of diameter or moves an organelle by `d`
+ * grows the reach by at most `Δd + d`.
+ *
+ * - insertion, with a non-empty roster: area `π·r_new²`, and a reach of at
+ *   most the body it is born in (`R_area` after it) or `2·r_new` past the
+ *   old reach, once relaxed;
+ * - a symmetric multiplicative radius step `r → max(r·(1+δ), floor)`: the
+ *   area it adds, and `2·(r' − r)` of reach;
+ * - a Cartesian step: `δ·r` of reach;
+ * - a Split of a valid target: no area, `2(√2 − 1)·r` of reach, and two
+ *   pieces of at most `r·√(½ + w)` and `r·√(½ − w)` for later events;
+ * - a deletion adds nothing and is left out.
  */
-function maxEventGrowth(
-  genes: readonly Gene[],
+function worstCaseBody(
+  body: PricedBody,
+  cytoplasmArea: number,
   roster: readonly OrganelleType[],
-): number {
-  let growth = 0;
-  if (roster.length > 0) {
-    growth = genes.length === 0 ? R_NEW : 2 * R_NEW;
+  events: number,
+): {readonly organelleArea: number; readonly reach: number} {
+  let worst = {organelleArea: body.organelleArea, reach: body.reach};
+  if (events < 1) {
+    return worst;
   }
-  for (const gene of genes) {
-    for (const {law} of ORGANELLE_TYPES[gene.type].parameters) {
-      growth = Math.max(growth, lawGrowth(gene.radius, law));
-    }
-    if (isSplitTarget(gene)) {
-      growth = Math.max(growth, 2 * (Math.SQRT2 - 1) * gene.radius);
-    }
+
+  for (const next of successors(body, cytoplasmArea, roster)) {
+    const ahead = worstCaseBody(next, cytoplasmArea, roster, events - 1);
+    worst = {
+      organelleArea: Math.max(worst.organelleArea, ahead.organelleArea),
+      reach: Math.max(worst.reach, ahead.reach),
+    };
   }
-  return growth;
+  return worst;
 }
 
-/** The most one step of `law` on an organelle of `radius` can grow the
- * Enclosing Circle. */
-function lawGrowth(radius: number, law: ParameterLaw): number {
-  switch (law.kind) {
-    case "symmetricMultiplicative":
-      return 2 * (Math.max(radius * (1 + law.delta), law.floor) - radius);
-    case "cartesianStep":
-      return law.delta * radius;
-  }
-}
-
-/**
- * The most a child's structural events can grow its parent's Enclosing
- * Circle: `M_max` times the parent's worst event. An empty circle is the
- * one exception, priced as ADR-0034 states it: only the first event can
- * find it empty, at `r_new`, and every later one acts on a body holding one
- * organelle of `r_new`, of whichever roster type prices worst.
- */
-function maxStructuralGrowth(
-  genes: readonly Gene[],
+/** Every body one valid event can leave `body` as, in its worst case. */
+function successors(
+  body: PricedBody,
+  cytoplasmArea: number,
   roster: readonly OrganelleType[],
-): number {
-  const first = maxEventGrowth(genes, roster);
-  if (genes.length > 0 || roster.length === 0 || MAX_STRUCTURAL_EVENTS < 1) {
-    return Math.max(0, MAX_STRUCTURAL_EVENTS) * first;
-  }
+): PricedBody[] {
+  const result: PricedBody[] = [];
 
-  let later = 0;
   for (const type of roster) {
-    later = Math.max(
-      later,
-      maxEventGrowth(
-        [{type, innovationId: 0, radius: R_NEW, x: 0, y: 0}],
-        roster,
+    const organelleArea = body.organelleArea + bodyAreaOfRadius(R_NEW);
+    result.push({
+      organelleArea,
+      reach: Math.max(
+        Math.sqrt((cytoplasmArea + organelleArea) / Math.PI),
+        body.reach + 2 * R_NEW,
       ),
-    );
+      organelles: [...body.organelles, {type, radius: R_NEW}],
+    });
   }
-  return first + (MAX_STRUCTURAL_EVENTS - 1) * later;
+
+  body.organelles.forEach((organelle, index) => {
+    for (const {law} of ORGANELLE_TYPES[organelle.type].parameters) {
+      switch (law.kind) {
+        case "symmetricMultiplicative": {
+          const grown = Math.max(organelle.radius * (1 + law.delta), law.floor);
+          result.push({
+            organelleArea:
+              body.organelleArea +
+              bodyAreaOfRadius(grown) -
+              bodyAreaOfRadius(organelle.radius),
+            reach: body.reach + 2 * (grown - organelle.radius),
+            organelles: replaceAt(body.organelles, index, [
+              {type: organelle.type, radius: grown},
+            ]),
+          });
+          break;
+        }
+        case "cartesianStep":
+          result.push({
+            ...body,
+            reach: body.reach + law.delta * organelle.radius,
+          });
+          break;
+      }
+    }
+
+    if (isSplitTarget(organelle)) {
+      result.push({
+        ...body,
+        reach: body.reach + 2 * (Math.SQRT2 - 1) * organelle.radius,
+        organelles: replaceAt(body.organelles, index, [
+          {
+            type: organelle.type,
+            radius: organelle.radius * Math.sqrt(0.5 + SPLIT_HALF_WIDTH),
+          },
+          {
+            type: organelle.type,
+            radius: organelle.radius * Math.sqrt(0.5 - SPLIT_HALF_WIDTH),
+          },
+        ]),
+      });
+    }
+  });
+
+  return result;
 }
 
 function indicesWhere(
@@ -736,16 +831,16 @@ function indicesWhere(
 
 /** `genes` with the entry at `index` replaced by `replacement`, which may
  * be empty. */
-function replaceAt(
-  genes: readonly Gene[],
+function replaceAt<T>(
+  genes: readonly T[],
   index: number,
-  replacement: readonly Gene[],
-): Gene[] {
+  replacement: readonly T[],
+): T[] {
   return [...genes.slice(0, index), ...replacement, ...genes.slice(index + 1)];
 }
 
 /**
- * `cytoplasmThickness`'s law, inherited from v0.1's `bodyRadius`: draw a
+ * `cytoplasmRadius`'s law, inherited from v0.1's `bodyRadius`: draw a
  * magnitude `m = 1 + u·δ`, then a second draw
  * picks `× m` or `÷ m` with equal probability. Symmetric in log space, unlike
  * the obvious additive form `1 + (2u−1)·δ` — `×1.08` then `×0.92` lands at

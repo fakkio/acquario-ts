@@ -1,8 +1,12 @@
 import {
+  AQUARIUM_AREA,
+  birthCosts,
   bodyAreaOfRadius,
-  capFor,
+  energyCap,
   maintenanceBreakdown,
+  type OrganelleType,
   type OrganismView,
+  type Pools,
   type Resource,
   type TickFlows,
 } from "../world";
@@ -18,7 +22,7 @@ import type {Selection} from "./selection";
 export interface Inspector {
   /** Redraws the panel for this frame's selection. Cheap when nothing
    * changed: the organelle table is only rebuilt for a new organism. */
-  render(selection: Selection, flows: TickFlows | null): void;
+  render(selection: Selection, flows: TickFlows | null, pools: Pools): void;
 }
 
 const fixed = (value: number, digits = 3): string => value.toFixed(digits);
@@ -26,44 +30,86 @@ const fixed = (value: number, digits = 3): string => value.toFixed(digits);
 const signed = (value: number): string =>
   `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(3)}`;
 
-/** The steps of a tick, in the order they run, with the label the panel gives them. */
+/** The steps of a tick, in the order they run, with the short label the panel gives them. */
 const FLOW_STEPS = [
-  ["exchange", "exchange"],
-  ["photosynthesis", "photosynthesis"],
-  ["respiration", "respiration"],
-  ["maintenance", "maintenance"],
+  ["exchange", "exch"],
+  ["photosynthesis", "photo"],
+  ["respiration", "resp"],
+  ["maintenance", "maint"],
   ["mitosis", "mitosis"],
 ] as const;
 
-/** What the last tick did to one store, one term per step that touched it. */
+/** What the last tick did to one store, one term per step that touched it.
+ * Always a line, even an empty one, so the panel's height never depends on it. */
 const flowsOf = (flows: TickFlows | null, resource: Resource): string => {
   if (!flows) {
-    return "";
+    return "    ";
   }
 
   const terms = FLOW_STEPS.filter(([step]) => flows[step][resource] !== 0).map(
     ([step, label]) => `${signed(flows[step][resource])} ${label}`,
   );
 
-  return terms.length === 0 ? "  (no change)" : `  ${terms.join("  ")}`;
+  return terms.length === 0 ? "    (no change)" : `    ${terms.join("  ")}`;
 };
 
-/** A store against its cap, with how full it is: `937.000/1000.000 (94%)`. */
-const store = (organism: OrganismView, resource: Resource): string => {
-  const cap = capFor(organism, resource);
-  return `${fixed(organism[resource])}/${fixed(cap)} (${(
-    (organism[resource] / cap) *
+/** Energy against its cap and how full it is, the one store with a ceiling
+ * (ADR-0035): `937.000/1000.000 (94%)`. */
+const energyStore = (organism: OrganismView): string => {
+  const cap = energyCap(organism);
+  return `${fixed(organism.energy)}/${fixed(cap)} (${(
+    (organism.energy / cap) *
     100
   ).toFixed(0)}%)`;
 };
 
-export function mountInspector(): Inspector {
+/** A diffusible store as its internal Concentration (store per cytoplasm area)
+ * next to the ambient one (pool per aquarium area), the comparison that decides
+ * which way passive exchange runs: `0.700  ambient 0.500`. */
+const concentration = (
+  organism: OrganismView,
+  pools: Pools,
+  resource: Exclude<Resource, "energy">,
+): string =>
+  `${fixed(organism[resource] / organism.cytoplasmArea)}  ambient ${fixed(
+    pools[resource] / AQUARIUM_AREA,
+  )}  (${fixed(organism[resource])} held)`;
+
+const BAR_WIDTH = 20;
+
+const bar = (have: number, need: number): string => {
+  const ratio = need > 0 ? have / need : 1;
+  const filled = Math.round(Math.min(Math.max(ratio, 0), 1) * BAR_WIDTH);
+  return `[${"#".repeat(filled)}${"-".repeat(BAR_WIDTH - filled)}] ${(ratio * 100).toFixed(0)}%`;
+};
+
+/** How close the organism is to mitosis, one bar per condition the mitosis step
+ * gates on: energy against the threshold (`mitosisEnergyThreshold × cap`), and
+ * energy and food against the costliest child its mutation could produce
+ * (`birthCosts`, the Worst-Case Birth Gate). It breeds when all three are full. */
+const mitosisProgress = (
+  organism: OrganismView,
+  roster: readonly OrganelleType[],
+): string[] => {
+  const threshold = organism.mitosisEnergyThreshold * energyCap(organism);
+  const costs = birthCosts(organism.genome, roster);
+  return [
+    `  threshold ${bar(organism.energy, threshold)}`,
+    `  energy    ${bar(organism.energy, costs.energy)}`,
+    `  food      ${bar(organism.food, costs.food)}`,
+  ];
+};
+
+export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   const container = document.createElement("div");
   container.style.position = "fixed";
   container.style.top = "44px";
   container.style.left = "8px";
   container.style.zIndex = "10";
-  container.style.minWidth = "260px";
+  // A fixed width, in characters: the text is monospace and its length moves
+  // every tick, and an auto-sized panel resized with it, which read as flicker.
+  container.style.width = "52ch";
+  container.style.boxSizing = "content-box";
   container.style.maxHeight = "calc(100vh - 60px)";
   container.style.overflowY = "auto";
   container.style.padding = "6px 10px";
@@ -77,6 +123,7 @@ export function mountInspector(): Inspector {
 
   const summary = document.createElement("pre");
   summary.style.margin = "0";
+  summary.style.whiteSpace = "pre-wrap";
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
   table.style.marginTop = "6px";
@@ -119,7 +166,7 @@ export function mountInspector(): Inspector {
   };
 
   return {
-    render(selection, flows) {
+    render(selection, flows, pools) {
       if (selection.kind === "none") {
         container.style.display = "none";
         tableFor = null;
@@ -141,34 +188,44 @@ export function mountInspector(): Inspector {
       for (const organelle of organism.organelles) {
         organelleArea += bodyAreaOfRadius(organelle.radius);
       }
-      summary.textContent = [
+      const text = [
         `Generation ${String(organism.generation)}`,
         "",
         "Genes",
-        `  cytoplasm thickness ${fixed(organism.cytoplasmThickness)}`,
+        `  cytoplasm radius    ${fixed(organism.cytoplasmRadius)}`,
         `  mitosis threshold   ${fixed(organism.mitosisEnergyThreshold)}`,
         `  child allocation    ${fixed(organism.childAllocationRatio)}`,
         `  lineage hue         ${fixed(organism.lineageHue)}`,
         "",
         "Body",
-        `  radius              ${fixed(organism.bodyRadius)}`,
+        `  body radius         ${fixed(organism.bodyRadius)}`,
         `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
         `  organelle areas     ${fixed(organelleArea)}`,
         "",
-        `Maintenance ${fixed(maintenance.total, 5)} / tick`,
+        "Mitosis",
+        ...mitosisProgress(organism, roster),
+        "",
+        `Maintenance${fixed(maintenance.total, 5)} / tick`,
         `  c₀                  ${fixed(maintenance.existence, 5)}`,
         `  cytoplasm           ${fixed(maintenance.cytoplasm, 5)}`,
         `  organelle overheads ${fixed(maintenance.organelleOverheads, 5)}`,
         `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
         "",
         flows ? "Stores (last tick)" : "Stores",
-        `  energy ${store(organism, "energy")}${flowsOf(flows, "energy")}`,
-        `  food   ${store(organism, "food")}${flowsOf(flows, "food")}`,
-        `  O₂     ${store(organism, "oxygen")}${flowsOf(flows, "oxygen")}`,
-        `  CO₂    ${store(organism, "carbonDioxide")}${flowsOf(flows, "carbonDioxide")}`,
+        `  energy ${energyStore(organism)}`,
+        flowsOf(flows, "energy"),
+        `  food   ${concentration(organism, pools, "food")}`,
+        flowsOf(flows, "food"),
+        `  O₂     ${concentration(organism, pools, "oxygen")}`,
+        flowsOf(flows, "oxygen"),
+        `  CO₂    ${concentration(organism, pools, "carbonDioxide")}`,
+        flowsOf(flows, "carbonDioxide"),
         "",
         `Organelles (${String(organism.organelles.length)})`,
       ].join("\n");
+      if (summary.textContent !== text) {
+        summary.textContent = text;
+      }
 
       if (tableFor !== organism) {
         rebuildTable(organism);
