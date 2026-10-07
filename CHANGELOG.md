@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-10-08
+
 ### Added
 
 - `npm run caps`: the Reference World over seeds 7–11 at 100k ticks, reporting each seed's minimum population, births, mean Generation, each diffusible's highest internal concentration next to its ledger's ambient total, `α_bright` and population `α` in a Fixed Population, and the dark ladder. Reported, never gated (ADR-0024).
