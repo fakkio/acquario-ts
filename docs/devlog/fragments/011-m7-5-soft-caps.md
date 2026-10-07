@@ -156,3 +156,41 @@ Il verdetto della corsa lunga: la persistenza regge su tutti e cinque i semi, e 
 ---
 
 Fabio ha chiesto, a lavoro finito: "è rimasta la velocità di diffusione massima proporzionale al perimetro vero?". Sì: `K_DIFFUSION × perimetro × gradiente`, il perimetro del corpo intero, mai toccato. Non è una domanda del ticket, e arriva proprio sul meccanismo che ora decide il sistema: lo sfiato scala col perimetro, la respirazione con l'area.
+
+---
+
+#75, il ticket della `α` a zero. Fabio ha detto "scegli un ticket di 67 e implementalo", e l'agente ha scelto da solo: il solo sotto-ticket già sbloccato e quello che blocca le righe `α` del #71. La memoria diceva "il #71 viene dopo", ma il #71 non si può misurare finché la `α` legge zero. Una scelta di esecuzione, dell'agente, presa leggendo l'albero delle dipendenze e non la memoria.
+
+---
+
+Il ticket era scritto con una definizione già decisa: la `α` misura il **tasso potenziale**, l'energia che la respirazione produrrebbe senza il freno del serbatoio, per unità di raggio. L'agente l'ha implementata in venti righe (`potentialEnergy` nel risultato della respirazione, nessuno escluso dalla media). Poi ha riattivato i quattro test, e tre su quattro sono tornati verdi subito. Il quarto, quello della linearità, no.
+
+---
+
+Il numero che ha rotto il test: raggi 0.6, 0.85, 1.0, 1.2, 1.4 danno `α` 824, 1341, 1634, 1998, 2328. Coefficiente di variazione 0.32, contro la soglia di 0.1. Non solo non è lineare: è di ordine mille, quando il guadagno vero di un organismo è dell'ordine del mantenimento, qualche unità. Quel test controllava la premessa dell'ADR-0009, che il guadagno cresca col perimetro e non con l'area. Il tasso potenziale è azione di massa sull'area (`K_RESP · C_cibo · C_O₂ · area`): è una **capacità**, non un reddito.
+
+---
+
+Fabio ha chiesto, guardando il numero: "perché senza cap l'energia si riempie in un tick? dovrebbe comunque esserci un cap di energia prodotta per tick, o di respirazione per tick, no?". È la domanda giusta e l'agente ha dovuto ammettere che nel mondo nuovo non c'è: il tetto sul tasso di respirazione è solo il substrato, cioè `min(cibo, O₂)`, e nient'altro. Il vecchio tetto del CO₂ faceva di nascosto quel mestiere, senza che nessuno l'avesse deciso.
+
+---
+
+La parola che regge il pezzo, forse: il **tetto accidentale**. Il cap del CO₂ non era una legge, era un limite di velocità sulla respirazione nato per caso da una regola di conservazione ("frena, non sprecare"). L'ADR-0035 l'ha tolto perché affamava gli organismi con cibo in tasca, e insieme ha tolto il limite di velocità che nessuno sapeva di avere. Il serbatoio dell'energia è rimasto l'unica valvola, e la `α` misurava proprio la valvola.
+
+---
+
+Un tetto vero sul tasso (una `V_max` di Michaelis-Menten, cioè una cinetica saturante) esiste già nel `vision.md` e nell'ADR-0035 come "la risposta se serve". L'agente ha detto che aggiungerlo ora cambierebbe la legge del mondo e quindi la persistenza, contro il patto "niente di pre-registrato si muove" di M7.5. Qui la decisione era di Fabio: non aprire il grill adesso.
+
+---
+
+Seconda idea di Fabio: "dobbiamo allora cambiare la quantità di energia prodotta per unità di respirazione, non trovi?", cioè abbassare `RESPIRATION_ENERGY_YIELD`. L'agente ha risposto "solo in parte". Il resto è una costante che moltiplica ogni raggio per lo stesso numero: il coefficiente di variazione resta 0.32, la forma `r²` non si tocca. E il yield è una costante del mondo, quindi appartiene a M12, e il commento in `constants.ts` ricorda che a 900 lo sweep aveva già rotto `n`. Distinzione da tenere: cambiare la **scala** non cambia la **forma**.
+
+---
+
+Il verdetto di Fabio: "niente, lasciamo così allora, vedremo poi con gli organelli". Decisione sua, di progetto: la `α` resta il tasso potenziale e la sua linearità si rimanda. L'agente ha eseguito: il test di linearità è `it.skip` con un commento che dice perché, e ADR-0015 ha un emendamento che chiama la `α` una capacità e dà tre candidati per dopo (il reddito effettivo, una respirazione saturante, il yield come leva di M12). Il primo skip di M7.5 (#70) non seguiva nessuno; questo ha un ticket chiuso con la riga scritta nei criteri.
+
+---
+
+- `npm run caps` dopo #75: `α_bright` 901 ± 120, `α` di popolazione 251 ± 41, con il 100% dei tick "che guadagnano"
+- la corsa di #70 dava `α_bright` 11.29 con un'altra definizione: i due numeri non si confrontano più, c'è un fattore ottanta di mezzo
+- il ticket chiedeva `α` "confrontabile prima/dopo" e l'agente ha spuntato la casella: la definizione cambia a metà, quindi la tabella "dopo" del #71 sarà confrontabile solo con una "prima" rimisurata sul tasso potenziale
