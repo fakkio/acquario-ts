@@ -194,3 +194,19 @@ Il verdetto di Fabio: "niente, lasciamo così allora, vedremo poi con gli organe
 - `npm run caps` dopo #75: `α_bright` 901 ± 120, `α` di popolazione 251 ± 41, con il 100% dei tick "che guadagnano"
 - la corsa di #70 dava `α_bright` 11.29 con un'altra definizione: i due numeri non si confrontano più, c'è un fattore ottanta di mezzo
 - il ticket chiedeva `α` "confrontabile prima/dopo" e l'agente ha spuntato la casella: la definizione cambia a metà, quindi la tabella "dopo" del #71 sarà confrontabile solo con una "prima" rimisurata sul tasso potenziale
+
+---
+
+Il criterio che l'agente aveva spuntato troppo presto: "`α` confrontabile prima e dopo". Fabio ha detto "riapri il criterio", poi "riapri la issue e implementa la soluzione per poterla chiudere". La soluzione era misurare di nuovo il "prima": un worktree temporaneo a `c5a88ad` (M7, con i cap), con una sola riga cambiata, la stessa definizione di tasso potenziale. Stesse seed, stessa finestra. Nessuna riga del repo si è mossa: la correzione di un criterio è stata una misura, non un commit.
+
+---
+
+Il numero che nessuno si aspettava: tolti i cap, il tasso potenziale **scende**. `α_bright` da 1594 ± 130 a 901 ± 120 (−43%), `α` di popolazione da 1159 ± 38 a 251 ± 41 (−78%). La previsione 2 diceva "meno del 5%", e il numero visto a metà strada (+38%) diceva "sale": entrambi erano la vecchia definizione, quella che escludeva gli organismi col serbatoio pieno. Cambiata la definizione, il segno si è girato.
+
+---
+
+La domanda che resta aperta e non ha ancora una risposta verificata: perché la parte scura perde di più? Una lettura possibile, da non scrivere come fatto: senza cap il serbatoio si riempie subito, gli organismi respirano al tasso pieno e bruciano il cibo in tasca, e cibo e O₂ medi in magazzino calano, quindi il tasso di azione di massa (`C_cibo · C_O₂ · area`) cala. Da controllare con la sonda sulle concentrazioni, non con una storia.
+
+---
+
+Una lezione di metodo, forse la parola del pezzo: **una misura prima/dopo ha senso solo se il righello non cambia a metà**. Qui il righello (la definizione di `α`) è cambiato dentro il ticket che doveva misurare l'effetto della legge, e la tabella "dopo" di #71 sarebbe stata confrontata con un "prima" in un'altra unità. Se ne è accorto Fabio, leggendo 11.29 accanto a 901.
