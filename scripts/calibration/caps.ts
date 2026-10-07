@@ -117,6 +117,7 @@ export function reportCaps(): void {
   note(
     `  smallest limit on a reaction that would otherwise have run: respiration by CO₂,`,
   );
+  note(`  photosynthesis by food or O₂.`);
   table(
     [
       "seed",
