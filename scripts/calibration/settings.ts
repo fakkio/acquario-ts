@@ -115,6 +115,12 @@ export const NEURON_TICKS = setting("NEURON_TICKS", 100_000);
 /** How often the neuron run reads the population. */
 export const NEURON_SAMPLE_EVERY = setting("NEURON_SAMPLE_EVERY", 2_500);
 
+/**
+ * The cap-binding run (#69): the Reference World at persistence's own 100k,
+ * for the same reason the neuron run uses it.
+ */
+export const CAPS_TICKS = setting("CAPS_TICKS", 100_000);
+
 /** The income ladder: wide enough in log space to tell `r¹` from `r^1.3`,
  * which generation 0's own spread of `[1/1.4, 1.4]` is nowhere near
  * (ADR-0025). */

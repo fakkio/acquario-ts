@@ -303,6 +303,35 @@ describe("applyPhotosynthesis", () => {
     expect(organism.oxygen).toBeLessThanOrEqual(capFor(organism, "oxygen"));
   });
 
+  it("reports which diffusible's cap bound it: food when food headroom is the smallest limit", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = bodyArea(organism);
+    organism.food = capFor(organism, "food") - 1e-9;
+
+    const outcome = applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(outcome.boundByCap).toEqual({food: true, oxygen: false});
+  });
+
+  it("reports oxygen when oxygen headroom is the smallest limit", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = bodyArea(organism);
+    organism.oxygen = capFor(organism, "oxygen") - 1e-9;
+
+    const outcome = applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(outcome.boundByCap).toEqual({food: false, oxygen: true});
+  });
+
+  it("reports no cap when the rate or the substrate is what binds", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.carbonDioxide = 0.3 * bodyArea(organism);
+
+    const outcome = applyPhotosynthesis(organism, stubLightEnvironment(1));
+
+    expect(outcome.boundByCap).toEqual({food: false, oxygen: false});
+  });
+
   it("discards no product: CO2 lost exactly matches food and oxygen gained", () => {
     const organism = organismAt(0, 0, 1);
     organism.carbonDioxide = 0.3 * bodyArea(organism);
@@ -433,6 +462,43 @@ describe("applyRespiration", () => {
     expect(organism.carbonDioxide).toBeLessThanOrEqual(
       capFor(organism, "carbonDioxide"),
     );
+  });
+
+  it("reports a CO2 cap as the binding limit when CO2 headroom is the smallest", () => {
+    const organism = organismAt(0, 0, 1);
+    organism.food = bodyArea(organism);
+    organism.oxygen = bodyArea(organism);
+    organism.carbonDioxide = capFor(organism, "carbonDioxide") - 1e-9;
+    organism.energy = 0;
+
+    const outcome = applyRespiration(organism);
+
+    expect(outcome.boundByCarbonDioxideCap).toBe(true);
+    expect(outcome.throttledByFullEnergyStore).toBe(false);
+  });
+
+  it("reports no CO2 cap when substrate or the energy store binds first", () => {
+    const starved = organismAt(0, 0, 1);
+    starved.food = 1e-9;
+    starved.oxygen = bodyArea(starved);
+    starved.carbonDioxide = capFor(starved, "carbonDioxide") - 1e-6;
+    starved.energy = 0;
+
+    const full = organismAt(0, 0, 1);
+    full.food = bodyArea(full);
+    full.oxygen = bodyArea(full);
+    full.energy = capFor(full, "energy") - 1e-9;
+
+    const darkAndOverCap = organismAt(0, 0, 1);
+    darkAndOverCap.food = 0;
+    darkAndOverCap.oxygen = bodyArea(darkAndOverCap);
+    darkAndOverCap.carbonDioxide = 2 * capFor(darkAndOverCap, "carbonDioxide");
+
+    expect(applyRespiration(darkAndOverCap).boundByCarbonDioxideCap).toBe(
+      false,
+    );
+    expect(applyRespiration(starved).boundByCarbonDioxideCap).toBe(false);
+    expect(applyRespiration(full).boundByCarbonDioxideCap).toBe(false);
   });
 
   it("throttles by a full energy store, never spilling energy past its cap, and reports the throttle", () => {

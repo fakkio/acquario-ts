@@ -37,6 +37,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "caps": "node --import ./scripts/ts-esm-resolver.mjs scripts/caps.ts",
     "calibrate": "node --import ./scripts/ts-esm-resolver.mjs scripts/calibrate.ts",
     "dev": "vite",
     "done-criteria": "node --import ./scripts/ts-esm-resolver.mjs scripts/doneCriteria.ts",

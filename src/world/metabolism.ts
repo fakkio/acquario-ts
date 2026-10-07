@@ -81,6 +81,28 @@ export function applyPassiveExchange(
 }
 
 /**
+ * #69's definition of "a cap bound the reaction": its headroom is strictly
+ * below every other limit, and those limits are all positive, so the reaction
+ * would have run without the cap. A starved or dark organism over its cap is
+ * held at zero by its substrate or its rate, not by the cap. A tie binds
+ * nobody.
+ */
+function bindsBelow(headroom: number, ...otherLimits: number[]): boolean {
+  const smallest = Math.min(...otherLimits);
+
+  return smallest > 0 && headroom < smallest;
+}
+
+/** What `applyPhotosynthesis` reports back for #69's cap-binding count,
+ * which exists only until the law that removes the caps lands. Nothing here
+ * is stored on the organism. */
+export interface PhotosynthesisOutcome {
+  /** Per product, whether its cap's headroom was strictly the smallest
+   * limit of a reaction that would otherwise have run (`bindsBelow`). */
+  readonly boundByCap: {readonly food: boolean; readonly oxygen: boolean};
+}
+
+/**
  * Resolve-phase step 3 (ADR-0006): photosynthesis, the first reaction and
  * the only route by which anything enters the closed system from outside —
  * `CO₂ + light → food + O₂` at 1:1:1 stoichiometry, producing no energy
@@ -111,7 +133,7 @@ export function applyPassiveExchange(
 export function applyPhotosynthesis(
   organism: Organism,
   environment: Environment,
-): void {
+): PhotosynthesisOutcome {
   const diameter = 2 * organism.bodyRadius;
   const internalCo2Concentration =
     organism.carbonDioxide / organism.cytoplasmArea;
@@ -130,6 +152,18 @@ export function applyPhotosynthesis(
   organism.carbonDioxide -= fixed;
   organism.food += fixed;
   organism.oxygen += fixed;
+
+  return {
+    boundByCap: {
+      food: bindsBelow(foodHeadroom, rate, substrateAvailable, oxygenHeadroom),
+      oxygen: bindsBelow(
+        oxygenHeadroom,
+        rate,
+        substrateAvailable,
+        foodHeadroom,
+      ),
+    },
+  };
 }
 
 /** What `applyRespiration` reports back, beyond the mutation it makes to
@@ -147,6 +181,10 @@ export interface RespirationOutcome {
    * to it, so ADR-0015 excludes it from the population mean.
    */
   readonly throttledByFullEnergyStore: boolean;
+  /** #69's cap-binding count, which exists only until the law that
+   * removes the caps lands: whether the CO₂ store's headroom was strictly
+   * the smallest limit, the energy store's included. */
+  readonly boundByCarbonDioxideCap: boolean;
 }
 
 /**
@@ -209,6 +247,13 @@ export function applyRespiration(organism: Organism): RespirationOutcome {
 
   return {
     energyProduced,
+    boundByCarbonDioxideCap: bindsBelow(
+      co2Headroom,
+      rate,
+      foodAvailable,
+      oxygenAvailable,
+      energyHeadroom,
+    ),
     throttledByFullEnergyStore:
       energyHeadroom <= rate &&
       energyHeadroom <= foodAvailable &&

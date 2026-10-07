@@ -50,6 +50,7 @@ import {
   getMeasuredAlpha,
   getOxygenDrift,
   getBrightAlpha,
+  getCapBinding,
   getPoolLevels,
   getPopulation,
   getTick,
@@ -849,6 +850,45 @@ describe("respiration and maintenance (M2)", () => {
       );
 
       expect(getBrightAlpha(world)).toBe(getMeasuredAlpha(world));
+    });
+  });
+
+  /**
+   * The cap-binding readout (#69): per tick, how many organisms a diffusible's
+   * cap was the binding limit for. A scalar fold like `α`, outside the hash.
+   */
+  describe("cap-binding counts", () => {
+    const dimLadder: Founder[] = [6, 18, 30, 42, 54].map((x) => ({
+      x,
+      y: AQUARIUM_HEIGHT - 2,
+      genome: {...BASELINE_GENOME, lineageHue: 0.5},
+    }));
+
+    it("reads zero at tick 0, before any reaction has run", () => {
+      expect(getCapBinding(createWorld(3))).toEqual({
+        food: 0,
+        oxygen: 0,
+        carbonDioxide: 0,
+      });
+    });
+
+    it("counts every founder under CO₂ on a tick where all of them open above the cap", () => {
+      // Ambient CO₂ opens above `kCap(CO₂)`, so a founder's headroom is
+      // negative on tick 1, and in the dark photosynthesis binds nothing.
+      const world = advance(
+        createWorld(3, {
+          mortality: "off",
+          fertility: "off",
+          generation0: {founders: dimLadder},
+        }),
+        FIXED_DT_MS,
+      ).world;
+
+      expect(getCapBinding(world)).toEqual({
+        food: 0,
+        oxygen: 0,
+        carbonDioxide: dimLadder.length,
+      });
     });
   });
 
