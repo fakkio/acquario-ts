@@ -130,3 +130,15 @@ Ho misurato la domanda giusta: l'angolo della leva del float (il suo scostamento
 ---
 
 Restano i semi 8 e 10, con leva a 33° e 62°. Non so ancora se sono corpi ancora in rotazione, float quasi sul centro (coppia piccola, raddrizzamento lento) o un ammasso contro la superficie che li tiene storti. Non l'ho misurato, e non lo scrivo come spiegazione.
+
+---
+
+Semi 8 e 10, indagati con una sonda a perdere (cancellata, non è nel repo): ogni 12.500 tick, i portatori di float uno per uno. La spiegazione è meno interessante di quella che speravo. Sono pochi: nel seme 10 i portatori sono due, in molti campioni zero; nel seme 8 sei, e solo dal tick 75.000. Una media su due corpi non è una popolazione.
+
+---
+
+E non sono storti, sono lenti. Una leva di 4·10⁻⁴ e una coppia di 10⁻³ su un attrito rotazionale `8πR³` di circa 15 danno `ω ≈ 10⁻⁴` radianti per tick. Un corpo a 125° ci mette circa 20.000 tick a raddrizzarsi, e l'ho visto fare: gli stessi sei corpi del seme 8 passano da 125°, 57°, 120°, 109°, 166°, 28° al tick 75.000 a 7°, 0°, 0°, 1°, 1°, 0° al tick 100.000. A fine corsa sono tutti dritti. La media sulla seconda metà li prende mentre si raddrizzano.
+
+---
+
+La tabella media su cinquantamila tick, e a una scala di raddrizzamento di ventimila tick ne fa una fotografia di un'onda a metà. Non è un difetto del dato, è la lunghezza della domanda: la rotazione di un float da 0,02 di raggio è più lenta della finestra con cui l'ho guardata. Resta aperto perché quei corpi erano a 125° al tick 75.000, se i figli ereditano l'asse del genitore: una leva mutata nel figlio sposta l'asse preferito, ma non so quanto.
