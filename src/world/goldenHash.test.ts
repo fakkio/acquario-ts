@@ -31,6 +31,10 @@ import {
  * world's axis (nothing weighs), so the new value differs only by the folded
  * axis itself.
  *
+ * M8's separation (#79) re-records it again (`1f3f5bf3` before): the crowd of
+ * floats broke M1's ceiling with one pass, so step 10 became three passes of
+ * separate-then-clamp (`SEPARATION_PASSES`), which moves every world.
+ *
  * The structural mutation law is wired into the world (#63), so this test
  * builds its world with an empty roster.
  *
@@ -43,7 +47,7 @@ import {
  */
 const SEED = 1;
 const TICKS = 8000;
-const GOLDEN_HASH = "1f3f5bf3";
+const GOLDEN_HASH = "fd8594ce";
 
 describe("the minimal world's golden hash", () => {
   it("is what the empty-roster Reference World hashes to at a fixed seed and tick", () => {

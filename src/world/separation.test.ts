@@ -9,8 +9,13 @@ import {buildUniformGrid, type UniformGrid} from "./grid";
 import {applyMotion, constrainToAquarium} from "./motion";
 import {GENERATION_0_MAX_BODY_RADIUS, type Organism} from "./organism";
 import {createRngStream} from "./rng";
-import {separateOverlaps, worstPenetration} from "./separation";
 import {
+  separateOverlaps,
+  resolveCollisions,
+  worstPenetration,
+} from "./separation";
+import {
+  bearerAt,
   MIN_BODY_RADIUS,
   openDraws,
   organismAt,
@@ -68,10 +73,7 @@ const distanceBetween = (a: Organism, b: Organism): number =>
 
 /** The commit phase's step 10, whole: separate, then put back inside. */
 const commitStep10 = (population: readonly Organism[]): void => {
-  separate(population);
-  for (const organism of population) {
-    constrainToAquarium(organism);
-  }
+  resolveCollisions(population);
 };
 
 /** Runs the crowd until it is merely touching, and says on which tick that
@@ -477,6 +479,46 @@ describe("no overlaps after resolution, with motion on", () => {
     // touched would pass the assertion below and prove nothing.
     expect(worst).toBeGreaterThan(0);
     expect(worst).toBeLessThan(PENETRATION_CEILING);
+  });
+
+  // M8's pile: a float lifts a body to the surface, and a crowd of them
+  // stands in rows against the wall. The float here is 25 times the lift a
+  // new one has, far beyond anything a v0.2 run evolves, so the ceiling is
+  // read under the heaviest wall pile the milestone could ever make.
+  it("holds the ceiling for a crowd of 160 bodies each carrying a float of radius 0.1, piled against the surface", () => {
+    const draw = openDraws(13);
+    const population: Organism[] = [];
+    for (let i = 0; i < 160; i++) {
+      const cytoplasm =
+        MIN_BODY_RADIUS +
+        draw() * (GENERATION_0_MAX_BODY_RADIUS - MIN_BODY_RADIUS);
+      const body = bearerAt(
+        cytoplasm + draw() * (AQUARIUM_WIDTH - 2 * cytoplasm),
+        cytoplasm + draw() * (AQUARIUM_HEIGHT - 2 * cytoplasm),
+        [{type: "float", radius: 0.1, x: 0, y: 0}],
+        undefined,
+        cytoplasm,
+      );
+      constrainToAquarium(body);
+      population.push(body);
+    }
+    expect(settle(population, 600)).toBeGreaterThanOrEqual(0);
+
+    let worst = 0;
+    let worstOutside = Number.NEGATIVE_INFINITY;
+    for (let tick = 0; tick < 3000; tick++) {
+      for (const organism of population) {
+        applyMotion(organism);
+      }
+      commitStep10(population);
+
+      worst = Math.max(worst, penetrationOf(population));
+      worstOutside = Math.max(worstOutside, worstExcursion(population));
+    }
+
+    expect(worst).toBeGreaterThan(0);
+    expect(worst).toBeLessThan(PENETRATION_CEILING);
+    expect(worstOutside).toBeLessThanOrEqual(0);
   });
 
   it("keeps every body wholly inside the aquarium, every tick of a moving run", () => {

@@ -1,4 +1,5 @@
-import type {UniformGrid} from "./grid";
+import {buildUniformGrid, type UniformGrid} from "./grid";
+import {constrainToAquarium} from "./motion";
 import type {Organism} from "./organism";
 
 /**
@@ -82,6 +83,35 @@ export function separateOverlaps(
   for (let i = 0; i < population.length; i++) {
     population[i].x += correctionX[i];
     population[i].y += correctionY[i];
+  }
+}
+
+/**
+ * Passes per tick, ADR-0008's pre-registered response. M8's wall piles (a
+ * float of radius 0.1 on each of 160 bodies, pinned to the surface about five
+ * rows deep) broke M1's ceiling of 0.5 radii with one pass, 0.746 at their
+ * worst. More separation passes under a single wall clamp did not help at all
+ * (0.71 at 8, 0.79 at 32): the clamp sets the top row back into the row below
+ * it every tick, so each pass is a separation followed by its own clamp.
+ * Measured that way, 2 passes leave 0.544 and 3 hold; 3 is the smallest K
+ * that does. Moves every world, the empty-roster one included, so the golden
+ * value was re-recorded with it.
+ */
+export const SEPARATION_PASSES = 3;
+
+/**
+ * Step 10, whole: `SEPARATION_PASSES` times, separate the bodies over a grid
+ * built from where they are now, then set each back inside the aquarium.
+ */
+export function resolveCollisions(
+  population: readonly Organism[],
+  passes = SEPARATION_PASSES,
+): void {
+  for (let pass = 0; pass < passes; pass++) {
+    separateOverlaps(population, buildUniformGrid(population));
+    for (const organism of population) {
+      constrainToAquarium(organism);
+    }
   }
 }
 

@@ -3,7 +3,6 @@ import {describe, expect, it} from "vitest";
 import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
 import {BASELINE_GENOME} from "./genome";
-import {buildUniformGrid} from "./grid";
 import {DEFAULT_ROSTER} from "./organelles";
 import {
   initializeMetabolism,
@@ -19,7 +18,7 @@ import {
   applyRespiration,
 } from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
-import {applyMotion, constrainToAquarium} from "./motion";
+import {applyMotion} from "./motion";
 import {
   DIFFUSIBLES,
   STARTING_POPULATION,
@@ -31,7 +30,7 @@ import {
   type Organism,
 } from "./organism";
 import {createRngStream} from "./rng";
-import {separateOverlaps} from "./separation";
+import {resolveCollisions} from "./separation";
 import {
   organismAt,
   randomPopulation,
@@ -411,10 +410,7 @@ describe("collisions", () => {
       for (const organism of byHand) {
         applyMotion(organism);
       }
-      separateOverlaps(byHand, buildUniformGrid(byHand));
-      for (const organism of byHand) {
-        constrainToAquarium(organism);
-      }
+      resolveCollisions(byHand);
     }
 
     const {world, ticksRun} = advance(
@@ -496,10 +492,7 @@ describe("passive exchange (M2)", () => {
     for (const organism of population) {
       applyMotion(organism);
     }
-    separateOverlaps(population, buildUniformGrid(population));
-    for (const organism of population) {
-      constrainToAquarium(organism);
-    }
+    resolveCollisions(population);
     return settled;
   }
 
@@ -1147,13 +1140,7 @@ describe("fertility mode (M4)", () => {
         const births = currentPopulation
           .map((organism) => evaluateMitosis(organism, []))
           .filter((birth): birth is PendingBirth => birth !== null);
-        separateOverlaps(
-          currentPopulation,
-          buildUniformGrid(currentPopulation),
-        );
-        for (const organism of currentPopulation) {
-          constrainToAquarium(organism);
-        }
+        resolveCollisions(currentPopulation);
         currentPopulation = appendBirths(currentPopulation, births);
       }
       return {population: currentPopulation, pools: currentPools};
