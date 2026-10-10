@@ -43,3 +43,30 @@ Il `*/` dentro il commento di `constants.ts` Fabio non l'ha nemmeno visto: l'age
 ---
 
 Fabio ha guardato il riepilogo e il diff, non la sessione. Il lavoro di un ticket arriva a lui in due pezzi: una storia raccontata dall'agente e il risultato nudo. Quello che sta in mezzo (i tentativi, gli errori corretti al volo) non lo vede nessuno dei due.
+
+---
+
+Il primo test del Body Axis non faceva girare niente. Un float esattamente sotto il centro è in equilibrio: il braccio è verticale, la coppia è zero, e il corpo resta lì per sempre, a testa in giù. Un equilibrio instabile, come una matita in piedi sulla punta. Per far partire il test ho dovuto inclinare il corpo di 0,5 radianti a mano. La fisica era giusta, era il mio fixture a essere troppo perfetto.
+
+---
+
+Il test "una copia in scala si raddrizza nello stesso numero di tick" non può essere esatto. Coppia e attrito rotazionale scalano entrambi come k³, quindi la velocità angolare non cambia, ma il termine `I_xy/H` scala come k⁴ e dipende dalla profondità. Nel test la differenza era di un tick su quarantasei, più del 2%. Ho messo "al più due tick" invece di allargare la percentuale: su numeri così piccoli la percentuale è solo rumore di arrotondamento.
+
+---
+
+La prova che il mondo a roster vuoto non cambia l'ho fatta a mano, in due mosse: tolto per un attimo l'asse dall'hash, il golden era ancora `93ab5e6b`; rimesso, è diventato `1f3f5bf3`. Eppure nel repo resta solo un commento che lo racconta, nessun test. Il revisore l'ha segnalato come il punto più debole del ticket, e ha ragione: la garanzia "un roster vuoto non cambia niente" è vera oggi perché l'ho controllata io, non perché qualcuno la ricontrolla.
+
+---
+
+Il segno della coppia l'ho deciso guardando lo schermo, non la formula. L'asse y va verso il basso, quindi `τ = x·f_y` positiva porta x verso y, che sullo schermo è un giro orario. Se la rotazione di render e quella della fisica avessero avuto versi opposti, i test sarebbero passati lo stesso e i float si sarebbero raddrizzati all'indietro, vistosamente, solo guardando l'app. Il verso giusto è un accordo tra due file che nessun test confronta.
+
+---
+
+- `ω = τ / 8πR³`: l'attrito rotazionale della sfera di Stokes, dove `6πR` è quello traslazionale
+- rotazione con una piccola somma e una radice quadrata per rinormalizzare, nessun `sin` o `cos` nel tick
+- l'asse `readonly` nella classe ma modificato sul posto, con il commento che lo dice
+- il fold dell'asse in fondo alla stringa dell'hash, per non toccare il resto
+
+---
+
+Del ticket successivo non ho scelto niente: #77 era già committato e #78 era l'unico con tutti i blocchi sciolti. Anche questa volta il grafo ha deciso al posto mio.
