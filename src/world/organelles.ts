@@ -108,7 +108,8 @@ export type OrganelleType = keyof typeof ORGANELLE_TYPES;
 
 /**
  * The roster a world runs with unless it is given another (ADR-0032): the
- * organelle types its insertions draw from. M7's is the neuron alone; an
+ * organelle types its insertions draw from. M8's is the neuron and the
+ * float; an
  * empty roster is M6's world.
  */
-export const DEFAULT_ROSTER: readonly OrganelleType[] = ["neuron"];
+export const DEFAULT_ROSTER: readonly OrganelleType[] = ["neuron", "float"];

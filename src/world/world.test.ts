@@ -1458,9 +1458,9 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  it("defaults to the neuron, and an empty roster is M6's world", () => {
+  it("defaults to the neuron and the float, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
-    const explicit = createWorld(1234, {roster: ["neuron"]});
+    const explicit = createWorld(1234, {roster: ["neuron", "float"]});
     const m6 = createWorld(1234, {roster: []});
 
     expect(hashState(explicit)).toBe(hashState(reference));
@@ -1496,6 +1496,16 @@ describe("the roster and the Innovation Id counter (M7)", () => {
       expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
     }
     expect(carriers).toBeGreaterThan(0);
+  });
+
+  it("inserts floats on the default roster", () => {
+    // Insertions are rare early on; seed 1 holds three floats by tick 20000.
+    const world = ticks(createWorld(1), 20000);
+    const types = getPopulation(world)
+      .flatMap((organism) => organism.organelles)
+      .map((organelle) => organelle.type);
+
+    expect(types).toContain("float");
   });
 
   it("reaches the same hash at tick N in two runs of the default world", () => {
