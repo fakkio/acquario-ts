@@ -98,3 +98,27 @@ Tra i test tre copie a mano del passo 10 (separa, poi rimetti dentro) in `world.
 ---
 
 Una svista mia, di quelle che il log della sessione conserva e il diff no: la prima sostituzione automatica con un'espressione regolare ha scritto un carattere di controllo al posto del nome della popolazione. `tsc` si è lamentato di "Invalid character" in tre punti, e l'ho aggiustato in un giro.
+
+---
+
+Il ticket l'ho scelto di nuovo senza scegliere: #77 era già nel codice, #80 anche, restava #81, il rapporto del float sul Reference World. Cinque semi, centomila tick, e la riga che mi interessava di più era l'ultima: l'asse medio dei portatori di float.
+
+---
+
+Previsione del ticket: i portatori stanno più in alto, la frazione resta vicino al livello della deriva. Tutte e due vere. Profondità media 5,3 contro 9,2, in ogni seme. Frazione dei float 6,1% ± 3,3%, quella dei neuroni 3,4% ± 4,5%: sotto il rumore, come avevo scritto che sarebbe stato.
+
+---
+
+Quello che non avevo previsto: i portatori non stanno dritti. L'angolo medio assoluto dell'asse va da 48° a 105° a seconda del seme, e il coseno medio sta vicino a zero. La gravitaxis passiva, che nei test unitari funziona (un corpo col float sotto il centro si gira finché il float gli sta sopra), nella popolazione vera non si vede.
+
+---
+
+Ipotesi, non misurata: il float di un figlio nasce con una posizione mutata, quindi "dritto" per il corpo non coincide con "asse a zero" nel mondo. L'asse che raddrizza il corpo è quello per cui il float sta sopra il centro, e quell'angolo cambia da un corpo all'altro. Misurare l'angolo dal verticale del mondo, come ho fatto, può essere la domanda sbagliata. Una misura più onesta sarebbe l'angolo tra il float e la verticale, non tra l'asse e il mondo.
+
+---
+
+Il peggior overlap, nel seme 10: 2,278. Il tetto del test sulla corsa viva è 2,0. Il rapporto non boccia niente (ADR-0024, lo strumento non fa da cancello), ma è il numero che avrei voluto vedere sotto il tetto senza guardarlo. La separazione a tre passate è stata tarata su una folla di 160 corpi con un float da 0,1; qui il picco viene da un seme vero, e la distanza tra le due cose non l'avevo misurata.
+
+---
+
+Il rapporto sul `g` dallo stesso comando: profondità media 9,65 contro 8,28 previsti, Bright Band 58% contro 69%. La previsione vale per corpi che non si toccano; quaranta corpi di raggio 1 si ammassano contro la superficie in due o tre file e si spingono giù a vicenda. Ho scritto la ragione nel commento prima di vedere il numero, e il numero è andato dalla parte che il commento diceva.
