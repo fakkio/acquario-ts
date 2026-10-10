@@ -378,8 +378,7 @@ export interface Body {
   /**
    * The organelles, in genome order, relaxed apart and positioned relative
    * to the body's centre, the genome's origin: an organelle sits in the world
-   * at the organism's position plus its own. The body keeps the world's
-   * orientation until the Body Axis arrives (M8's next ticket).
+   * at the organism's position plus its own turned through the Body Axis.
    */
   readonly organelles: readonly OrganelleGene[];
   /** The layout moments over weighing organelles that gravity reads

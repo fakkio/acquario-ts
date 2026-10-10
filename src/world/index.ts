@@ -1,9 +1,12 @@
 export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 export {BASELINE_GENOME, type Genome} from "./genome";
 export {
+  buoyantTorque,
   buoyantWeight,
+  turn,
   NO_MOMENTS,
   restingDepth,
+  type BodyAxis,
   type LayoutMoments,
   type RestingDepth,
 } from "./gravity";

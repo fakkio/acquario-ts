@@ -418,4 +418,109 @@ describe("applyMotion under gravity", () => {
       expect(carrier.y).toBe(AQUARIUM_HEIGHT - carrier.bodyRadius);
     });
   });
+
+  describe("the Body Axis", () => {
+    const angleOf = (organism: Organism): number =>
+      Math.atan2(organism.axis.sin, organism.axis.cos);
+
+    /** A float below the centre of a body (y runs down), the body tipped
+     * a little off the vertical so that it is not at the unstable
+     * balance: the weight is off-centre, so the body must turn. */
+    const lopsided = (scale = 1): Organism => {
+      const carrier = bearerAt(
+        CENTRE_X,
+        CENTRE_Y,
+        [{...FLOAT, radius: 0.3 * scale, y: 0.5 * scale}],
+        undefined,
+        BASELINE_BODY_RADIUS * scale,
+      );
+      carrier.axis.cos = Math.cos(0.5);
+      carrier.axis.sin = Math.sin(0.5);
+      return carrier;
+    };
+
+    /** Where the float stands relative to the centre, in the world. */
+    const floatOffset = (organism: Organism) => {
+      const {x, y} = organism.organelles[0];
+      return {
+        x: organism.axis.cos * x - organism.axis.sin * y,
+        y: organism.axis.sin * x + organism.axis.cos * y,
+      };
+    };
+
+    const turnUntilStill = (organism: Organism, limit = 200_000): number => {
+      for (let tick = 1; tick <= limit; tick++) {
+        const before = angleOf(organism);
+        applyMotion(organism, withoutBrownian);
+        if (Math.abs(angleOf(organism) - before) < 1e-12) {
+          return tick;
+        }
+      }
+      return limit;
+    };
+
+    it("turns a body with its float below the centre until the float stands directly above it", () => {
+      const carrier = lopsided();
+
+      turnUntilStill(carrier);
+
+      const offset = floatOffset(carrier);
+      expect(offset.x).toBeCloseTo(0, 6);
+      expect(offset.y).toBeLessThan(0);
+    });
+
+    it("does not turn a body whose weight sits on its centre", () => {
+      const carrier = bearerAt(CENTRE_X, CENTRE_Y, [FLOAT]);
+
+      for (let tick = 0; tick < 1000; tick++) {
+        applyMotion(carrier, withoutBrownian);
+      }
+
+      expect(carrier.axis).toEqual({cos: 1, sin: 0});
+    });
+
+    it("never turns a body with no weighing organelles", () => {
+      const bare = organismAt(CENTRE_X, CENTRE_Y);
+      const neurons = carrierAt(CENTRE_X, CENTRE_Y, [0.3, 0.2]);
+
+      moveFor(bare, 500);
+      moveFor(neurons, 500);
+
+      expect(bare.axis).toEqual({cos: 1, sin: 0});
+      expect(neurons.axis).toEqual({cos: 1, sin: 0});
+    });
+
+    /** Ticks until the float has swung through a right angle. */
+    const ticksToQuarterTurn = (organism: Organism): number => {
+      let tick = 0;
+      while (angleOf(organism) < Math.PI / 2 && tick < 200_000) {
+        applyMotion(organism, withoutBrownian);
+        tick++;
+      }
+      return tick;
+    };
+
+    it("rights a scaled copy of a body in the same number of ticks", () => {
+      // Lengths times k: the torque goes as k³ (area times arm) and so does
+      // the rotational drag, so the angular speed does not change.
+      const unit = ticksToQuarterTurn(lopsided());
+      const doubled = ticksToQuarterTurn(lopsided(2));
+
+      expect(unit).toBeGreaterThan(10);
+      expect(unit).toBeLessThan(200_000);
+      // The depth term of the arm is not scale-free, so allow a tick or two.
+      expect(Math.abs(doubled - unit)).toBeLessThanOrEqual(2);
+    });
+
+    it("keeps the axis a unit vector to rounding over a long run", () => {
+      const carrier = lopsided();
+
+      for (let tick = 0; tick < 200_000; tick++) {
+        applyMotion(carrier);
+        constrainToAquarium(carrier);
+      }
+
+      expect(Math.hypot(carrier.axis.cos, carrier.axis.sin)).toBeCloseTo(1, 12);
+    });
+  });
 });

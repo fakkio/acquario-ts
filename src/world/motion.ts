@@ -1,6 +1,6 @@
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 import {BROWNIAN_FORCE, DRAG_PER_RADIUS} from "./constants";
-import {buoyantWeight} from "./gravity";
+import {buoyantTorque, buoyantWeight} from "./gravity";
 import type {Organism} from "./organism";
 import {drawUnitVector} from "./rng";
 
@@ -33,6 +33,10 @@ import {drawUnitVector} from "./rng";
  * left to drift silently.
  */
 
+/** `8π`, the rotational drag of a Stokes sphere per cubed radius; its
+ * translational sibling is `DRAG_PER_RADIUS = 6π`. */
+const ROTATIONAL_DRAG_PER_CUBE = 8 * Math.PI;
+
 /** What a test may change about the motion step. Production passes none; the
  * declarations it reads are the organism's, supplied at its construction. */
 export interface MotionOptions {
@@ -46,8 +50,9 @@ export interface MotionOptions {
  *
  * Two forces move a body, both over its drag `6π·R`: a Brownian push in a
  * random direction (the step's first and only draw), and the Buoyant Weight
- * straight down, positive towards the floor (`gravity.ts`). A body with
- * nothing that weighs feels no gravity and moves exactly as in v0.1.
+ * straight down, positive towards the floor (`gravity.ts`). Its torque turns
+ * the Body Axis at `τ / 8π·R³`. A body with nothing that weighs feels
+ * neither, and moves exactly as in v0.1.
  */
 export function applyMotion(
   organism: Organism,
@@ -67,7 +72,24 @@ export function applyMotion(
     organism.y += direction.y * velocity;
   }
 
-  organism.y += buoyantWeight(moments, organism.y) / (DRAG_PER_RADIUS * radius);
+  if (moments.area === 0) {
+    return;
+  }
+
+  const {axis} = organism;
+  const weight = buoyantWeight(moments, organism.y, axis);
+  const torque = buoyantTorque(moments, organism.y, axis);
+  organism.y += weight / (DRAG_PER_RADIUS * radius);
+
+  // The rotational drag of the Stokes sphere whose translational drag is
+  // `6π·R`. One small rotation by `ω` and a renormalising square root: no
+  // `sin` or `cos` in the tick, and the axis stays a unit vector to rounding.
+  const omega = torque / (ROTATIONAL_DRAG_PER_CUBE * radius ** 3);
+  const cos = axis.cos - omega * axis.sin;
+  const sin = axis.sin + omega * axis.cos;
+  const norm = Math.sqrt(cos * cos + sin * sin);
+  axis.cos = cos / norm;
+  axis.sin = sin / norm;
 }
 
 /**

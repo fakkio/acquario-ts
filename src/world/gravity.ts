@@ -27,6 +27,13 @@ export interface LayoutMoments {
   /** `P = Σ aᵢ·rᵢ`, in the body frame. */
   readonly px: number;
   readonly py: number;
+  /** `Q = Σ cᵢ·aᵢ·rᵢ`, in the body frame. */
+  readonly qx: number;
+  readonly qy: number;
+  /** `I = Σ aᵢ·rᵢ·rᵢᵀ`, the symmetric tensor, in the body frame. */
+  readonly ixx: number;
+  readonly ixy: number;
+  readonly iyy: number;
 }
 
 export const NO_MOMENTS: LayoutMoments = {
@@ -34,7 +41,36 @@ export const NO_MOMENTS: LayoutMoments = {
   densityArea: 0,
   px: 0,
   py: 0,
+  qx: 0,
+  qy: 0,
+  ixx: 0,
+  ixy: 0,
+  iyy: 0,
 };
+
+/**
+ * The **Body Axis** (glossary): the body frame's orientation in the world, as
+ * the cosine and sine of its angle. Physical state, not a gene. A unit vector
+ * to rounding, kept so by the motion step; `WORLD_AXIS` is the world's own,
+ * where a founder starts and every body of M7 and before stayed.
+ */
+export interface BodyAxis {
+  cos: number;
+  sin: number;
+}
+
+export const WORLD_AXIS: Readonly<BodyAxis> = {cos: 1, sin: 0};
+
+export const worldAxis = (): BodyAxis => ({...WORLD_AXIS});
+
+/** A body-frame vector turned through the axis into the world frame. */
+export function turn(
+  axis: BodyAxis,
+  x: number,
+  y: number,
+): {readonly x: number; readonly y: number} {
+  return {x: axis.cos * x - axis.sin * y, y: axis.sin * x + axis.cos * y};
+}
 
 /**
  * `declarations` is `ORGANELLE_TYPES` in production; a test may supply its
@@ -50,6 +86,11 @@ export function layoutMoments(
   let densityArea = 0;
   let px = 0;
   let py = 0;
+  let qx = 0;
+  let qy = 0;
+  let ixx = 0;
+  let ixy = 0;
+  let iyy = 0;
   for (const organelle of organelles) {
     const {density: typeDensity} = declarations[organelle.type];
     if (typeDensity === "weightless") {
@@ -61,27 +102,65 @@ export function layoutMoments(
     densityArea += c * a;
     px += a * organelle.x;
     py += a * organelle.y;
+    qx += c * a * organelle.x;
+    qy += c * a * organelle.y;
+    ixx += a * organelle.x * organelle.x;
+    ixy += a * organelle.x * organelle.y;
+    iyy += a * organelle.y * organelle.y;
   }
 
-  return area === 0 ? NO_MOMENTS : {area, densityArea, px, py};
+  return area === 0
+    ? NO_MOMENTS
+    : {area, densityArea, px, py, qx, qy, ixx, ixy, iyy};
 }
 
 /**
- * The Buoyant Weight of a body at depth `y`: `W = g·[M − (y/H)·A −
- * P_y/H]`, positive downwards. Exact for the linear water, and zero for a
- * body with nothing that weighs.
+ * The Buoyant Weight of a body at depth `y` with its Body Axis turned: `W =
+ * g·[M − (y/H)·A − P'_y/H]`, positive downwards, `P'` the moment turned
+ * through the axis. Exact for the linear water, and zero for a body with
+ * nothing that weighs.
  */
-export function buoyantWeight(moments: LayoutMoments, y: number): number {
+export function buoyantWeight(
+  moments: LayoutMoments,
+  y: number,
+  axis: BodyAxis = WORLD_AXIS,
+): number {
   if (moments.area === 0) {
     return 0;
   }
+  const turned = turn(axis, moments.px, moments.py);
 
   return (
     G *
     (moments.densityArea -
       WATER_DENSITY_AT_SURFACE * moments.area -
-      (DENSITY_SPAN * (y * moments.area + moments.py)) / AQUARIUM_HEIGHT)
+      (DENSITY_SPAN * (y * moments.area + turned.y)) / AQUARIUM_HEIGHT)
   );
+}
+
+/**
+ * The torque of that weight about the body's centre: `τ = g·[Q'_x − (y/H)·P'_x
+ * − I'_xy/H]`, exact for the same reason. Positive turns the axis the way the
+ * render turns organelles (x towards y, clockwise on the screen, whose y runs
+ * down). Zero for a body whose weight sits on its centre, and for one with
+ * nothing that weighs.
+ */
+export function buoyantTorque(
+  moments: LayoutMoments,
+  y: number,
+  axis: BodyAxis = WORLD_AXIS,
+): number {
+  if (moments.area === 0) {
+    return 0;
+  }
+  const {cos: c, sin: s} = axis;
+  const p = turn(axis, moments.px, moments.py);
+  const q = turn(axis, moments.qx, moments.qy);
+  const ixy =
+    c * s * (moments.ixx - moments.iyy) + (c * c - s * s) * moments.ixy;
+  const shift = WATER_DENSITY_AT_SURFACE + (DENSITY_SPAN * y) / AQUARIUM_HEIGHT;
+
+  return G * (q.x - shift * p.x - (DENSITY_SPAN * ixy) / AQUARIUM_HEIGHT);
 }
 
 /** Where a body comes to rest: a depth, or the wall it ends against. */

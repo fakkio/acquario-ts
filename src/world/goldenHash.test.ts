@@ -24,6 +24,13 @@ import {
  * own promise: an empty roster draws nothing and changes nothing, so the
  * hash never moves for any reason but the world's laws.
  *
+ * M8's Body Axis (#78) added the axis to the fold, which re-records the
+ * value (`93ab5e6b` before). The empty-roster world was first hashed the old
+ * way, without the axis, and still read `93ab5e6b`: an empty roster changes
+ * nothing, proven across the hash change. Every body of this world keeps the
+ * world's axis (nothing weighs), so the new value differs only by the folded
+ * axis itself.
+ *
  * The structural mutation law is wired into the world (#63), so this test
  * builds its world with an empty roster.
  *
@@ -36,7 +43,7 @@ import {
  */
 const SEED = 1;
 const TICKS = 8000;
-const GOLDEN_HASH = "93ab5e6b";
+const GOLDEN_HASH = "1f3f5bf3";
 
 describe("the minimal world's golden hash", () => {
   it("is what the empty-roster Reference World hashes to at a fixed seed and tick", () => {

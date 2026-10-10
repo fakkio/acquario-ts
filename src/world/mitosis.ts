@@ -6,6 +6,7 @@ import {
   mutateGenome,
   type Genome,
 } from "./genome";
+import type {BodyAxis} from "./gravity";
 import type {OrganelleType} from "./organelles";
 import {constrainToAquarium} from "./motion";
 import {
@@ -32,6 +33,8 @@ export interface PendingBirth {
   readonly x: number;
   readonly y: number;
   readonly rng: RngStream;
+  /** The parent's Body Axis at birth, a copy. */
+  readonly axis: Readonly<BodyAxis>;
   /** The parent's Generation plus one. */
   readonly generation: number;
   readonly energy: number;
@@ -162,6 +165,7 @@ export function evaluateMitosis(
     x: organism.x + direction.x * separation,
     y: organism.y + direction.y * separation,
     rng: childStream,
+    axis: {cos: organism.axis.cos, sin: organism.axis.sin},
     generation: organism.generation + 1,
     energy: childStores.energy,
     oxygen: childStores.oxygen,
@@ -268,6 +272,7 @@ export function appendBirths(
       y: birth.y,
       genome: birth.genome,
       rng: birth.rng,
+      axis: birth.axis,
       generation: birth.generation,
       energy: birth.energy,
       oxygen: birth.oxygen,

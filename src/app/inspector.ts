@@ -2,6 +2,7 @@ import {
   AQUARIUM_AREA,
   birthCosts,
   bodyAreaOfRadius,
+  buoyantTorque,
   buoyantWeight,
   energyCap,
   maintenanceBreakdown,
@@ -32,11 +33,20 @@ const fixed = (value: number, digits = 3): string => value.toFixed(digits);
 
 /** The Buoyant Weight with its direction: positive pulls towards the floor. */
 const buoyantWeightText = (organism: OrganismView): string => {
-  const weight = buoyantWeight(organism.moments, organism.y);
+  const weight = buoyantWeight(organism.moments, organism.y, organism.axis);
 
   return weight === 0
     ? "0"
     : `${signed(weight)} (${weight > 0 ? "down" : "up"})`;
+};
+
+/** The Body Axis in degrees from the vertical (0 upright, positive turned
+ * clockwise on the screen), and the torque turning it. */
+const axisText = (organism: OrganismView): string => {
+  const {cos, sin} = organism.axis;
+  const torque = buoyantTorque(organism.moments, organism.y, organism.axis);
+
+  return `${fixed((Math.atan2(sin, cos) * 180) / Math.PI, 1)}°  torque ${torque === 0 ? "0" : signed(torque)}`;
 };
 
 const restingDepthText = (organism: OrganismView): string => {
@@ -227,6 +237,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
         `  organelle areas     ${fixed(organelleArea)}`,
         `  buoyant weight      ${buoyantWeightText(organism)}`,
+        `  body axis           ${axisText(organism)}`,
         `  resting depth       ${restingDepthText(organism)}`,
         "",
         "Mitosis",

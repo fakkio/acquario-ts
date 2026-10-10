@@ -15,7 +15,7 @@ import {
   type OrganelleGene,
   type OrganelleGeneDraft,
 } from "./genome";
-import type {LayoutMoments} from "./gravity";
+import {worldAxis, type BodyAxis, type LayoutMoments} from "./gravity";
 import {foldString} from "./hash";
 import type {OrganelleType, OrganelleTypeDeclaration} from "./organelles";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
@@ -82,6 +82,9 @@ export interface OrganismView {
   /** The layout moments over weighing organelles (`gravity.ts`), what the
    * inspector reads the Buoyant Weight and Resting Depth from. */
   readonly moments: LayoutMoments;
+  /** The Body Axis (`gravity.ts`): the cosine and sine of the body frame's
+   * angle in the world. Read-only here; the motion step turns it. */
+  readonly axis: Readonly<BodyAxis>;
   readonly lineageHue: number;
   /** How many births separate this organism from generation 0's founders,
    * which are 0. Read by the inspector only: no tick reads it, so it stays
@@ -114,6 +117,9 @@ export interface OrganismInit {
   /** The declarations the body's weight is read from: `ORGANELLE_TYPES`
    * unless a test puts a fixture type of a chosen density on a body. */
   readonly declarations?: Readonly<Record<string, OrganelleTypeDeclaration>>;
+  /** The Body Axis, copied in: the world's own for a founder, the parent's
+   * for a child. Defaults to the world's, which draws nothing. */
+  readonly axis?: Readonly<BodyAxis>;
   /** The parent's Generation plus one for a child; defaults to 0, a founder's. */
   readonly generation?: number;
   /**
@@ -181,10 +187,9 @@ export const RESOURCES: readonly Resource[] = [
  * reads, in `grid.ts`, `motion.ts`, `separation.ts` and `render.ts`; from
  * M7 it is the derived radius rather than a gene.
  *
- * No rotation and no angular velocity yet: `x`/`y` is the body's centre, the
- * genome's origin, and an organelle sits in the world at that position plus
- * its own. Weight is the first torque, and the Body Axis that turns under it
- * is M8's next ticket.
+ * `x`/`y` is the body's centre, the genome's origin, and an organelle sits in
+ * the world at that position plus its own turned through the Body Axis, the
+ * one rotational state: it turns only under the Buoyant Weight's torque.
  *
  * The four internal resource stores arrive in M2. They are plain mutable
  * fields for the same reason `x`/`y` are: metabolism will write to them
@@ -203,12 +208,17 @@ export class Organism {
   carbonDioxide: number;
   food: number;
   readonly generation: number;
+  /** Mutable like `x`/`y`: a unit vector the motion step turns. */
+  readonly axis: BodyAxis;
   private readonly body: Body;
 
   constructor(init: OrganismInit) {
     this.x = init.x;
     this.y = init.y;
     this.genome = init.genome;
+    this.axis = init.axis
+      ? {cos: init.axis.cos, sin: init.axis.sin}
+      : worldAxis();
     this.body = deriveBody(init.genome, init.declarations);
     this.rng = init.rng;
     this.generation = init.generation ?? 0;
@@ -501,6 +511,9 @@ export function placeFounders(
  * through the gene that holds it, so the world's counter itself stays out
  * (`hashState`).
  *
+ * The Body Axis folds in last, a cosine and a sine: it is state the next
+ * tick reads (M8).
+ *
  * The four internal stores fold in too, per the rule M2 adds beside
  * `hashState`: what enters the hash is what the next tick *reads*, and
  * metabolism reads an organism's stores every tick from here on.
@@ -518,7 +531,7 @@ export function foldPopulation(
     }
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}|${String(organism.axis.cos)}|${String(organism.axis.sin)}`,
     );
   }
 

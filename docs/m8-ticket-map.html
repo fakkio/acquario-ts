@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>M8 · mappa dei ticket</title>
+    <style>
+      :root {
+        --bg: #0e1a24;
+        --fg: #e6eef5;
+        --muted: #8fa6b8;
+        --card: #16283a;
+        --line: #4a6a85;
+        --done: #3fb27f;
+        --open: #e0a93b;
+        --spec: #6aa9e0;
+      }
+      @media (prefers-color-scheme: light) {
+        :root {
+          --bg: #f4f8fb;
+          --fg: #13212d;
+          --muted: #53697a;
+          --card: #fff;
+          --line: #7f9bb2;
+          --done: #1f8f5f;
+          --open: #b9791a;
+          --spec: #2a6fb0;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 24px 16px 48px;
+        background: var(--bg);
+        color: var(--fg);
+        font:
+          15px/1.5 system-ui,
+          sans-serif;
+      }
+      main {
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 1.4rem;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin: 32px 0 8px;
+      }
+      p.lead {
+        color: var(--muted);
+        margin: 0 0 20px;
+      }
+      .map {
+        position: relative;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 28px 22px;
+        align-items: start;
+      }
+      .map svg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+        overflow: visible;
+      }
+      .t {
+        position: relative;
+        background: var(--card);
+        border: 2px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 0.85rem;
+      }
+      .t b {
+        display: block;
+        font-size: 0.95rem;
+      }
+      .t .n {
+        color: var(--muted);
+        font-size: 0.78rem;
+      }
+      .t.done {
+        border-color: var(--done);
+      }
+      .t.open {
+        border-color: var(--open);
+      }
+      .badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        padding: 1px 7px;
+        border-radius: 99px;
+        color: #fff;
+        margin-top: 6px;
+      }
+      .done .badge {
+        background: var(--done);
+      }
+      .open .badge {
+        background: var(--open);
+      }
+      .t ul {
+        margin: 6px 0 0;
+        padding-left: 16px;
+        color: var(--muted);
+      }
+      #c77 {
+        grid-column: 1;
+      }
+      #c78 {
+        grid-column: 2;
+      }
+      #c79 {
+        grid-column: 3;
+      }
+      #c80 {
+        grid-column: 3;
+        grid-row: 2;
+      }
+      #c81 {
+        grid-column: 4;
+        grid-row: 2;
+      }
+      #c77,
+      #c78,
+      #c79 {
+        grid-row: 1;
+      }
+      .legend span {
+        margin-right: 16px;
+        font-size: 0.82rem;
+        color: var(--muted);
+      }
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 5px;
+      }
+      table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.85rem;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: top;
+      }
+      th {
+        color: var(--muted);
+        font-weight: 600;
+      }
+      .seam {
+        color: var(--spec);
+      }
+      @media (max-width: 720px) {
+        .map {
+          grid-template-columns: 1fr;
+        }
+        .map svg {
+          display: none;
+        }
+        #c77,
+        #c78,
+        #c79,
+        #c80,
+        #c81 {
+          grid-column: 1;
+          grid-row: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>M8 · Gravità e galleggiamento (#76)</h1>
+      <p class="lead">
+        Quattro ticket oltre al primo, branch
+        <code>feature/gravity-buoyancy</code>. Le frecce vanno da «blocca» a
+        «bloccato da».
+      </p>
+      <p class="legend">
+        <span><i class="dot" style="background: var(--done)"></i>fatto</span
+        ><span><i class="dot" style="background: var(--open)"></i>aperto</span>
+      </p>
+
+      <div class="map" id="map">
+        <svg id="arrows" aria-hidden="true"></svg>
+
+        <div class="t done" id="c77">
+          <span class="n">#77</span><b>I float pesano</b>Peso galleggiante nel
+          passo di moto
+          <ul>
+            <li>densità sulla dichiarazione</li>
+            <li>g, c_organelle</li>
+            <li>momenti A, M, P</li>
+            <li>npm run buoyancy: controllo di g</li>
+          </ul>
+          <span class="badge">fatto</span>
+        </div>
+
+        <div class="t done" id="c78">
+          <span class="n">#78</span
+          ><b>Il Body Axis raddrizza i corpi</b>Gravitassi passiva
+          <ul>
+            <li>asse (cos, sin), copiato dal genitore</li>
+            <li>coppia, ω = τ / 8πR³</li>
+            <li>l'hash piega l'asse, nuovo golden</li>
+            <li>render e ispettore</li>
+          </ul>
+          <span class="badge">fatto (da committare)</span>
+        </div>
+
+        <div class="t open" id="c79">
+          <span class="n">#79</span
+          ><b>Il tetto di sovrapposizione regge sotto la pila in superficie</b>
+          <ul>
+            <li>folla M1 con float r = 0.1, 3000 tick</li>
+            <li>se rompe 0.5: K passate (ADR-0008)</li>
+          </ul>
+          <span class="badge">aperto</span>
+        </div>
+
+        <div class="t open" id="c80">
+          <span class="n">#80</span><b>Il float entra nel Reference World</b>
+          <ul>
+            <li>roster: neurone + float</li>
+            <li>quattro gate stabili</li>
+            <li>HUD: frazione di portatori</li>
+          </ul>
+          <span class="badge">aperto</span>
+        </div>
+
+        <div class="t open" id="c81">
+          <span class="n">#81</span
+          ><b>L'harness riporta il float sul Reference World</b>
+          <ul>
+            <li>semi 7–11, 100k tick</li>
+            <li>profondità, asse medio, overlap peggiore</li>
+          </ul>
+          <span class="badge">aperto</span>
+        </div>
+      </div>
+
+      <h2>Dipendenze</h2>
+      <table>
+        <tr>
+          <th>Ticket</th>
+          <th>Bloccato da</th>
+          <th>Perché</th>
+        </tr>
+        <tr>
+          <td>#77</td>
+          <td>nessuno</td>
+          <td>può partire subito</td>
+        </tr>
+        <tr>
+          <td>#78</td>
+          <td>#77</td>
+          <td>la coppia legge i momenti e la densità introdotti da #77</td>
+        </tr>
+        <tr>
+          <td>#79</td>
+          <td>#78</td>
+          <td>
+            il confronto del mondo a roster vuoto con il golden di M7.5 deve
+            avvenire prima che la separazione possa cambiare
+          </td>
+        </tr>
+        <tr>
+          <td>#80</td>
+          <td>#78, #79</td>
+          <td>
+            il roster di default cambia il mondo solo dopo asse e tetto
+            verificati
+          </td>
+        </tr>
+        <tr>
+          <td>#81</td>
+          <td>#80</td>
+          <td>misura il float sul Reference World già aggiornato</td>
+        </tr>
+      </table>
+
+      <h2>Giunture di test (Testing Decisions)</h2>
+      <table>
+        <tr>
+          <th>Giuntura</th>
+          <th>Cosa dimostra</th>
+          <th>Ticket</th>
+        </tr>
+        <tr>
+          <td class="seam">1 · passo di moto</td>
+          <td>
+            passo di Browniano fissato, velocità in forma chiusa, assestamento a
+            y*/H = M/A, asse che si raddrizza, copia in scala, vettore unitario
+          </td>
+          <td>#77, #78</td>
+        </tr>
+        <tr>
+          <td class="seam">2 · il mondo</td>
+          <td>
+            roster di default inserisce float, asse del fondatore e del figlio,
+            hash a roster vuoto, run live sotto 2.0, conservazione e persistenza
+          </td>
+          <td>#78, #80</td>
+        </tr>
+        <tr>
+          <td class="seam">3 · separazione</td>
+          <td>
+            folla M1 con float da 0.1 sotto 0.5 per 3000 tick, tutti dentro
+            l'acquario
+          </td>
+          <td>#79</td>
+        </tr>
+        <tr>
+          <td>non testati</td>
+          <td>harness (strumento, ADR-0024), render, ispettore</td>
+          <td>#77, #78, #81</td>
+        </tr>
+      </table>
+
+      <h2>Fuori scopo di M8</h2>
+      <p class="lead">
+        Cloroplasto e fissazione (M9) · propulsore (M10) · sinapsi, porte, sensi
+        innati <code>up</code> e <code>tilt</code> (M11) · moto Browniano
+        rotazionale, coppia da collisione · cibo come zavorra, float regolato
+        (<code>docs/ideas.md</code>) · Knockout World (M13), costanti del mondo
+        (M12).
+      </p>
+    </main>
+
+    <script>
+      // Arrows: from the blocking ticket to the ticket it blocks.
+      const edges = [
+        ["c77", "c78"],
+        ["c78", "c79"],
+        ["c78", "c80"],
+        ["c79", "c80"],
+        ["c80", "c81"],
+      ];
+      function draw() {
+        const map = document.getElementById("map"),
+          svg = document.getElementById("arrows");
+        const base = map.getBoundingClientRect();
+        const css = getComputedStyle(document.documentElement);
+        const line = css.getPropertyValue("--line").trim();
+        let html = `<defs><marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${line}"/></marker></defs>`;
+        for (const [a, b] of edges) {
+          const r = document.getElementById(a).getBoundingClientRect(),
+            s = document.getElementById(b).getBoundingClientRect();
+          const sameRow = Math.abs(r.top - s.top) < 4;
+          let x1, y1, x2, y2;
+          if (sameRow) {
+            x1 = r.right;
+            y1 = r.top + r.height / 2;
+            x2 = s.left;
+            y2 = s.top + s.height / 2;
+          } else if (s.left > r.right - 4 && s.top > r.top) {
+            x1 = r.right;
+            y1 = r.top + r.height / 2;
+            x2 = s.left;
+            y2 = s.top + s.height / 2;
+          } else {
+            x1 = r.left + r.width / 2;
+            y1 = r.bottom;
+            x2 = s.left + s.width / 2;
+            y2 = s.top;
+          }
+          x1 -= base.left;
+          x2 -= base.left;
+          y1 -= base.top;
+          y2 -= base.top;
+          const mx = (x1 + x2) / 2;
+          const d =
+            Math.abs(y2 - y1) < 4 || x1 === x2
+              ? `M${x1} ${y1} L${x2} ${y2}`
+              : `M${x1} ${y1} C${mx} ${y1} ${mx} ${y2} ${x2} ${y2}`;
+          html += `<path d="${d}" fill="none" stroke="${line}" stroke-width="2" marker-end="url(#h)"/>`;
+        }
+        svg.innerHTML = html;
+      }
+      addEventListener("load", draw);
+      addEventListener("resize", draw);
+    </script>
+  </body>
+</html>
