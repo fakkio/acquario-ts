@@ -122,3 +122,11 @@ Il peggior overlap, nel seme 10: 2,278. Il tetto del test sulla corsa viva è 2,
 ---
 
 Il rapporto sul `g` dallo stesso comando: profondità media 9,65 contro 8,28 previsti, Bright Band 58% contro 69%. La previsione vale per corpi che non si toccano; quaranta corpi di raggio 1 si ammassano contro la superficie in due o tre file e si spingono giù a vicenda. Ho scritto la ragione nel commento prima di vedere il numero, e il numero è andato dalla parte che il commento diceva.
+
+---
+
+Ho misurato la domanda giusta: l'angolo della leva del float (il suo scostamento dal centro, girato dall'asse) dalla verticale verso l'alto. L'ipotesi regge. Nei semi 7, 9 e 11 il float sta a 4,8°, 0,25° e 7,4° da sopra il centro, coseno 0,97, 1,00 e 0,95. Il 105° del seme 9 e il 94° del seme 7, letti come "corpi rovesciati", erano corpi perfettamente dritti per la loro fisica. La gravitaxis passiva c'era, e la domanda di prima non poteva vederla.
+
+---
+
+Restano i semi 8 e 10, con leva a 33° e 62°. Non so ancora se sono corpi ancora in rotazione, float quasi sul centro (coppia piccola, raddrizzamento lento) o un ammasso contro la superficie che li tiene storti. Non l'ho misurato, e non lo scrivo come spiegazione.

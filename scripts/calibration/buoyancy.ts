@@ -193,6 +193,13 @@ interface WorldSample {
    * vertical in degrees, and summed cosine (1 upright, −1 inverted). */
   readonly absAngleSum: number;
   readonly cosSum: number;
+  /** Over float carriers whose floats sit off the centre: how many, the
+   * summed |angle| of the float's lever (the first moment of the weighing
+   * area, turned through the axis) from straight up, and its summed cosine
+   * (1 directly above the centre). */
+  readonly leverCarriers: number;
+  readonly leverAbsAngleSum: number;
+  readonly leverCosSum: number;
 }
 
 export interface ReferenceWorldRun {
@@ -219,6 +226,9 @@ function runReferenceWorld(seed: number): ReferenceWorldRun {
     let plainDepthSum = 0;
     let absAngleSum = 0;
     let cosSum = 0;
+    let leverCarriers = 0;
+    let leverAbsAngleSum = 0;
+    let leverCosSum = 0;
     for (const organism of population) {
       const floatCount = organism.organelles.filter(
         (gene) => gene.type === "float",
@@ -234,6 +244,16 @@ function runReferenceWorld(seed: number): ReferenceWorldRun {
           (Math.abs(Math.atan2(organism.axis.sin, organism.axis.cos)) * 180) /
           Math.PI;
         cosSum += organism.axis.cos;
+        const {cos, sin} = organism.axis;
+        const {px, py} = organism.moments;
+        const lever = Math.hypot(px, py);
+        if (lever > 1e-9) {
+          const worldY = sin * px + cos * py;
+          const up = Math.min(1, Math.max(-1, -worldY / lever));
+          leverCarriers++;
+          leverAbsAngleSum += (Math.acos(up) * 180) / Math.PI;
+          leverCosSum += up;
+        }
       } else {
         plainDepthSum += organism.y;
       }
@@ -249,6 +269,9 @@ function runReferenceWorld(seed: number): ReferenceWorldRun {
       plainDepthSum,
       absAngleSum,
       cosSum,
+      leverCarriers,
+      leverAbsAngleSum,
+      leverCosSum,
     });
   });
 
@@ -288,6 +311,12 @@ export function reportReferenceWorld(runs: readonly ReferenceWorldRun[]): void {
   note(
     "  Angle: the Body Axis from the world's vertical, 0° upright (float carriers).",
   );
+  note(
+    "  Lever: the float's offset from the body's centre, turned through the axis; 0° is directly above the centre,",
+  );
+  note(
+    "  which is where passive gravitaxis puts it (carriers with an off-centre float only).",
+  );
 
   table(
     [
@@ -300,6 +329,8 @@ export function reportReferenceWorld(runs: readonly ReferenceWorldRun[]): void {
       "depth plain",
       "mean |angle|",
       "mean cos",
+      "lever |angle|",
+      "lever cos",
       "worst overlap",
     ],
     runs.map((run) => {
@@ -338,6 +369,16 @@ export function reportReferenceWorld(runs: readonly ReferenceWorldRun[]): void {
         ratio(
           sum(half, (s) => s.cosSum),
           floatCarriers,
+          3,
+        ),
+        `${ratio(
+          sum(half, (s) => s.leverAbsAngleSum),
+          sum(half, (s) => s.leverCarriers),
+          3,
+        )}°`,
+        ratio(
+          sum(half, (s) => s.leverCosSum),
+          sum(half, (s) => s.leverCarriers),
           3,
         ),
         num(run.worstOverlap),
