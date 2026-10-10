@@ -5,11 +5,12 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {CARBON_BUDGET_BASELINE_ORGANISMS} from "./constants";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {CARBON_BUDGET_BASELINE_ORGANISMS, R_NEW} from "./constants";
+import {applyMotion, constrainToAquarium} from "./motion";
+import {ORGANELLE_TYPES, type OrganelleType} from "./organelles";
 import type {Organism} from "./organism";
-import {createRngStream} from "./rng";
-import {organismAt, shuffle} from "./testing";
+import {createRngStream, drawUnitVector} from "./rng";
+import {bearerAt, carrierAt, organismAt, shuffle} from "./testing";
 
 interface Point {
   readonly x: number;
@@ -35,7 +36,7 @@ const distance = (a: Point, b: Point): number =>
 
 const moveFor = (organism: Organism, ticks: number): void => {
   for (let i = 0; i < ticks; i++) {
-    applyBrownianMotion(organism);
+    applyMotion(organism);
   }
 };
 
@@ -53,12 +54,12 @@ const expectWhollyInsideAquarium = (organism: Organism): void => {
   expect(organism.y + organism.bodyRadius).toBeLessThanOrEqual(AQUARIUM_HEIGHT);
 };
 
-describe("applyBrownianMotion", () => {
+describe("applyMotion", () => {
   it("moves the organism off the spot it started on", () => {
     const organism = organismAt(CENTRE_X, CENTRE_Y);
     const start = positionOf(organism);
 
-    applyBrownianMotion(organism);
+    applyMotion(organism);
 
     expect(distance(organism, start)).toBeGreaterThan(0);
   });
@@ -67,7 +68,7 @@ describe("applyBrownianMotion", () => {
     const organism = organismAt(CENTRE_X, CENTRE_Y);
     const start = positionOf(organism);
 
-    applyBrownianMotion(organism);
+    applyMotion(organism);
 
     expect(distance(organism, start)).toBeCloseTo(BASELINE_STEP, 12);
   });
@@ -80,7 +81,7 @@ describe("applyBrownianMotion", () => {
 
     for (let i = 0; i < 50; i++) {
       const before = positionOf(organism);
-      applyBrownianMotion(organism);
+      applyMotion(organism);
 
       expect(distance(organism, before)).toBeCloseTo(BASELINE_STEP, 12);
     }
@@ -95,8 +96,8 @@ describe("applyBrownianMotion", () => {
     const startSmall = positionOf(small);
     const startLarge = positionOf(large);
 
-    applyBrownianMotion(small);
-    applyBrownianMotion(large);
+    applyMotion(small);
+    applyMotion(large);
 
     expect(
       distance(large, startLarge) / distance(small, startSmall),
@@ -107,7 +108,7 @@ describe("applyBrownianMotion", () => {
     const organism = organismAt(CENTRE_X, CENTRE_Y);
     const before = organism.rng.state;
 
-    applyBrownianMotion(organism);
+    applyMotion(organism);
 
     expect(organism.rng.state).not.toBe(before);
   });
@@ -161,7 +162,7 @@ describe("applyBrownianMotion", () => {
     for (let tick = 0; tick < 50; tick++) {
       for (const population of [inOrder, shuffled]) {
         for (const organism of population) {
-          applyBrownianMotion(organism);
+          applyMotion(organism);
         }
         for (const organism of population) {
           constrainToAquarium(organism);
@@ -260,7 +261,7 @@ describe("constrainToAquarium", () => {
     const organism = organismAt(BASELINE_BODY_RADIUS, BASELINE_BODY_RADIUS);
 
     for (let tick = 0; tick < 5000; tick++) {
-      applyBrownianMotion(organism);
+      applyMotion(organism);
       constrainToAquarium(organism);
 
       expectWhollyInsideAquarium(organism);
@@ -288,5 +289,133 @@ describe("constrainToAquarium", () => {
 
     expectWhollyInsideAquarium(organism);
     expect(organism.x).toBe(organism.bodyRadius);
+  });
+});
+
+describe("applyMotion under gravity", () => {
+  const FLOAT_RADIUS = R_NEW;
+  const FLOAT = {
+    type: "float" as const,
+    radius: FLOAT_RADIUS,
+    x: 0,
+    y: 0,
+  };
+  const withoutBrownian = {brownian: "off"} as const;
+
+  /**
+   * The closed-form speed of a baseline body carrying one float at `r_new`
+   * with the surface's water around it: `g·r_new²/(6R)`, pinned. The lift
+   * is `g·π·r_new²` and the drag `6π·R` with `R = √(1 + r_new²)`. Restating
+   * the formula would pass just as happily with a wrong `g`.
+   */
+  const SURFACE_RISE = 0.0002813914596745962;
+
+  it("steps a body with no organelles exactly the Brownian step at any depth", () => {
+    for (const depth of [1, CENTRE_Y, AQUARIUM_HEIGHT - 1]) {
+      const organism = organismAt(CENTRE_X, depth);
+      const start = positionOf(organism);
+
+      applyMotion(organism);
+
+      expect(distance(organism, start)).toBeCloseTo(BASELINE_STEP, 12);
+    }
+  });
+
+  it("steps a body carrying only neurons exactly the step it would take bare", () => {
+    for (const depth of [1, CENTRE_Y, AQUARIUM_HEIGHT - 1]) {
+      const bare = carrierAt(CENTRE_X, depth, []);
+      const carrier = carrierAt(CENTRE_X, depth, [0.2, 0.3]);
+      const start = positionOf(carrier);
+
+      applyMotion(carrier);
+
+      expect(distance(carrier, start)).toBeCloseTo(
+        BASELINE_STEP / Math.sqrt(carrier.bodyRadius / bare.bodyRadius),
+        12,
+      );
+    }
+  });
+
+  it("draws exactly once, first, and not at all with Brownian motion off", () => {
+    const carrier = bearerAt(CENTRE_X, CENTRE_Y, [FLOAT]);
+    const before = carrier.rng;
+
+    applyMotion(carrier, withoutBrownian);
+    expect(carrier.rng).toBe(before);
+
+    applyMotion(carrier);
+    expect(carrier.rng).toEqual(drawUnitVector(before).stream);
+  });
+
+  it("raises a float carrier at the closed-form speed near the surface", () => {
+    const carrier = bearerAt(CENTRE_X, 0, [FLOAT]);
+
+    applyMotion(carrier, withoutBrownian);
+
+    expect(carrier.x).toBe(CENTRE_X);
+    expect(-carrier.y).toBeCloseTo(SURFACE_RISE, 12);
+  });
+
+  it("raises it twice as fast near the floor", () => {
+    const carrier = bearerAt(CENTRE_X, AQUARIUM_HEIGHT, [FLOAT]);
+
+    applyMotion(carrier, withoutBrownian);
+
+    expect(AQUARIUM_HEIGHT - carrier.y).toBeCloseTo(2 * SURFACE_RISE, 12);
+  });
+
+  describe("settling", () => {
+    const HEAVY_DENSITY = 1.5;
+    const declarations = {
+      ...ORGANELLE_TYPES,
+      heavy: {...ORGANELLE_TYPES.float, density: HEAVY_DENSITY},
+    };
+    const heavy = (x: number) => ({
+      type: "heavy" as unknown as OrganelleType,
+      radius: 0.3,
+      x,
+      y: 0,
+    });
+    const floating = (x: number) => ({...FLOAT, radius: 0.3, x});
+
+    const settle = (carrier: Organism): void => {
+      for (let tick = 0; tick < 20_000; tick++) {
+        applyMotion(carrier, withoutBrownian);
+        constrainToAquarium(carrier);
+      }
+    };
+
+    it.each([5, 35])(
+      "settles a float and a heavy fixture at y*/H = M/A from y = %d",
+      (start) => {
+        // Equal areas side by side: M/A = (−1 + 3/2) / 2 = 1/4.
+        const carrier = bearerAt(
+          CENTRE_X,
+          start,
+          [floating(-0.3), heavy(0.3)],
+          declarations,
+        );
+
+        settle(carrier);
+
+        expect(carrier.y / AQUARIUM_HEIGHT).toBeCloseTo(0.25, 3);
+      },
+    );
+
+    it("ends against the surface when the composition is lighter than all the water", () => {
+      const carrier = bearerAt(CENTRE_X, CENTRE_Y, [floating(0)]);
+
+      settle(carrier);
+
+      expect(carrier.y).toBe(carrier.bodyRadius);
+    });
+
+    it("ends against the floor when it is heavier than all of it", () => {
+      const carrier = bearerAt(CENTRE_X, CENTRE_Y, [heavy(0)], declarations);
+
+      settle(carrier);
+
+      expect(carrier.y).toBe(AQUARIUM_HEIGHT - carrier.bodyRadius);
+    });
   });
 });

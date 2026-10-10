@@ -43,7 +43,7 @@ export interface PendingBirth {
 /**
  * Resolve-phase step 7 (ADR-0006/ADR-0019): per organism, writing only to
  * that organism — its own stores and its own stream — exactly like
- * `applyRespiration` and `applyBrownianMotion`, which is what keeps this
+ * `applyRespiration` and `applyMotion`, which is what keeps this
  * phase order-independent by construction. Unlike `evaluateDeaths`, this
  * does not partition the population: it is called once per organism and
  * either hands back a `PendingBirth` or does not. A parent turned away

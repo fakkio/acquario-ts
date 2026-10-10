@@ -10,7 +10,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {applyMotion, constrainToAquarium} from "./motion";
 import {bodyMass, createPopulation, type Organism} from "./organism";
 import {createRngStream} from "./rng";
 import {separateOverlaps} from "./separation";
@@ -204,7 +204,7 @@ describe("death: extinction acceptance run", () => {
   ): {population: readonly Organism[]; pools: Pools} {
     const afterMetabolism = runMetabolism(population, pools);
     for (const organism of population) {
-      applyBrownianMotion(organism);
+      applyMotion(organism);
     }
     const {survivors, remains} = evaluateDeaths(population);
     // Step 10 runs over the *whole* tick's population, condemned included

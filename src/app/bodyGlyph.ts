@@ -33,6 +33,13 @@ const CYTOPLASM_SATURATION = 40;
 const NEURON_LIGHTNESS = 82;
 const ORGANELLE_OUTLINE_LIGHTNESS = 12;
 
+/** A float at full energy: a pale white-blue disc, translucent like a
+ * bubble, with the same dark outline. */
+const FLOAT_HUE = 200;
+const FLOAT_SATURATION = 70;
+const FLOAT_LIGHTNESS = 90;
+const FLOAT_ALPHA = 0.55;
+
 /** The outline's screen width, and the share of an organelle's radius it may
  * take at most, so a neuron a pixel wide stays grey rather than all outline. */
 const ORGANELLE_OUTLINE_PX = 1;
@@ -67,13 +74,16 @@ export function drawBody(
     return;
   }
 
-  // Every organelle is a neuron in M7; the per-type palette grows with the
-  // roster (`docs/vision.md`: chloroplast green, thruster red, float pale).
-  ctx.fillStyle = `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
   ctx.strokeStyle = `hsl(0, 0%, ${String(ORGANELLE_OUTLINE_LIGHTNESS * brightness)}%)`;
   for (const organelle of body.organelles) {
-    // No rotation until M8: an organelle sits at the body's position plus
-    // its own.
+    // The per-type palette grows with the roster (`docs/vision.md`:
+    // chloroplast green, thruster red). The body keeps the world's
+    // orientation until the Body Axis arrives, so an organelle sits at the
+    // body's position plus its own.
+    ctx.fillStyle =
+      organelle.type === "float"
+        ? `hsla(${String(FLOAT_HUE)}, ${String(FLOAT_SATURATION)}%, ${String(FLOAT_LIGHTNESS * brightness)}%, ${String(FLOAT_ALPHA)})`
+        : `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
     const x = body.x + organelle.x;
     const y = body.y + organelle.y;
     ctx.lineWidth = Math.min(

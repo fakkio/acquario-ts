@@ -2,8 +2,11 @@ import {
   AQUARIUM_AREA,
   birthCosts,
   bodyAreaOfRadius,
+  buoyantWeight,
   energyCap,
   maintenanceBreakdown,
+  ORGANELLE_TYPES,
+  restingDepth,
   type OrganelleType,
   type OrganismView,
   type Pools,
@@ -26,6 +29,27 @@ export interface Inspector {
 }
 
 const fixed = (value: number, digits = 3): string => value.toFixed(digits);
+
+/** The Buoyant Weight with its direction: positive pulls towards the floor. */
+const buoyantWeightText = (organism: OrganismView): string => {
+  const weight = buoyantWeight(organism.moments, organism.y);
+
+  return weight === 0
+    ? "0"
+    : `${signed(weight)} (${weight > 0 ? "down" : "up"})`;
+};
+
+const restingDepthText = (organism: OrganismView): string => {
+  const resting = restingDepth(organism.moments);
+
+  return resting.kind === "interior" ? fixed(resting.depth) : resting.kind;
+};
+
+const densityText = (type: OrganelleType): string => {
+  const {density} = ORGANELLE_TYPES[type];
+
+  return density === "weightless" ? density : signed(density);
+};
 
 const signed = (value: number): string =>
   `${value < 0 ? "−" : "+"}${Math.abs(value).toFixed(3)}`;
@@ -139,7 +163,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
     }
 
     const head = table.insertRow();
-    for (const title of ["type", "id", "radius", "x", "y"]) {
+    for (const title of ["type", "id", "radius", "x", "y", "density"]) {
       const cell = document.createElement("th");
       cell.textContent = title;
       cell.style.textAlign = "right";
@@ -154,6 +178,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         fixed(organelle.radius),
         fixed(organelle.x),
         fixed(organelle.y),
+        densityText(organelle.type),
       ];
       for (const value of values) {
         const cell = row.insertCell();
@@ -201,6 +226,8 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         `  body radius         ${fixed(organism.bodyRadius)}`,
         `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
         `  organelle areas     ${fixed(organelleArea)}`,
+        `  buoyant weight      ${buoyantWeightText(organism)}`,
+        `  resting depth       ${restingDepthText(organism)}`,
         "",
         "Mitosis",
         ...mitosisProgress(organism, roster),

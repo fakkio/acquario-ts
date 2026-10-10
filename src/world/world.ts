@@ -26,7 +26,7 @@ import {
 } from "./mitosis";
 import {DEFAULT_ROSTER, type OrganelleType} from "./organelles";
 import {FlowTracer, type TickFlows} from "./tickFlows";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {applyMotion, constrainToAquarium} from "./motion";
 import {
   createPopulation,
   foldPopulation,
@@ -409,7 +409,7 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   );
   // 6. Brownian motion.
   for (const organism of state.population) {
-    applyBrownianMotion(organism);
+    applyMotion(organism);
   }
   // 7. Evaluate mitosis: per organism, writing only to that organism —
   //    exactly like the steps above — and enqueuing a pending birth

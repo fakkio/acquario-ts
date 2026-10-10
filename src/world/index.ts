@@ -1,5 +1,12 @@
 export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 export {BASELINE_GENOME, type Genome} from "./genome";
+export {
+  buoyantWeight,
+  NO_MOMENTS,
+  restingDepth,
+  type LayoutMoments,
+  type RestingDepth,
+} from "./gravity";
 export {type GridOccupancy} from "./grid";
 export {
   DEFAULT_ROSTER,

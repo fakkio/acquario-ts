@@ -87,7 +87,7 @@ describe("deriveChildStream", () => {
 // this module's business, brownian motion's use of one is incidental. The
 // rejection-sampling loop's own correctness — the disc it draws from, the
 // bias the square's corners would add — was never under test by name before
-// the move; it only had `applyBrownianMotion`'s step-length assertions in
+// the move; it only had `applyMotion`'s step-length assertions in
 // `motion.test.ts` exercising it indirectly. These are new coverage, not a
 // relocation of existing tests.
 describe("drawUnitVector", () => {

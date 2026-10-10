@@ -19,7 +19,7 @@ import {
   applyRespiration,
 } from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {applyMotion, constrainToAquarium} from "./motion";
 import {
   DIFFUSIBLES,
   STARTING_POPULATION,
@@ -409,7 +409,7 @@ describe("collisions", () => {
       }
 
       for (const organism of byHand) {
-        applyBrownianMotion(organism);
+        applyMotion(organism);
       }
       separateOverlaps(byHand, buildUniformGrid(byHand));
       for (const organism of byHand) {
@@ -494,7 +494,7 @@ describe("passive exchange (M2)", () => {
   ): Pools {
     const settled = runExchange(population, pools);
     for (const organism of population) {
-      applyBrownianMotion(organism);
+      applyMotion(organism);
     }
     separateOverlaps(population, buildUniformGrid(population));
     for (const organism of population) {
@@ -1142,7 +1142,7 @@ describe("fertility mode (M4)", () => {
       for (let tick = 0; tick < ticks; tick++) {
         currentPools = runMetabolism(currentPopulation, currentPools);
         for (const organism of currentPopulation) {
-          applyBrownianMotion(organism);
+          applyMotion(organism);
         }
         const births = currentPopulation
           .map((organism) => evaluateMitosis(organism, []))

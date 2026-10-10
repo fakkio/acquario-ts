@@ -15,8 +15,9 @@ import {
   type OrganelleGene,
   type OrganelleGeneDraft,
 } from "./genome";
+import type {LayoutMoments} from "./gravity";
 import {foldString} from "./hash";
-import type {OrganelleType} from "./organelles";
+import type {OrganelleType, OrganelleTypeDeclaration} from "./organelles";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
 
 /**
@@ -78,6 +79,9 @@ export interface OrganismView {
   /** The body's organelles in genome order: type, Innovation Id, radius and
    * position relative to the body's centre (`Body.organelles`). */
   readonly organelles: readonly OrganelleGene[];
+  /** The layout moments over weighing organelles (`gravity.ts`), what the
+   * inspector reads the Buoyant Weight and Resting Depth from. */
+  readonly moments: LayoutMoments;
   readonly lineageHue: number;
   /** How many births separate this organism from generation 0's founders,
    * which are 0. Read by the inspector only: no tick reads it, so it stays
@@ -107,6 +111,9 @@ export interface OrganismInit {
   readonly y: number;
   readonly genome: Genome;
   readonly rng: RngStream;
+  /** The declarations the body's weight is read from: `ORGANELLE_TYPES`
+   * unless a test puts a fixture type of a chosen density on a body. */
+  readonly declarations?: Readonly<Record<string, OrganelleTypeDeclaration>>;
   /** The parent's Generation plus one for a child; defaults to 0, a founder's. */
   readonly generation?: number;
   /**
@@ -174,9 +181,10 @@ export const RESOURCES: readonly Resource[] = [
  * reads, in `grid.ts`, `motion.ts`, `separation.ts` and `render.ts`; from
  * M7 it is the derived radius rather than a gene.
  *
- * No rotation and no angular velocity: `x`/`y` is the body's centre, the
- * genome's origin, and an organelle sits in the world at that position plus its own.
- * Rotation arrives with the first torque (M8), the thruster's.
+ * No rotation and no angular velocity yet: `x`/`y` is the body's centre, the
+ * genome's origin, and an organelle sits in the world at that position plus
+ * its own. Weight is the first torque, and the Body Axis that turns under it
+ * is M8's next ticket.
  *
  * The four internal resource stores arrive in M2. They are plain mutable
  * fields for the same reason `x`/`y` are: metabolism will write to them
@@ -201,7 +209,7 @@ export class Organism {
     this.x = init.x;
     this.y = init.y;
     this.genome = init.genome;
-    this.body = deriveBody(init.genome);
+    this.body = deriveBody(init.genome, init.declarations);
     this.rng = init.rng;
     this.generation = init.generation ?? 0;
     this.energy = init.energy ?? 0;
@@ -224,6 +232,10 @@ export class Organism {
 
   get organelles(): readonly OrganelleGene[] {
     return this.body.organelles;
+  }
+
+  get moments(): LayoutMoments {
+    return this.body.moments;
   }
 
   get lineageHue(): number {

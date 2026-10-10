@@ -6,7 +6,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {buildUniformGrid, type UniformGrid} from "./grid";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {applyMotion, constrainToAquarium} from "./motion";
 import {GENERATION_0_MAX_BODY_RADIUS, type Organism} from "./organism";
 import {createRngStream} from "./rng";
 import {separateOverlaps, worstPenetration} from "./separation";
@@ -466,7 +466,7 @@ describe("no overlaps after resolution, with motion on", () => {
     let worst = 0;
     for (let tick = 0; tick < 3000; tick++) {
       for (const organism of population) {
-        applyBrownianMotion(organism);
+        applyMotion(organism);
       }
       commitStep10(population);
 
@@ -485,7 +485,7 @@ describe("no overlaps after resolution, with motion on", () => {
     let worstSoFar = Number.NEGATIVE_INFINITY;
     for (let tick = 0; tick < 1000; tick++) {
       for (const organism of population) {
-        applyBrownianMotion(organism);
+        applyMotion(organism);
       }
       commitStep10(population);
 
