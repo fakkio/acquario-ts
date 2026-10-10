@@ -70,3 +70,31 @@ Il segno della coppia l'ho deciso guardando lo schermo, non la formula. L'asse y
 ---
 
 Del ticket successivo non ho scelto niente: #77 era già committato e #78 era l'unico con tutti i blocchi sciolti. Anche questa volta il grafo ha deciso al posto mio.
+
+---
+
+Il piano di ADR-0008 diceva: se la folla rompe il tetto, `K` passate di separazione per tick, il più piccolo `K` che regge. L'ho letto come "ripeti la passata". Con una folla di 160 corpi, ognuno con un float di raggio 0,1, il peggior overlap era 0,746 contro un tetto di 0,5. Con `K` = 8 era 0,71, con `K` = 32 era 0,79. Otto volte più lavoro e nessun effetto, anzi un po' peggio.
+
+---
+
+Il colpevole era il muro. La superficie spinge la fila di sopra dentro la fila sotto, e il clamp, una volta sola a fine tick, rimetteva i corpi esattamente dove la separazione li aveva appena tolti. Più passate dopo la stessa ammaccatura non servono a niente, se l'ammaccatura la rifà il muro ogni tick.
+
+---
+
+La correzione non era "più passate" ma "una passata è separa, poi rimetti dentro". Con quella forma `K` = 2 dà 0,544, ancora sopra, e `K` = 3 regge. Tre, quindi, e il numero viene da una misura, non da una stima.
+
+---
+
+La riga di ADR-0008 che dice "un numero fisso di passate" aveva ragione sul meccanismo e torto sulla definizione di passata. Nessuno poteva saperlo prima di mettere sul muro una folla vera: la folla di M1 non toccava la superficie abbastanza a lungo da mostrarlo.
+
+---
+
+Il costo: la separazione ora gira tre volte per tick, e muove ogni mondo, anche quello a roster vuoto. Il golden è passato da `1f3f5bf3` a `fd8594ce`, e stavolta la prova che sia cambiato solo per questo è la storia del commit, non un esperimento a mano.
+
+---
+
+Tra i test tre copie a mano del passo 10 (separa, poi rimetti dentro) in `world.test.ts` hanno smesso di combaciare col mondo, e il fallimento l'ho letto come un `toEqual` con differenze alla quindicesima cifra. Non era un bug: la copia aveva una sola passata. Tre repliche dello stesso passo, ora una funzione sola, `resolveCollisions`.
+
+---
+
+Una svista mia, di quelle che il log della sessione conserva e il diff no: la prima sostituzione automatica con un'espressione regolare ha scritto un carattere di controllo al posto del nome della popolazione. `tsc` si è lamentato di "Invalid character" in tre punti, e l'ho aggiustato in un giro.
