@@ -176,3 +176,10 @@ export const BUOYANCY_BODIES = setting("BUOYANCY_BODIES", 40);
 
 /** How often the `g` check reads the depths. */
 export const BUOYANCY_SAMPLE_EVERY = setting("BUOYANCY_SAMPLE_EVERY", 100);
+
+/** The float on the Reference World (#81): persistence's own 100k, since a
+ * carrier fraction is a quantity of generations. */
+export const WORLD_TICKS = setting("WORLD_TICKS", 100_000);
+
+/** How often that run reads the population. */
+export const WORLD_SAMPLE_EVERY = setting("WORLD_SAMPLE_EVERY", 2_500);

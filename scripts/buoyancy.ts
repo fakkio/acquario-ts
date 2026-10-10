@@ -1,4 +1,9 @@
-import {measureBuoyancy, reportBuoyancy} from "./calibration/buoyancy";
+import {
+  measureBuoyancy,
+  measureReferenceWorld,
+  reportBuoyancy,
+  reportReferenceWorld,
+} from "./calibration/buoyancy";
 import {heading, note, rendered} from "./calibration/report";
 import {reportTheWorldMeasured} from "./calibration/worldHeader";
 
@@ -14,6 +19,7 @@ function main(): void {
 
   reportTheWorldMeasured();
   reportBuoyancy(measureBuoyancy());
+  reportReferenceWorld(measureReferenceWorld());
 
   console.log(rendered().trimEnd());
 }
