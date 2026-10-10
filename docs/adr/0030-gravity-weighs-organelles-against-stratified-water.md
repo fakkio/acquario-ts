@@ -2,6 +2,8 @@
 
 > **Amended by [ADR-0032](./0032-the-v0-2-roster-is-four-types-and-weight-comes-from-function.md).** A type other than the float and the chloroplast is **weightless**, like the cytoplasm, not "inside the water's range": a type weighs only when weight is what it does or what it costs. Resting depth and stiffness are sums over weighing organelles only. The roster fixes `ρ_chloro = ρ_w(H) + Δ/2` and `ρ_float = ρ_w(0) − Δ`.
 
+> **Amended in M8's grill.** The water's span is not a second constant. With ADR-0032's densities written in units of `Δ`, only density differences enter the law: `ρ_w(0)` never appears, `g` and `Δ` appear only as the product `g·Δ`, and the Resting Depth, `y*/H = Σ c_type·aᵢ / Σ aᵢ` with `c_float = −1` and `c_chloro = 3/2`, depends on neither. So `Δ = 1` fixes the organelle-density unit and `ρ_w(0) = 0` its origin, as `ρ = 1` fixes carbon's, and `g` is the one constant calibrated, by the rule below in closed form. The rule for the span is already met by ADR-0032's densities.
+
 v0.2 adds gravity as one more force in the overdamped sum. The water is **stratified**, denser towards the floor, and only **organelles** weigh against it: the cytoplasm is neutral at every depth, so a body with no organelles moves exactly as in v0.1. An organism's depth is set by what its organelles are made of, not by a density gene. There is no gravity without stratification: with uniform water, every body whose weight is not zero ends up against the surface or the floor. Settled in #47. This supersedes ADR-0004 for v0.2 on; v0.1 stays as ADR-0004 describes it.
 
 ## The law
