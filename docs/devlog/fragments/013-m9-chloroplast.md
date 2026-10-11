@@ -24,7 +24,7 @@ La revisione ha anche trovato due test deboli che passavano senza dimostrare que
 
 ---
 
-Previsione contraddetta, la prima di M9: pensavo che i fondatori in superficie, dove la luce c'è e il throttle della CO₂ morde, fossero i più robusti. Sono i primi a morire. Con tre quarti dei fondatori in superficie la popolazione è a zero entro 10k tick, senza una nascita; con tre quarti in profondità a metà acquario nascono 29 figli e poi la linea si spegne comunque entro 35k tick. Non so ancora perché. Ipotesi non verificate: il cloroplasto denso li fa affondare, o in superficie si pestano la CO₂ a vicenda.
+Previsione contraddetta, la prima di M9: l'ipotesi di partenza era che i fondatori in superficie, dove la luce c'è e il throttle della CO₂ morde, fossero i più robusti. Sono i primi a morire. Con tre quarti dei fondatori in superficie la popolazione è a zero entro 10k tick, senza una nascita; con tre quarti in profondità a metà acquario nascono 29 figli e poi la linea si spegne comunque entro 35k tick. Non so ancora perché. Ipotesi non verificate: il cloroplasto denso li fa affondare, o in superficie si pestano la CO₂ a vicenda.
 
 ---
 
@@ -32,13 +32,11 @@ Cloroplasti più grandi, peggio. Con raggi fra 0,04 e 0,12 al posto di 0,03-0,07
 
 ---
 
-Quattro configurazioni su dieci hanno finito con zero portatori. La sperimentazione è stata cieca: ogni tentativo costa 18 secondi di simulazione e l'unico segnale è una tabella di popolazione ogni 5000 tick. Quello che ha funzionato è stato 32 fondatori, metà in superficie e metà da metà profondità in giù, e a me sembra più fortuna calibrata che una ragione.
+Undici configurazioni su dodici hanno finito con zero portatori prima del tick 100k. La sperimentazione è stata cieca: ogni tentativo costa 18 secondi di simulazione e l'unico segnale è una tabella di popolazione ogni 5000 tick. Quello che ha funzionato è stato 32 fondatori, metà in superficie e metà da metà profondità in giù, e per ora non c'è una ragione dietro la scelta, solo il fatto che regge.
 
 ---
 
-> "il test passa" e "il test dimostra quello che dice" sono due cose diverse
-
-(nota dell'agente, non di Fabio, da tenere solo se serve): i portatori vengono contati a ogni campione da 1000 tick, quindi un'estinzione fra due campioni passerebbe inosservata. Con 32 fondatori non succede, ma la tenuta del test dipende da questa scelta di granularità.
+Nota dell'agente, da tenere solo se serve: i portatori vengono contati a ogni campione da 1000 tick, quindi un'estinzione fra due campioni passerebbe inosservata. Con 32 fondatori non succede, ma la tenuta del test dipende da questa granularità.
 
 ---
 
