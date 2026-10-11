@@ -41,3 +41,15 @@ Nota dell'agente, da tenere solo se serve: i portatori vengono contati a ogni ca
 ---
 
 Per il verdetto di M9: il cloroplasto da solo non sostiene un lignaggio nella sua forma attuale. Se l'harness (#87) misura lo stesso, il numero da spiegare è perché un organello che "fissa carbonio" non basta a pagare se stesso.
+
+---
+
+#86, il cloroplasto entra nel roster di default. Il ticket chiede "un test di mondo che mostri il roster di default mentre inserisce cloroplasti". Non si può scrivere così: in un mondo non innescato le inserzioni sono troppo rare. Ho guardato 12 semi a 8000 tick, e solo 4 avevano un organello qualsiasi (1 con un neurone, uno con due, uno con sedici). Nessun galleggiante, nessun cloroplasto, in nessuno. Il test è diventato una prova sulla legge di mutazione, con ogni prova forzata a evento, che vede tutti e tre i tipi. Mostra che il roster pesca il cloroplasto, non che un mondo lo inserisce.
+
+---
+
+Nota dell'agente: nella chiusura del ticket ho scritto "3 semi su 12"; il conteggio giusto dalla sonda è 4 (semi 1, 5, 11, 12). Corretto qui.
+
+---
+
+Il dato di sfondo: a 8000 tick la popolazione è ancora quasi tutta senza organelli, quindi "il roster di default è M9" vale sulla carta molto prima che nel mondo. Chi legge un grafico dei portatori a 10k tick non sta guardando la competizione fra tre tipi, sta guardando la coda di un'attesa.
