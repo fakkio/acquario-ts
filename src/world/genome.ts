@@ -14,10 +14,12 @@ import {
   SPLIT_WEIGHT,
   STRUCTURAL_EVENT_PROBABILITY,
 } from "./constants";
+import {layoutMoments, type LayoutMoments} from "./gravity";
 import {makeRoom, reach, relax} from "./layout";
 import {
   ORGANELLE_TYPES,
   type OrganelleType,
+  type OrganelleTypeDeclaration,
   type ParameterLaw,
 } from "./organelles";
 import {bodyAreaOfRadius} from "./organism";
@@ -27,7 +29,7 @@ import {drawUnitVector, nextRng, type RngStream} from "./rng";
  * The structural gene describing one organelle (glossary: Organelle Gene):
  * its type, its Innovation Id, its radius and its position in the genome's
  * frame. A type's further parameters join it when a type declares one (M8
- * on); the neuron declares only radius and position (`organelles.ts`).
+ * on); the neuron and the float declare only radius and position (`organelles.ts`).
  */
 export interface OrganelleGene {
   readonly type: OrganelleType;
@@ -376,10 +378,12 @@ export interface Body {
   /**
    * The organelles, in genome order, relaxed apart and positioned relative
    * to the body's centre, the genome's origin: an organelle sits in the world
-   * at the organism's position plus its own, with no rotation until the
-   * first torque (M8).
+   * at the organism's position plus its own turned through the Body Axis.
    */
   readonly organelles: readonly OrganelleGene[];
+  /** The layout moments over weighing organelles that gravity reads
+   * (`gravity.ts`), zero for a body with none. */
+  readonly moments: LayoutMoments;
 }
 
 /**
@@ -393,7 +397,12 @@ export interface Body {
  * With no organelles the radius is the cytoplasm radius itself, to the last
  * bit: v0.1's Minimal Organism.
  */
-export function deriveBody(genome: Genome): Body {
+export function deriveBody(
+  genome: Genome,
+  declarations: Readonly<
+    Record<string, OrganelleTypeDeclaration>
+  > = ORGANELLE_TYPES,
+): Body {
   const relaxed = relax(genome.genes);
   const organelleArea = sumOrganelleArea(relaxed);
   const organelleReach = reach(relaxed);
@@ -407,6 +416,7 @@ export function deriveBody(genome: Genome): Body {
     cytoplasmArea: bodyAreaOfRadius(radius) - organelleArea,
     reach: organelleReach,
     organelles: relaxed,
+    moments: layoutMoments(relaxed, declarations),
   };
 }
 

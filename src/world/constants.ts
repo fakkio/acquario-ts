@@ -19,7 +19,8 @@
  *
  * The constants that *fix a unit* are deliberately left outside the
  * mechanism, so a sweep cannot reach them at all — see `RHO`,
- * `LIGHT_SURFACE_INTENSITY`, `BODY_COST_COEFFICIENT` and
+ * `LIGHT_SURFACE_INTENSITY`, `BODY_COST_COEFFICIENT`, `DENSITY_SPAN`,
+ * `WATER_DENSITY_AT_SURFACE` and
  * `LIGHT_ATTENUATION_K` below.
  *
  * This module still imports nothing, and the property is worth keeping:
@@ -558,6 +559,78 @@ export const DELTA_ORGANELLE_POSITION = tunable(
 export const C_NEURON = tunable("C_NEURON", 0.01 * EXISTENCE_COST);
 
 /**
+ * Stokes' law, `drag = 6πμr`, with the medium's viscosity μ ≡ 1: the shape of
+ * the drag law, fixed and not tuned. Motion divides every force by it times
+ * the body's radius, and `G` below is derived from it.
+ */
+export const DRAG_PER_RADIUS = 6 * Math.PI;
+
+/**
+ * The magnitude of the random force on a baseline body each tick (see
+ * `motion.ts` for why a body of another radius gets `√R` times it). Tuned
+ * in M1 so a baseline body steps about a tenth of its radius per tick.
+ * Lives here, and not unreachable by a sweep, because `G` is derived from it:
+ * moving it would move `G` with it.
+ */
+export const BROWNIAN_FORCE = 2;
+
+/**
+ * `Δ`, the span of the water's density from surface to floor, and the unit
+ * organelle densities are written in (ADR-0030, ADR-0032). Only density
+ * differences enter the law, so `Δ = 1` fixes the unit and `ρ_w(0) = 0` its
+ * origin (`WATER_DENSITY_AT_SURFACE`): the water is `ρ_w(y) = y/H`, and a
+ * type's `c_type` is its density above the surface's water, in units of `Δ`.
+ *
+ * **Not tunable.** Units, like `RHO` and `BODY_COST_COEFFICIENT`: overriding
+ * either would rescale `G` and calibrate nothing.
+ */
+export const DENSITY_SPAN = 1;
+export const WATER_DENSITY_AT_SURFACE = 0;
+
+/**
+ * `g`, the one gravity constant (ADR-0030 as amended in M8's grill), derived
+ * in closed form rather than fitted: a baseline body (`R = 1`) carrying one
+ * float of radius `r_new` has a lift of `g·π·r_new²` at the surface, so it
+ * rises at `v = g·r_new²/(6R)`. A Brownian walker of step `s` has diffusion
+ * coefficient `D = s²/4` per axis, and a body drifting at `v` against
+ * diffusion settles to an exponential profile of scale height `D/v`. Setting
+ * that equal to `L`, the Bright Band's thickness (`ln 10 / k`, about 10),
+ *
+ *     g = D·6π·R / (L·π·r_new²)  ≈ 4.2,   D = s²/4,
+ *     s = BROWNIAN_FORCE / DRAG_PER_RADIUS  (a baseline body's step, R = 1).
+ *
+ * Tunable, but its committed value stays the derivation: `R_NEW` moves it
+ * with it, as it should. `npm run buoyancy` checks it by measurement.
+ */
+const BASELINE_STEP = BROWNIAN_FORCE / DRAG_PER_RADIUS;
+export const G = tunable(
+  "G",
+  (((BASELINE_STEP * BASELINE_STEP) / 4) * DRAG_PER_RADIUS) /
+    ((Math.log(10) / LIGHT_ATTENUATION_K) * Math.PI * R_NEW * R_NEW),
+);
+
+/**
+ * The Organelle Overhead the float pays, and every type that is a
+ * transducer after it (`c_organelle`, ADR-0029): per tick, whatever its
+ * size. Derived from the chloroplast's rule `r_new ≈ r_star / 2`, where `r_star` is
+ * the radius at which a chloroplast's income `kChloro·X·r` breaks even
+ * against its overhead plus tissue:
+ *
+ *     c_organelle = 2·kChloro·X·r_new,   kChloro = 2·K_PHOTO,   X ≈ 260.
+ *
+ * `X` is the light a body sees over the Bright Band, measured in a Fixed
+ * Population on M7.5's world. With `r_new = 0.02` it is about 0.62, ten
+ * times the neuron's overhead. `kChloro = 2·K_PHOTO` is fixed by this
+ * milestone. **Moving `K_PHOTO` (M12) requires deriving this again.**
+ */
+const K_CHLORO = 2 * K_PHOTO;
+const BRIGHT_BAND_LIGHT_EXPOSURE = 260;
+export const C_ORGANELLE = tunable(
+  "C_ORGANELLE",
+  2 * K_CHLORO * BRIGHT_BAND_LIGHT_EXPOSURE * R_NEW,
+);
+
+/**
  * Last, once every `tunable` above has registered its name: an
  * `ACQUARIO_`-prefixed variable that matched nothing is a typo, or a
  * constant somebody expected to be reachable and is not, and either way
@@ -572,7 +645,7 @@ for (const key of Object.keys(environmentOverrides)) {
     !tunableNames.has(key.slice(OVERRIDE_PREFIX.length))
   ) {
     throw new Error(
-      `${key} does not name a tunable constant. The constants that fix a unit — RHO, LIGHT_SURFACE_INTENSITY, BODY_COST_COEFFICIENT — and LIGHT_ATTENUATION_K are deliberately unreachable; see src/world/constants.ts.`,
+      `${key} does not name a tunable constant. The constants that fix a unit — RHO, LIGHT_SURFACE_INTENSITY, BODY_COST_COEFFICIENT, DENSITY_SPAN, WATER_DENSITY_AT_SURFACE — and LIGHT_ATTENUATION_K are deliberately unreachable; see src/world/constants.ts.`,
     );
   }
 }

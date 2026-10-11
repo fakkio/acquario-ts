@@ -118,6 +118,25 @@ describe("evaluateMitosis", () => {
     expect(evaluateMitosis(organism, [])).not.toBeNull();
   });
 
+  it("hands the child a copy of the parent's Body Axis, and draws nothing for it", () => {
+    const organism = organismWith(5, 5, eagerGenome(), 77);
+    organism.energy = energyCap(organism);
+    organism.food = 1000;
+    organism.axis.cos = 0.6;
+    organism.axis.sin = -0.8;
+    const twin = organismWith(5, 5, eagerGenome(), 77);
+    twin.energy = organism.energy;
+    twin.food = 1000;
+
+    const birth = evaluateMitosis(organism, []);
+
+    expect(birth?.axis).toEqual({cos: 0.6, sin: -0.8});
+    expect(birth?.axis).not.toBe(organism.axis);
+    // The axis costs no draw: a parent on the world's axis draws the same.
+    evaluateMitosis(twin, []);
+    expect(organism.rng).toEqual(twin.rng);
+  });
+
   it("derives the child's stream from the parent's rng before mutating the genome, so mutation can never affect it", () => {
     const organism = organismWith(5, 5, eagerGenome(), 77);
     organism.energy = energyCap(organism);
@@ -605,6 +624,7 @@ describe("mintBirths", () => {
     x: 5,
     y: 5,
     rng: createRngStream(1),
+    axis: {cos: 1, sin: 0},
     generation: 0,
     energy: 0,
     oxygen: 0,
@@ -641,6 +661,7 @@ describe("Generation", () => {
       y: 5,
       genome: {...BASELINE_GENOME, mitosisEnergyThreshold: 0.1},
       rng: createRngStream(8),
+      axis: {cos: 1, sin: 0},
       generation,
     });
     organism.energy = energyCap(organism);
@@ -678,6 +699,7 @@ describe("appendBirths", () => {
       x: 5,
       y: 5,
       rng: createRngStream(99),
+      axis: {cos: 1, sin: 0},
       generation: 0,
       energy: 10,
       oxygen: 1,
@@ -701,6 +723,7 @@ describe("appendBirths", () => {
       x: -5,
       y: 5,
       rng: createRngStream(1),
+      axis: {cos: 1, sin: 0},
       generation: 0,
       energy: 0,
       oxygen: 0,
@@ -720,6 +743,7 @@ describe("appendBirths", () => {
       x: 2,
       y: 2,
       rng: createRngStream(2),
+      axis: {cos: 1, sin: 0},
       generation: 0,
       energy: 0,
       oxygen: 0,
@@ -739,6 +763,7 @@ describe("appendBirths", () => {
       x: i,
       y: i,
       rng: createRngStream(i),
+      axis: {cos: 1, sin: 0},
       generation: 0,
       energy: i,
       oxygen: 0,

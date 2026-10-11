@@ -1,6 +1,7 @@
 import {
   BODY_COST_COEFFICIENT,
   C_NEURON,
+  C_ORGANELLE,
   DELTA_ORGANELLE_POSITION,
   DELTA_ORGANELLE_RADIUS,
   R_MIN,
@@ -9,7 +10,7 @@ import {
 /**
  * The organelle types the world knows, each a declaration rather than code
  * (ADR-0028, ADR-0032): what a type's genes carry and how each of them
- * mutates, what the type costs to keep, and whether it weighs. A declared
+ * mutates, what the type costs to keep, and what it weighs. A declared
  * law has a worst case that can be read off the declaration, which is what
  * the Birth Cost Ceiling reads; a free `mutate()` per type could break the
  * ceiling unnoticed.
@@ -47,8 +48,13 @@ export interface OrganelleTypeDeclaration {
   readonly overhead: number;
   /** `β_type`, what the type's own tissue costs per unit area per tick. */
   readonly tissueCost: number;
-  /** Whether gravity ignores it (ADR-0032), read once gravity exists (M8). */
-  readonly weightless: boolean;
+  /**
+   * The type's density `c_type`, in units of `Δ` above the surface's water
+   * (ADR-0030), or `"weightless"`: gravity ignores it, like the cytoplasm
+   * (ADR-0032). A type weighs only when weight is what it does or what it
+   * costs.
+   */
+  readonly density: number | "weightless";
 }
 
 /**
@@ -75,18 +81,35 @@ const NEURON: OrganelleTypeDeclaration = {
   ],
   overhead: C_NEURON,
   tissueCost: BODY_COST_COEFFICIENT,
-  weightless: true,
+  density: "weightless",
+};
+
+/**
+ * M8's float: the first type that weighs. Its density is `ρ_w(0) − Δ`, one
+ * span lighter than the surface's water, so it lifts at every depth and
+ * more the deeper it sits (ADR-0032). It has the neuron's laws, no ports, and
+ * pays the shared `c_organelle` as its overhead and `β` on its tissue.
+ * Declared in the table but out of the default roster until it joins the
+ * Reference World; a world takes it through its roster or its founders.
+ */
+const FLOAT: OrganelleTypeDeclaration = {
+  parameters: NEURON.parameters,
+  overhead: C_ORGANELLE,
+  tissueCost: BODY_COST_COEFFICIENT,
+  density: -1,
 };
 
 export const ORGANELLE_TYPES = {
   neuron: NEURON,
+  float: FLOAT,
 } as const satisfies Readonly<Record<string, OrganelleTypeDeclaration>>;
 
 export type OrganelleType = keyof typeof ORGANELLE_TYPES;
 
 /**
  * The roster a world runs with unless it is given another (ADR-0032): the
- * organelle types its insertions draw from. M7's is the neuron alone; an
+ * organelle types its insertions draw from. M8's is the neuron and the
+ * float; an
  * empty roster is M6's world.
  */
-export const DEFAULT_ROSTER: readonly OrganelleType[] = ["neuron"];
+export const DEFAULT_ROSTER: readonly OrganelleType[] = ["neuron", "float"];

@@ -4,7 +4,7 @@ import {
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
 import {ExchangeSettlement} from "./environment";
-import {BASELINE_GENOME} from "./genome";
+import {BASELINE_GENOME, type OrganelleGeneDraft} from "./genome";
 import type {Pools} from "./ledger";
 import {
   applyMaintenance,
@@ -18,6 +18,7 @@ import {
   Organism,
   type OrganismView,
 } from "./organism";
+import type {OrganelleTypeDeclaration} from "./organelles";
 import {createRngStream, nextRng, type RngStream} from "./rng";
 
 /**
@@ -87,6 +88,33 @@ export function carrierAt(
       lineageHue: 0.5,
       genes,
     },
+    rng: createRngStream(11),
+  });
+}
+
+/**
+ * An organism carrying `organelles` exactly as given, in a cytoplasm of
+ * `thickness`; the layout must be relaxed already (tangent or apart), since
+ * the body relaxes it and a test wants its numbers. `declarations` puts a
+ * fixture type of a chosen density on the body.
+ */
+export function bearerAt(
+  x: number,
+  y: number,
+  organelles: readonly OrganelleGeneDraft[],
+  declarations?: Readonly<Record<string, OrganelleTypeDeclaration>>,
+  thickness = BASELINE_BODY_RADIUS,
+): Organism {
+  return new Organism({
+    x,
+    y,
+    genome: {
+      ...BASELINE_GENOME,
+      cytoplasmRadius: thickness,
+      lineageHue: 0.5,
+      genes: organelles.map((draft, i) => ({...draft, innovationId: i + 1})),
+    },
+    declarations,
     rng: createRngStream(11),
   });
 }

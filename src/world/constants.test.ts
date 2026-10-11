@@ -42,6 +42,33 @@ describe("constant overrides", () => {
     await expect(importConstants()).rejects.toThrow(/ACQUARIO_RHO/);
   });
 
+  it("leaves the water's density units unreachable", async () => {
+    vi.stubEnv("ACQUARIO_DENSITY_SPAN", "2");
+    await expect(importConstants()).rejects.toThrow(/ACQUARIO_DENSITY_SPAN/);
+
+    vi.stubEnv("ACQUARIO_DENSITY_SPAN", undefined);
+    vi.stubEnv("ACQUARIO_WATER_DENSITY_AT_SURFACE", "1");
+    await expect(importConstants()).rejects.toThrow(
+      /ACQUARIO_WATER_DENSITY_AT_SURFACE/,
+    );
+  });
+
+  it("commits g at its closed form, about 4.2, and c_organelle at about 0.62", async () => {
+    const {G, C_ORGANELLE} = await importConstants();
+
+    expect(G).toBeCloseTo(4.2217, 4);
+    expect(C_ORGANELLE).toBeCloseTo(0.624, 6);
+  });
+
+  it("derives g again when the birth radius moves, and takes an override of its own", async () => {
+    vi.stubEnv("ACQUARIO_R_NEW", "0.04");
+    const {G} = await importConstants();
+    expect(G).toBeCloseTo(4.2217 / 4, 4);
+
+    vi.stubEnv("ACQUARIO_G", "1.5");
+    expect((await importConstants()).G).toBe(1.5);
+  });
+
   it("refuses a name it does not recognise, rather than sweeping nothing", async () => {
     vi.stubEnv("ACQUARIO_K_PHOTOSYNTHESIS", "0.25");
 

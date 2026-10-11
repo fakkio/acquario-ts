@@ -162,3 +162,24 @@ export const DARK_DEPTH = setting("DARK_DEPTH", (3 * AQUARIUM_HEIGHT) / 4);
  * is the difference between a viable band and a slow death.
  */
 export const DARK_TICKS = setting("DARK_TICKS", 30_000);
+
+/**
+ * The `g` check (#77): a Fixed Population of float carriers run long enough
+ * for the depth profile to settle and be sampled. A scale height of 10 with
+ * a diffusion of about 0.003 per tick relaxes over ~10⁴ ticks, so 150k
+ * leaves the second half well settled.
+ */
+export const BUOYANCY_TICKS = setting("BUOYANCY_TICKS", 150_000);
+
+/** How many float carriers the `g` check places. */
+export const BUOYANCY_BODIES = setting("BUOYANCY_BODIES", 40);
+
+/** How often the `g` check reads the depths. */
+export const BUOYANCY_SAMPLE_EVERY = setting("BUOYANCY_SAMPLE_EVERY", 100);
+
+/** The float on the Reference World (#81): persistence's own 100k, since a
+ * carrier fraction is a quantity of generations. */
+export const WORLD_TICKS = setting("WORLD_TICKS", 100_000);
+
+/** How often that run reads the population. */
+export const WORLD_SAMPLE_EVERY = setting("WORLD_SAMPLE_EVERY", 2_500);

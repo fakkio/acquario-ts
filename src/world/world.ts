@@ -26,7 +26,7 @@ import {
 } from "./mitosis";
 import {DEFAULT_ROSTER, type OrganelleType} from "./organelles";
 import {FlowTracer, type TickFlows} from "./tickFlows";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {applyMotion} from "./motion";
 import {
   createPopulation,
   foldPopulation,
@@ -37,7 +37,7 @@ import {
   type PopulationDraw,
 } from "./organism";
 import {createRngStream, type RngStream} from "./rng";
-import {separateOverlaps, worstPenetration} from "./separation";
+import {resolveCollisions, worstPenetration} from "./separation";
 
 /**
  * Fixed simulation step, decoupled from `requestAnimationFrame`: how much real
@@ -409,7 +409,7 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   );
   // 6. Brownian motion.
   for (const organism of state.population) {
-    applyBrownianMotion(organism);
+    applyMotion(organism);
   }
   // 7. Evaluate mitosis: per organism, writing only to that organism —
   //    exactly like the steps above — and enqueuing a pending birth
@@ -451,13 +451,10 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   //     here, consumed by the separation pass, and dropped when the tick
   //     ends: it is an index of where the bodies are *now*, and the only
   //     place that is true is between the last write to a position and the
-  //     next one. Separation runs ahead of the wall constraint, so a body
-  //     pushed out of another body still ends the tick inside the
-  //     aquarium.
-  separateOverlaps(state.population, buildUniformGrid(state.population));
-  for (const organism of state.population) {
-    constrainToAquarium(organism);
-  }
+  //     next one. Each of the K passes separates, then sets every body
+  //     back inside the walls, so a body pushed out of another body still
+  //     ends the tick inside the aquarium.
+  resolveCollisions(state.population);
   // 11. Deaths: step 8's remains are deposited into the pools settled at
   //     step 9, and the population becomes step 8's survivors — never a
   //     second evaluation of the predicate (ADR-0017).

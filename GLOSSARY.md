@@ -300,6 +300,14 @@ _Avoid_: drift, jitter, wander, random walk
 From v0.2, the vertical force gravity puts on a body: over its weighing organelles only, each one's area times the difference between its **Organelle Density** and the **Water Density** where it sits, applied at the organelle's own position so it also turns the body. Zero for a body with no organelles, at any depth. It vanishes where the organelles' mean density meets the water's, which is the depth a body rests at without thrust (ADR-0030).
 _Avoid_: gravity (that is the field), mass, buoyancy (alone), sinking force
 
+**Resting Depth**:
+The depth at which a body's **Buoyant Weight** vanishes, where the mean density of its weighing organelles meets the **Water Density**: where it settles with no thrust. A body whose weighing organelles are all lighter than the surface's water, or all heavier than the floor's, has none and rests against that wall; a body with no weighing organelles has none and wanders as in v0.1.
+_Avoid_: equilibrium depth, buoyancy depth, target depth
+
+**Body Axis**:
+From v0.2, the direction in which a body's genome frame points "up" in the world. Physical state, not a gene: turned only by torque, a child inherits its parent's at birth, and a founder's is the world's own. Every organelle's position in the world is its position in the body read through it, and the `up` and `tilt` **Innate Senses** report it.
+_Avoid_: orientation (that is a thruster's parameter), heading, rotation (that is its change), angle
+
 **Organelle Density**:
 The mass per area an organelle type declares, a constant of the type and never a gene, compared against the **Water Density** to give its share of **Buoyant Weight**. Only a type whose function or cost is its weight declares one; every other type is weightless, like the cytoplasm. Separate from `ρ`, which is carbon per area: a light organelle costs the same carbon at birth as any other area.
 _Avoid_: density (alone), ρ (that is carbon), weight, buoyancy

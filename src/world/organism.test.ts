@@ -120,6 +120,28 @@ describe("createPopulation", () => {
   });
 });
 
+describe("the Body Axis of a founder (M8)", () => {
+  it("starts every placed founder on the world's axis, whatever the roster", () => {
+    for (const roster of [[], ["neuron", "float"] as const]) {
+      const {population} = createPopulation(createRngStream(7), undefined, [
+        ...roster,
+      ]);
+
+      for (const organism of population) {
+        expect(organism.axis).toEqual({cos: 1, sin: 0});
+      }
+    }
+  });
+
+  it("starts an explicit founder on the world's axis, and draws nothing for it", () => {
+    const founders = [{x: 5, y: 5, genome: BASELINE_GENOME}];
+    const {population, stream} = placeFounders(createRngStream(7), founders);
+
+    expect(population[0].axis).toEqual({cos: 1, sin: 0});
+    expect(stream).toEqual(placeFounders(createRngStream(7), founders).stream);
+  });
+});
+
 describe("createPopulation over a roster (M7)", () => {
   it("is M6's generation 0 under an empty roster: no organelle, ids untouched, the same stream", () => {
     const empty = createPopulation(createRngStream(7), undefined, []);

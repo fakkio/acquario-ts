@@ -1,4 +1,6 @@
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
+import {BROWNIAN_FORCE, DRAG_PER_RADIUS} from "./constants";
+import {buoyantTorque, buoyantWeight} from "./gravity";
 import type {Organism} from "./organism";
 import {drawUnitVector} from "./rng";
 
@@ -16,49 +18,78 @@ import {drawUnitVector} from "./rng";
  * for the render loop's benefit, and never enters a world quantity.
  */
 
-/**
- * Stokes' law, `drag = 6πμr`, with the medium's viscosity μ ≡ 1 — the same
- * move `BASELINE_BODY_RADIUS = 1` makes for length. This constant fixes the
- * *shape* of the drag law and was not tuned; the force below is the one free
- * knob, which is why all the tuning was done there.
+/*
+ * The Brownian force is applied to a body of radius `R` as `BROWNIAN_FORCE ·
+ * √R` (`constants.ts`). That is fluctuation–dissipation: a larger body has
+ * more drag and takes more molecular kicks, so the random force scales with
+ * the square root of drag. The step then goes as `1/√R`, and since a random
+ * walk's diffusion coefficient goes as the square of its step, `D ∝ 1/R`,
+ * Stokes–Einstein. A force independent of radius would give a step `∝ 1/R`
+ * and `D ∝ 1/R²`, sending small bodies out of the bright band twice as fast
+ * as the physics says.
+ *
+ * Retuning `BROWNIAN_FORCE` is a visible change to how a run looks, and moves
+ * `G` with it, so the resulting step length is pinned by a test rather than
+ * left to drift silently.
  */
-const DRAG_PER_RADIUS = 6 * Math.PI;
 
-/**
- * The magnitude of the random force applied to a baseline body each tick, in
- * the direction it drew. Tuned against the constant above so a baseline body
- * moves about a tenth of its own radius per tick: enough to read as microscopy
- * at sixty ticks a second, little enough that a body covers a few body radii
- * in a minute rather than a lap of the aquarium.
- *
- * A body of any other radius is pushed by this times `√bodyRadius`. That is
- * fluctuation–dissipation: a larger body has more drag and takes more
- * molecular kicks, so the random force scales with the square root of drag.
- * The step then goes as `1/√r`, and since a random walk's diffusion
- * coefficient goes as the square of its step, `D ∝ 1/r` — Stokes–Einstein. A
- * force independent of radius would give a step `∝ 1/r` and `D ∝ 1/r²`,
- * sending small bodies out of the bright band twice as fast as the physics
- * says.
- *
- * Retuning this is a visible change to how a run looks, so the resulting step
- * length is pinned by a test rather than left to drift silently.
- */
-const BROWNIAN_FORCE = 2;
+/** `8π`, the rotational drag of a Stokes sphere per cubed radius; its
+ * translational sibling is `DRAG_PER_RADIUS = 6π`. */
+const ROTATIONAL_DRAG_PER_CUBE = 8 * Math.PI;
+
+/** What a test may change about the motion step. Production passes none; the
+ * declarations it reads are the organism's, supplied at its construction. */
+export interface MotionOptions {
+  /** `"off"` draws nothing and moves a body by its Buoyant Weight alone. */
+  readonly brownian?: "on" | "off";
+}
 
 /**
  * Resolve phase, step 6. Reads and writes only this organism — its position
  * and its own stream — which is what lets the phase run in any order.
+ *
+ * Two forces move a body, both over its drag `6π·R`: a Brownian push in a
+ * random direction (the step's first and only draw), and the Buoyant Weight
+ * straight down, positive towards the floor (`gravity.ts`). Its torque turns
+ * the Body Axis at `τ / 8π·R³`. A body with nothing that weighs feels
+ * neither, and moves exactly as in v0.1.
  */
-export function applyBrownianMotion(organism: Organism): void {
-  const direction = drawUnitVector(organism.rng);
-  organism.rng = direction.stream;
+export function applyMotion(
+  organism: Organism,
+  options: MotionOptions = {},
+): void {
+  const radius = organism.bodyRadius;
+  const moments = organism.moments;
 
-  // BROWNIAN_FORCE·√r / (DRAG_PER_RADIUS·r), simplified.
-  const velocity =
-    BROWNIAN_FORCE / (DRAG_PER_RADIUS * Math.sqrt(organism.bodyRadius));
+  if (options.brownian !== "off") {
+    const direction = drawUnitVector(organism.rng);
+    organism.rng = direction.stream;
 
-  organism.x += direction.x * velocity;
-  organism.y += direction.y * velocity;
+    // BROWNIAN_FORCE·√R / (DRAG_PER_RADIUS·R), simplified.
+    const velocity = BROWNIAN_FORCE / (DRAG_PER_RADIUS * Math.sqrt(radius));
+
+    organism.x += direction.x * velocity;
+    organism.y += direction.y * velocity;
+  }
+
+  if (moments.area === 0) {
+    return;
+  }
+
+  const {axis} = organism;
+  const weight = buoyantWeight(moments, organism.y, axis);
+  const torque = buoyantTorque(moments, organism.y, axis);
+  organism.y += weight / (DRAG_PER_RADIUS * radius);
+
+  // The rotational drag of the Stokes sphere whose translational drag is
+  // `6π·R`. One small rotation by `ω` and a renormalising square root: no
+  // `sin` or `cos` in the tick, and the axis stays a unit vector to rounding.
+  const omega = torque / (ROTATIONAL_DRAG_PER_CUBE * radius ** 3);
+  const cos = axis.cos - omega * axis.sin;
+  const sin = axis.sin + omega * axis.cos;
+  const norm = Math.sqrt(cos * cos + sin * sin);
+  axis.cos = cos / norm;
+  axis.sin = sin / norm;
 }
 
 /**
