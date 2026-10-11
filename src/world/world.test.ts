@@ -2,7 +2,7 @@ import {describe, expect, it} from "vitest";
 
 import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
-import {BASELINE_GENOME} from "./genome";
+import {BASELINE_GENOME, mutateGenome} from "./genome";
 import {DEFAULT_ROSTER} from "./organelles";
 import {
   initializeMetabolism,
@@ -1458,9 +1458,11 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  it("defaults to the neuron and the float, and an empty roster is M6's world", () => {
+  it("defaults to the neuron, the float and the chloroplast, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
-    const explicit = createWorld(1234, {roster: ["neuron", "float"]});
+    const explicit = createWorld(1234, {
+      roster: ["neuron", "float", "chloroplast"],
+    });
     const m6 = createWorld(1234, {roster: []});
 
     expect(hashState(explicit)).toBe(hashState(reference));
@@ -1468,6 +1470,22 @@ describe("the roster and the Innovation Id counter (M7)", () => {
     expect(
       getPopulation(m6).every((organism) => organism.organelles.length === 0),
     ).toBe(true);
+  });
+
+  it("draws every type of the default roster, the chloroplast among them", () => {
+    // A world's insertions are rare in the first thousands of ticks (a few
+    // carriers by tick 8000), so the roster is read where it is drawn from:
+    // the structural law, with every trial forced to an event.
+    const types = new Set<string>();
+    for (let seed = 0; seed < 200; seed++) {
+      const child = mutateGenome(BASELINE_GENOME, createRngStream(seed), {
+        roster: DEFAULT_ROSTER,
+        eventProbability: 1,
+      });
+      child.genome.genes.forEach((gene) => types.add(gene.type));
+    }
+
+    expect(types).toEqual(new Set(["neuron", "float", "chloroplast"]));
   });
 
   it("never inserts a neuron into an unprimed world with an empty roster", () => {

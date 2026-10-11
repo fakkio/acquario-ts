@@ -127,8 +127,9 @@ export interface WorldOptions {
   readonly generation0?: Generation0;
   /**
    * The organelle types the world's structural mutation draws insertions
-   * from (ADR-0032). Defaults to M7's roster, the neuron; an empty roster
-   * is M6's world, with no structural event ever drawn.
+   * from (ADR-0032). Defaults to M9's roster, the neuron, the float and the
+   * chloroplast; an empty roster is
+   * M6's world, with no structural event ever drawn.
    */
   readonly roster?: readonly OrganelleType[];
 }
