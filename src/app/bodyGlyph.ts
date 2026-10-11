@@ -1,4 +1,4 @@
-import type {OrganismView} from "../world";
+import {turn, type OrganismView} from "../world";
 
 /**
  * How one body is drawn, v0.2's look (`docs/vision.md` § Interface → v0.2):
@@ -14,7 +14,7 @@ import type {OrganismView} from "../world";
  * death effect also keeps for a body no longer in the population. */
 export type BodyShape = Pick<
   OrganismView,
-  "x" | "y" | "bodyRadius" | "lineageHue" | "organelles"
+  "x" | "y" | "bodyRadius" | "lineageHue" | "organelles" | "axis"
 >;
 
 /** Lightness at zero energy and at a full store, in percent — the range a
@@ -32,6 +32,13 @@ const CYTOPLASM_SATURATION = 40;
  * the screen's own palette, which binds nothing an organism perceives. */
 const NEURON_LIGHTNESS = 82;
 const ORGANELLE_OUTLINE_LIGHTNESS = 12;
+
+/** A float at full energy: a pale white-blue disc, translucent like a
+ * bubble, with the same dark outline. */
+const FLOAT_HUE = 200;
+const FLOAT_SATURATION = 70;
+const FLOAT_LIGHTNESS = 90;
+const FLOAT_ALPHA = 0.55;
 
 /** The outline's screen width, and the share of an organelle's radius it may
  * take at most, so a neuron a pixel wide stays grey rather than all outline. */
@@ -67,15 +74,18 @@ export function drawBody(
     return;
   }
 
-  // Every organelle is a neuron in M7; the per-type palette grows with the
-  // roster (`docs/vision.md`: chloroplast green, thruster red, float pale).
-  ctx.fillStyle = `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
   ctx.strokeStyle = `hsl(0, 0%, ${String(ORGANELLE_OUTLINE_LIGHTNESS * brightness)}%)`;
   for (const organelle of body.organelles) {
-    // No rotation until M8: an organelle sits at the body's position plus
-    // its own.
-    const x = body.x + organelle.x;
-    const y = body.y + organelle.y;
+    // The per-type palette grows with the roster (`docs/vision.md`:
+    // chloroplast green, thruster red). An organelle sits at the body's
+    // position plus its own turned through the Body Axis.
+    ctx.fillStyle =
+      organelle.type === "float"
+        ? `hsla(${String(FLOAT_HUE)}, ${String(FLOAT_SATURATION)}%, ${String(FLOAT_LIGHTNESS * brightness)}%, ${String(FLOAT_ALPHA)})`
+        : `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
+    const turned = turn(body.axis, organelle.x, organelle.y);
+    const x = body.x + turned.x;
+    const y = body.y + turned.y;
     ctx.lineWidth = Math.min(
       ORGANELLE_OUTLINE_PX / worldScale,
       organelle.radius * ORGANELLE_OUTLINE_MAX_SHARE,

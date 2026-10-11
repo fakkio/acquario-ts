@@ -3,7 +3,6 @@ import {describe, expect, it} from "vitest";
 import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
 import {BASELINE_GENOME} from "./genome";
-import {buildUniformGrid} from "./grid";
 import {DEFAULT_ROSTER} from "./organelles";
 import {
   initializeMetabolism,
@@ -19,7 +18,7 @@ import {
   applyRespiration,
 } from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
-import {applyBrownianMotion, constrainToAquarium} from "./motion";
+import {applyMotion} from "./motion";
 import {
   DIFFUSIBLES,
   STARTING_POPULATION,
@@ -31,7 +30,7 @@ import {
   type Organism,
 } from "./organism";
 import {createRngStream} from "./rng";
-import {separateOverlaps} from "./separation";
+import {resolveCollisions} from "./separation";
 import {
   organismAt,
   randomPopulation,
@@ -409,12 +408,9 @@ describe("collisions", () => {
       }
 
       for (const organism of byHand) {
-        applyBrownianMotion(organism);
+        applyMotion(organism);
       }
-      separateOverlaps(byHand, buildUniformGrid(byHand));
-      for (const organism of byHand) {
-        constrainToAquarium(organism);
-      }
+      resolveCollisions(byHand);
     }
 
     const {world, ticksRun} = advance(
@@ -494,12 +490,9 @@ describe("passive exchange (M2)", () => {
   ): Pools {
     const settled = runExchange(population, pools);
     for (const organism of population) {
-      applyBrownianMotion(organism);
+      applyMotion(organism);
     }
-    separateOverlaps(population, buildUniformGrid(population));
-    for (const organism of population) {
-      constrainToAquarium(organism);
-    }
+    resolveCollisions(population);
     return settled;
   }
 
@@ -1142,18 +1135,12 @@ describe("fertility mode (M4)", () => {
       for (let tick = 0; tick < ticks; tick++) {
         currentPools = runMetabolism(currentPopulation, currentPools);
         for (const organism of currentPopulation) {
-          applyBrownianMotion(organism);
+          applyMotion(organism);
         }
         const births = currentPopulation
           .map((organism) => evaluateMitosis(organism, []))
           .filter((birth): birth is PendingBirth => birth !== null);
-        separateOverlaps(
-          currentPopulation,
-          buildUniformGrid(currentPopulation),
-        );
-        for (const organism of currentPopulation) {
-          constrainToAquarium(organism);
-        }
+        resolveCollisions(currentPopulation);
         currentPopulation = appendBirths(currentPopulation, births);
       }
       return {population: currentPopulation, pools: currentPools};
@@ -1471,9 +1458,9 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  it("defaults to the neuron, and an empty roster is M6's world", () => {
+  it("defaults to the neuron and the float, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
-    const explicit = createWorld(1234, {roster: ["neuron"]});
+    const explicit = createWorld(1234, {roster: ["neuron", "float"]});
     const m6 = createWorld(1234, {roster: []});
 
     expect(hashState(explicit)).toBe(hashState(reference));
@@ -1509,6 +1496,16 @@ describe("the roster and the Innovation Id counter (M7)", () => {
       expect(Math.abs(getOxygenDrift(world))).toBeLessThan(1e-9);
     }
     expect(carriers).toBeGreaterThan(0);
+  });
+
+  it("inserts floats on the default roster", () => {
+    // Insertions are rare early on; seed 1 holds three floats by tick 20000.
+    const world = ticks(createWorld(1), 20000);
+    const types = getPopulation(world)
+      .flatMap((organism) => organism.organelles)
+      .map((organelle) => organelle.type);
+
+    expect(types).toContain("float");
   });
 
   it("reaches the same hash at tick N in two runs of the default world", () => {

@@ -6,6 +6,7 @@ import {
   mutateGenome,
   type Genome,
 } from "./genome";
+import type {BodyAxis} from "./gravity";
 import type {OrganelleType} from "./organelles";
 import {constrainToAquarium} from "./motion";
 import {
@@ -32,6 +33,8 @@ export interface PendingBirth {
   readonly x: number;
   readonly y: number;
   readonly rng: RngStream;
+  /** The parent's Body Axis at birth, a copy. */
+  readonly axis: Readonly<BodyAxis>;
   /** The parent's Generation plus one. */
   readonly generation: number;
   readonly energy: number;
@@ -43,7 +46,7 @@ export interface PendingBirth {
 /**
  * Resolve-phase step 7 (ADR-0006/ADR-0019): per organism, writing only to
  * that organism — its own stores and its own stream — exactly like
- * `applyRespiration` and `applyBrownianMotion`, which is what keeps this
+ * `applyRespiration` and `applyMotion`, which is what keeps this
  * phase order-independent by construction. Unlike `evaluateDeaths`, this
  * does not partition the population: it is called once per organism and
  * either hands back a `PendingBirth` or does not. A parent turned away
@@ -162,6 +165,7 @@ export function evaluateMitosis(
     x: organism.x + direction.x * separation,
     y: organism.y + direction.y * separation,
     rng: childStream,
+    axis: {cos: organism.axis.cos, sin: organism.axis.sin},
     generation: organism.generation + 1,
     energy: childStores.energy,
     oxygen: childStores.oxygen,
@@ -268,6 +272,7 @@ export function appendBirths(
       y: birth.y,
       genome: birth.genome,
       rng: birth.rng,
+      axis: birth.axis,
       generation: birth.generation,
       energy: birth.energy,
       oxygen: birth.oxygen,

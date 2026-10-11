@@ -67,6 +67,7 @@ export function createDeathEffects(): DeathEffects {
             bodyRadius: organism.bodyRadius,
             lineageHue: organism.lineageHue,
             organelles: organism.organelles,
+            axis: {cos: organism.axis.cos, sin: organism.axis.sin},
             startMs: nowMs,
           });
         }

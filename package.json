@@ -37,6 +37,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "buoyancy": "node --import ./scripts/ts-esm-resolver.mjs scripts/buoyancy.ts",
     "caps": "node --import ./scripts/ts-esm-resolver.mjs scripts/caps.ts",
     "calibrate": "node --import ./scripts/ts-esm-resolver.mjs scripts/calibrate.ts",
     "dev": "vite",
