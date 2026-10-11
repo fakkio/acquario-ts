@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Gravity and buoyancy** (ADR-0030, ADR-0032). The water's density rises linearly from the surface to the floor; each organelle type declares a density (in units of the water's span) or that it is weightless. The **float**, density `−1`, is the first type that weighs, and joins the neuron in the default roster. A body feels the **Buoyant Weight** of its weighing organelles, each at its own depth, and is pushed towards its **Resting Depth**. `g` is derived in closed form (≈ 4.22) so a float at `r_new` on a baseline body has a scale height of the Bright Band's thickness. `Δ` and `ρ_w(0)` are fixed units, unreachable from the environment.
+- The **Body Axis**: every organism carries an orientation as physical state, a unit vector turned by weight's torque over the rotational drag `8π·R³`. Founders start aligned with the world, a child inherits its parent's axis, and no new draw enters any stream.
+- Step 6 is **motion**: the same Brownian draw, plus the Buoyant Weight's force and torque, integrated once into position and axis.
+- `c_organelle` committed at ≈ 0.62, derived from the chloroplast's `r_new ≈ r*/2` rule with `kChloro = 2·kPhoto`.
+- The float drawn as a pale, translucent bubble; organelles drawn through the Body Axis. The inspector shows the axis, Buoyant Weight with torque, Resting Depth and a density column.
+- `npm run buoyancy`: the `g` check (a Fixed Population of float carriers against the predicted depth profile) and the Reference World over seeds 7–11 at 100k ticks (float and neuron carrier fractions, carriers against non-carriers by depth, the axis and the float's lever against the vertical, worst penetration). Reported, never gated (ADR-0024).
+- Devlog article 012, _La domanda sbagliata, tre volte_.
+
+### Changed
+
+- Separation runs three passes per tick, each followed by the wall clamp, the smallest number that holds M1's ceiling of 0.5 on a crowd of 160 bodies each carrying a float of radius 0.1 pinned to the surface (ADR-0008). It moves every world, the empty-roster one included.
+- The state hash folds each organism's Body Axis. The golden value is re-recorded (`fd8594ce`) after the empty-roster world, hashed the old way, was checked to still match M7.5's.
+- A type declaration states a density or `weightless`, replacing the boolean flag.
+
 ## [0.1.3] - 2026-10-08
 
 ### Added
