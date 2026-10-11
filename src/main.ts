@@ -92,12 +92,23 @@ let selectedFlows: TickFlows | null = null;
 // restart showed nothing; M5's calibrated constants are what makes leaving
 // the tab open show a sequence of worlds rather than one dead aquarium.
 let autoRestart = true;
+// What the Tick row cannot say once a world has died and been replaced: how
+// many times that happened, and the ticks the dead worlds ran. For a run left
+// open overnight, where the current world's tick alone hides the extinctions.
+let restarts = 0;
+let ticksInDeadWorlds = 0;
 
 const hud = mountHud();
 const updateHud = (currentWorld: World, fps: number): void => {
   hud.setField("fps", "FPS", fps.toFixed(0));
   hud.setField("tick", "Tick", String(getTick(currentWorld)));
   hud.setField("seed", "Seed", String(getSeed(currentWorld)));
+  hud.setField("restarts", "Restarts", String(restarts));
+  hud.setField(
+    "sessionTicks",
+    "Session ticks",
+    String(ticksInDeadWorlds + getTick(currentWorld)),
+  );
   // M1's invariant, live: how deep the worst-overlapping pair stands, in
   // baseline body radii. Three decimals, because what the row is watched for
   // is whether the number sits at zero or holds a floor — not what its fourth
@@ -239,6 +250,8 @@ const camera = mountCamera(canvas, frameAquarium(canvas), repaint);
 // noticing an empty population from outside and rebinding the loop's
 // handle to a freshly constructed world.
 const restart = (): void => {
+  restarts++;
+  ticksInDeadWorlds += getTick(latestWorld);
   const newWorld = createWorld(session.nextWorldSeed(), {roster: ROSTER});
   loop.setWorld(newWorld);
   latestWorld = newWorld;
