@@ -17,3 +17,29 @@ Un errore dell'agente, preso subito dal test: nel test del coefficiente zero la 
 ---
 
 La revisione ha anche trovato due test deboli che passavano senza dimostrare quello che dicevano: quello sulla strozzatura non controlla il rapporto fra la quota del corpo e quella dei cloroplasti, quello sul coefficiente zero confronta solo il termine passivo. Non sono stati rafforzati, il ticket successivo li eredita.
+
+---
+
+#85, la conservazione con i cloroplasti. Il test lungo è scritto in una sera, ma il primo giro è rosso per la ragione sbagliata: il carbonio e l'ossigeno tornano a `1e-9` al primo colpo, quello che non regge è l'asserzione che i portatori di cloroplasti siano ancora vivi. Il ticket lo aveva previsto ("se i fondatori muoiono prima, si ricostruiscono i fondatori, non la tolleranza"), e con il senno di poi è la frase che ha deciso come si lavora: la tolleranza non si tocca, si cambia il mondo.
+
+---
+
+Previsione contraddetta, la prima di M9: pensavo che i fondatori in superficie, dove la luce c'è e il throttle della CO₂ morde, fossero i più robusti. Sono i primi a morire. Con tre quarti dei fondatori in superficie la popolazione è a zero entro 10k tick, senza una nascita; con tre quarti in profondità a metà acquario nascono 29 figli e poi la linea si spegne comunque entro 35k tick. Non so ancora perché. Ipotesi non verificate: il cloroplasto denso li fa affondare, o in superficie si pestano la CO₂ a vicenda.
+
+---
+
+Cloroplasti più grandi, peggio. Con raggi fra 0,04 e 0,12 al posto di 0,03-0,07 la popolazione di 48 fondatori è a zero a 10k tick. Il cloroplasto costa (overhead, tessuto) prima di rendere, e un corpo piccolo non regge il prezzo di un organello grosso.
+
+---
+
+Quattro configurazioni su dieci hanno finito con zero portatori. La sperimentazione è stata cieca: ogni tentativo costa 18 secondi di simulazione e l'unico segnale è una tabella di popolazione ogni 5000 tick. Quello che ha funzionato è stato 32 fondatori, metà in superficie e metà da metà profondità in giù, e a me sembra più fortuna calibrata che una ragione.
+
+---
+
+> "il test passa" e "il test dimostra quello che dice" sono due cose diverse
+
+(nota dell'agente, non di Fabio, da tenere solo se serve): i portatori vengono contati a ogni campione da 1000 tick, quindi un'estinzione fra due campioni passerebbe inosservata. Con 32 fondatori non succede, ma la tenuta del test dipende da questa scelta di granularità.
+
+---
+
+Per il verdetto di M9: il cloroplasto da solo non sostiene un lignaggio nella sua forma attuale. Se l'harness (#87) misura lo stesso, il numero da spiegare è perché un organello che "fissa carbonio" non basta a pagare se stesso.
