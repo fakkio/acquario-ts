@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-10-11
+
 ### Added
 
 - **Gravity and buoyancy** (ADR-0030, ADR-0032). The water's density rises linearly from the surface to the floor; each organelle type declares a density (in units of the water's span) or that it is weightless. The **float**, density `−1`, is the first type that weighs, and joins the neuron in the default roster. A body feels the **Buoyant Weight** of its weighing organelles, each at its own depth, and is pushed towards its **Resting Depth**. `g` is derived in closed form (≈ 4.22) so a float at `r_new` on a baseline body has a scale height of the Bright Band's thickness. `Δ` and `ρ_w(0)` are fixed units, unreachable from the environment.
