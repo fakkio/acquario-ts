@@ -623,12 +623,21 @@ export const G = tunable(
  * times the neuron's overhead. `kChloro = 2·K_PHOTO` is fixed by this
  * milestone. **Moving `K_PHOTO` (M12) requires deriving this again.**
  */
-const K_CHLORO = 2 * K_PHOTO;
 const BRIGHT_BAND_LIGHT_EXPOSURE = 260;
 export const C_ORGANELLE = tunable(
   "C_ORGANELLE",
-  2 * K_CHLORO * BRIGHT_BAND_LIGHT_EXPOSURE * R_NEW,
+  2 * (2 * K_PHOTO) * BRIGHT_BAND_LIGHT_EXPOSURE * R_NEW,
 );
+
+/**
+ * `kChloro`, the chloroplast's photosynthesis coefficient (ADR-0029): each
+ * chloroplast fixes `kChloro × light × 2·r × C_cytoplasm(CO₂)` on its own
+ * disc. Derived as `2·K_PHOTO` so it follows `K_PHOTO` if M12 moves it, and
+ * tunable so the harness can sweep it. `C_ORGANELLE` is derived from the
+ * committed `2·K_PHOTO`, not from this value: a sweep of `kChloro` must not
+ * move the price the chloroplast pays.
+ */
+export const K_CHLORO = tunable("K_CHLORO", 2 * K_PHOTO);
 
 /**
  * Last, once every `tunable` above has registered its name: an

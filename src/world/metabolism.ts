@@ -7,7 +7,8 @@ import {
   RESPIRATION_ENERGY_YIELD,
 } from "./constants";
 import type {Environment} from "./environment";
-import {ORGANELLE_TYPES} from "./organelles";
+import {turn} from "./gravity";
+import {ORGANELLE_TYPES, type OrganelleTypeDeclaration} from "./organelles";
 import {
   DIFFUSIBLES,
   bodyAreaOfRadius,
@@ -91,9 +92,10 @@ export function applyPassiveExchange(
  * do that.
  *
  * The rate follows mass action on internal CO₂ — ADR-0003's shape, applied
- * here to fixation rather than diffusion — multiplied by the light at the
- * body's centre and by the width it projects toward that light, i.e. its
- * diameter. Depth buys something real: an organism in the bright zone
+ * here to fixation rather than diffusion — multiplied by the light and by the
+ * width it projects toward that light. The body's passive term reads the
+ * light at its centre and its diameter; each chloroplast adds a term of the
+ * same shape on its own disc. Depth buys something real: an organism in the bright zone
  * fixes carbon a floor-dwelling twin cannot approach, and complete darkness
  * fixes nothing at all.
  *
@@ -111,13 +113,36 @@ export function applyPassiveExchange(
 export function applyPhotosynthesis(
   organism: Organism,
   environment: Environment,
+  declarations: Readonly<
+    Record<string, OrganelleTypeDeclaration>
+  > = ORGANELLE_TYPES,
 ): void {
   const diameter = 2 * organism.bodyRadius;
   const internalCo2Concentration =
     organism.carbonDioxide / organism.cytoplasmArea;
   const light = environment.light(organism);
 
-  const rate = K_PHOTO * internalCo2Concentration * light * diameter;
+  const passiveRate = K_PHOTO * internalCo2Concentration * light * diameter;
+
+  // Each organelle whose type declares a coefficient fixes on its own disc,
+  // reading the light where it sits (ADR-0029): the body's position plus its
+  // own turned through the Body Axis, both as the tick started, since motion
+  // comes after. Summed in genome order after the passive term, which keeps
+  // its own arithmetic, so a body with no chloroplast is bit-identical.
+  let rate = passiveRate;
+  for (const organelle of organism.organelles) {
+    const coefficient = declarations[organelle.type].photosynthesis;
+    if (coefficient === undefined) {
+      continue;
+    }
+    const turned = turn(organism.axis, organelle.x, organelle.y);
+    const discLight = environment.light({
+      x: organism.x + turned.x,
+      y: organism.y + turned.y,
+    });
+    rate +=
+      coefficient * internalCo2Concentration * discLight * 2 * organelle.radius;
+  }
   const substrateAvailable = organism.carbonDioxide;
 
   const fixed = Math.max(0, Math.min(rate, substrateAvailable));

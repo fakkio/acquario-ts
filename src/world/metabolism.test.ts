@@ -5,6 +5,7 @@ import {
   C_NEURON,
   EXISTENCE_COST,
   K_CAP_ENERGY,
+  K_CHLORO,
   K_DIFFUSION,
   K_PHOTO,
   K_RESP,
@@ -18,7 +19,10 @@ import {
   applyPhotosynthesis,
   applyRespiration,
 } from "./metabolism";
-import {bodyArea, energyCap, type Diffusible} from "./organism";
+import {BASELINE_GENOME} from "./genome";
+import {ORGANELLE_TYPES} from "./organelles";
+import {Organism, bodyArea, energyCap, type Diffusible} from "./organism";
+import {createRngStream} from "./rng";
 import {carrierAt, organismAt} from "./testing";
 
 /**
@@ -706,5 +710,196 @@ describe("a body with neurons", () => {
       bareOutcome.energyProduced * ratio,
       12,
     );
+  });
+});
+
+describe("applyPhotosynthesis on a chloroplast's disc", () => {
+  interface Gene {
+    type: "chloroplast" | "neuron";
+    radius: number;
+    x: number;
+    y: number;
+  }
+
+  const bearer = (genes: readonly Gene[], x = 10, y = 20) => {
+    return new Organism({
+      x,
+      y,
+      genome: {
+        ...BASELINE_GENOME,
+        lineageHue: 0.5,
+        genes: genes.map((gene, i) => ({...gene, innovationId: i + 1})),
+      },
+      rng: createRngStream(11),
+    });
+  };
+
+  const lightBy = (light: (pos: Vec2) => number): Environment => ({
+    concentration: () => 0,
+    light,
+    exchange: (_resource, _pos, amount) => amount,
+  });
+
+  const passiveOf = (organism: Organism, light: number): number =>
+    K_PHOTO *
+    (organism.carbonDioxide / organism.cytoplasmArea) *
+    light *
+    2 *
+    organism.bodyRadius;
+
+  const fixedBy = (organism: Organism, environment: Environment): number => {
+    const before = organism.carbonDioxide;
+    applyPhotosynthesis(organism, environment);
+    return before - organism.carbonDioxide;
+  };
+
+  it("fixes kChloro x light x 2r x C on the disc, besides the passive term", () => {
+    const organism = bearer([{type: "chloroplast", radius: 0.3, x: 0.2, y: 0}]);
+    organism.carbonDioxide = 0.1;
+    const concentration = organism.carbonDioxide / organism.cytoplasmArea;
+
+    const fixed = fixedBy(
+      organism,
+      lightBy(() => 0.5),
+    );
+
+    expect(fixed).toBeCloseTo(
+      K_PHOTO * concentration * 0.5 * 2 * organism.bodyRadius +
+        K_CHLORO * concentration * 0.5 * 2 * 0.3,
+      12,
+    );
+  });
+
+  it("asks each disc for its own position, turned through the Body Axis", () => {
+    const asked: Vec2[] = [];
+    const organism = bearer([{type: "chloroplast", radius: 0.3, x: 0.4, y: 0}]);
+    organism.axis.cos = 0;
+    organism.axis.sin = 1;
+    organism.carbonDioxide = 0.1;
+
+    applyPhotosynthesis(
+      organism,
+      lightBy((pos) => {
+        asked.push({x: pos.x, y: pos.y});
+        return 1;
+      }),
+    );
+
+    expect(asked).toHaveLength(2);
+    expect(asked[1]?.x).toBeCloseTo(10, 12);
+    expect(asked[1]?.y).toBeCloseTo(20.4, 12);
+  });
+
+  it("asks for mirrored depths when the same layout is upside down", () => {
+    const depthsAsked = (cos: number): number[] => {
+      const asked: number[] = [];
+      const organism = bearer([
+        {type: "chloroplast", radius: 0.3, x: 0, y: 0.4},
+      ]);
+      organism.axis.cos = cos;
+      organism.axis.sin = 0;
+      organism.carbonDioxide = 0.1;
+      applyPhotosynthesis(
+        organism,
+        lightBy((pos) => {
+          asked.push(pos.y);
+          return 1;
+        }),
+      );
+      return asked;
+    };
+
+    const upright = depthsAsked(1)[1];
+    const upsideDown = depthsAsked(-1)[1];
+
+    expect(upright - 20).toBeCloseTo(0.4, 12);
+    expect(upsideDown - 20).toBeCloseTo(-0.4, 12);
+  });
+
+  it("fixes in proportion to the light each chloroplast reads", () => {
+    const organism = bearer([
+      {type: "chloroplast", radius: 0.3, x: 0, y: -0.4},
+      {type: "chloroplast", radius: 0.3, x: 0, y: 0.4},
+    ]);
+    organism.carbonDioxide = 0.1;
+    const concentration = organism.carbonDioxide / organism.cytoplasmArea;
+    const disc = (light: number) => K_CHLORO * concentration * light * 0.6;
+
+    const fixed = fixedBy(
+      organism,
+      lightBy((pos) => (pos.y < 20 ? 0.8 : pos.y > 20 ? 0.2 : 0)),
+    );
+
+    expect(fixed).toBeCloseTo(disc(0.8) + disc(0.2), 12);
+  });
+
+  it("empties the store exactly and keeps the shares when the demand exceeds it", () => {
+    const organism = bearer([{type: "chloroplast", radius: 0.5, x: 0, y: 0}]);
+    organism.carbonDioxide = 1e-3;
+    const concentration = organism.carbonDioxide / organism.cytoplasmArea;
+    const bodyShare = K_PHOTO * concentration * 2 * organism.bodyRadius;
+    const discShare = K_CHLORO * concentration * 2 * 0.5;
+    // A light that makes the demand twice the store.
+    const light = (2 * organism.carbonDioxide) / (bodyShare + discShare);
+
+    const fixed = fixedBy(
+      organism,
+      lightBy(() => light),
+    );
+
+    expect(organism.carbonDioxide).toBe(0);
+    expect(fixed).toBeCloseTo(1e-3, 15);
+  });
+
+  it("conserves internal carbon and oxygen", () => {
+    const organism = bearer([
+      {type: "chloroplast", radius: 0.3, x: 0.3, y: 0},
+      {type: "chloroplast", radius: 0.2, x: -0.3, y: 0.2},
+    ]);
+    organism.carbonDioxide = 0.5;
+    organism.food = 0.1;
+    organism.oxygen = 0.2;
+    const carbon = organism.carbonDioxide + organism.food;
+    const oxygen = organism.oxygen - organism.food;
+
+    applyPhotosynthesis(
+      organism,
+      lightBy(() => 0.7),
+    );
+
+    expect(organism.carbonDioxide + organism.food).toBeCloseTo(carbon, 12);
+    expect(organism.oxygen - organism.food).toBeCloseTo(oxygen, 12);
+  });
+
+  it("fixes nothing on the disc of a type with no coefficient or a zero one", () => {
+    const withNeuron = bearer([{type: "neuron", radius: 0.3, x: 0, y: 0}]);
+    withNeuron.carbonDioxide = 0.1;
+    const zeroed = bearer([{type: "chloroplast", radius: 0.3, x: 0, y: 0}]);
+    zeroed.carbonDioxide = 0.1;
+    const declarations = {
+      ...ORGANELLE_TYPES,
+      chloroplast: {...ORGANELLE_TYPES.chloroplast, photosynthesis: 0},
+    };
+    const environment = lightBy(() => 1);
+
+    const neuronPassive = passiveOf(withNeuron, 1);
+    const zeroedPassive = passiveOf(zeroed, 1);
+
+    applyPhotosynthesis(withNeuron, environment);
+    applyPhotosynthesis(zeroed, environment, declarations);
+
+    // Same concentration; the neuron's body only differs by its area.
+    expect(withNeuron.food).toBeCloseTo(neuronPassive, 12);
+    expect(zeroed.food).toBeCloseTo(zeroedPassive, 12);
+  });
+
+  it("declares the chloroplast as the neuron's laws at density 3/2 with kChloro", () => {
+    const {chloroplast, neuron} = ORGANELLE_TYPES;
+
+    expect(chloroplast.parameters).toEqual(neuron.parameters);
+    expect(chloroplast.density).toBe(1.5);
+    expect(chloroplast.photosynthesis).toBe(K_CHLORO);
+    expect(chloroplast.overhead).toBe(ORGANELLE_TYPES.float.overhead);
+    expect(chloroplast.tissueCost).toBe(neuron.tissueCost);
   });
 });
