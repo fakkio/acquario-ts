@@ -351,7 +351,7 @@ export function reportRestingDepthByComposition(): void {
     `  ${integer(COMPOSITION_TICKS)} ticks, second half read (${integer(checks[0].samples)} depth readings). Profile exp((M·y − A·y²/2H)/(L·a_new)) within the walls, g = ${num(G)}.`,
   );
   note(
-    "  The layout's P_y/A term is ignored: the organelles sit on the centre. Bodies crowd and push each other, so expect noise and a deeper mean.",
+    "  The layout's P_y/A term is ignored: the organelles sit on the centre. The profile also ignores bodies crowding and pushing each other.",
   );
   table(
     [

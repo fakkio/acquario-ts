@@ -53,3 +53,27 @@ Nota dell'agente: nella chiusura del ticket ho scritto "3 semi su 12"; il conteg
 ---
 
 Il dato di sfondo: a 8000 tick la popolazione è ancora quasi tutta senza organelli, quindi "il roster di default è M9" vale sulla carta molto prima che nel mondo. Chi legge un grafico dei portatori a 10k tick non sta guardando la competizione fra tre tipi, sta guardando la coda di un'attesa.
+
+---
+
+#87, l'harness `npm run chloroplast`, prime due sezioni. Previsione contraddetta nel verso opposto a quello atteso: la previsione diceva che la CO₂ interna in superficie sarebbe stata consumata dalla fotosintesi, quindi `X` più basso del 260 impegnato, e il pareggio di un cloroplasto nuovo "un po' più in alto" di circa quattro raggi. Misurato: `X` sulla Bright Band 272 ± 7, in superficie 407, pareggio a 5,3 raggi. Il cloroplasto rende più del previsto e comincia a pagarsi più in basso, non più in alto.
+
+---
+
+Errore dell'agente, preso a occhio dalla tabella e non da un test: nella prima versione la profondità di pareggio chiedeva `r*(y) = r_new`, cioè `X = 520`, e l'harness rispondeva "non incrociato dalle fasce". Sembrava un risultato (nessun pareggio, forse il cloroplasto non si ripaga mai). Era una domanda sbagliata: `r* = c_organelle / k` conta il diametro `2r`, quindi un disco a `r_new` copre il suo overhead quando `r*(y) = 2·r_new`, che è dove `X = 260`. Il ticket diceva "il pareggio a `r_new`" e l'agente l'aveva letto alla lettera. L'ha visto perché la colonna `r*/r_new` valeva già 1,28 in superficie e 2,3 a metà banda, quindi il due era sotto gli occhi.
+
+---
+
+La σ del ticket (circa 14 e 11,5) non è quella che l'harness misura (circa 9). Sono due numeri diversi, e il ticket dà il primo come se fosse la previsione del secondo: 14 è la σ del profilo senza pareti, `√(L·H·a_new/A)`, e con le pareti a 0 e 40 la distribuzione si strozza a 9,2 e 8,8. L'agente ha aggiunto alla tabella una colonna "free σ" accanto alla σ prevista con le pareti, così la misura (9,12 e 8,97) combacia con la previsione giusta e il 14 resta leggibile come quello che è. Nessuno ha chiesto la colonna.
+
+---
+
+Una frase che l'agente ha scritto nella nota del report e che il report stesso smentisce: "i corpi si accalcano e si spingono, aspettati una media più profonda". Misurato il contrario, le medie stanno 1-1,5 raggi più su del profilo previsto (14,65 contro 15,46, 22,5 contro 24,04) e la frazione nella Bright Band è più alta (37% contro 33%, 10% contro 7%). Dalla separazione l'agente si aspettava un effetto che non c'è, o che c'è ma è battuto da qualcos'altro. Non so ancora cosa.
+
+---
+
+Due cose che le revisioni hanno segnalato e che l'agente non ha toccato: `predictedProfile` esiste due volte con firme diverse (`buoyancy.ts` e `chloroplast.ts`), e il 260 impegnato è ricopiato a mano nell'harness invece di essere letto da `constants.ts`. Decisione dell'agente: la prima non vale la modifica di uno strumento già in uso, la seconda richiederebbe di esportare una costante dal mondo per uno strumento che non deve modificarlo. Corretto solo l'ordine alfabetico in `package.json`.
+
+---
+
+Una cosa piccola e comica: il comando che pubblicava il commento su GitHub è rimasto appeso due minuti perché un `cat` senza file leggeva uno stdin che non arrivava mai. Non è stato pubblicato niente, e il giro successivo è partito pulito.
