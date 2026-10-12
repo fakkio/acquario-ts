@@ -95,9 +95,9 @@ export function applyPassiveExchange(
  * here to fixation rather than diffusion — multiplied by the light and by the
  * width it projects toward that light. The body's passive term reads the
  * light at its centre and its diameter; each chloroplast adds a term of the
- * same shape on its own disc. Depth buys something real: an organism in the bright zone
- * fixes carbon a floor-dwelling twin cannot approach, and complete darkness
- * fixes nothing at all.
+ * same shape on its own disc. Depth buys something real: an organism in the
+ * bright zone fixes carbon a floor-dwelling twin cannot approach, and
+ * complete darkness fixes nothing at all.
  *
  * **Limited by its substrate alone** (ADR-0035). The reaction runs at the
  * minimum of its rate and the CO₂ actually available: food and O₂ have no
