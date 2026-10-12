@@ -40,6 +40,12 @@ const FLOAT_SATURATION = 70;
 const FLOAT_LIGHTNESS = 90;
 const FLOAT_ALPHA = 0.55;
 
+/** A chloroplast at full energy: an opaque green disc with the same dark
+ * outline. */
+const CHLOROPLAST_HUE = 130;
+const CHLOROPLAST_SATURATION = 60;
+const CHLOROPLAST_LIGHTNESS = 42;
+
 /** The outline's screen width, and the share of an organelle's radius it may
  * take at most, so a neuron a pixel wide stays grey rather than all outline. */
 const ORGANELLE_OUTLINE_PX = 1;
@@ -82,7 +88,9 @@ export function drawBody(
     ctx.fillStyle =
       organelle.type === "float"
         ? `hsla(${String(FLOAT_HUE)}, ${String(FLOAT_SATURATION)}%, ${String(FLOAT_LIGHTNESS * brightness)}%, ${String(FLOAT_ALPHA)})`
-        : `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
+        : organelle.type === "chloroplast"
+          ? `hsl(${String(CHLOROPLAST_HUE)}, ${String(CHLOROPLAST_SATURATION)}%, ${String(CHLOROPLAST_LIGHTNESS * brightness)}%)`
+          : `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
     const turned = turn(body.axis, organelle.x, organelle.y);
     const x = body.x + turned.x;
     const y = body.y + turned.y;

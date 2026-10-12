@@ -183,3 +183,22 @@ export const WORLD_TICKS = setting("WORLD_TICKS", 100_000);
 
 /** How often that run reads the population. */
 export const WORLD_SAMPLE_EVERY = setting("WORLD_SAMPLE_EVERY", 2_500);
+
+/**
+ * The chloroplast's Resting Depth by composition (#87): the predicted
+ * relaxation takes 48k to 71k ticks, so 300k leaves the second half settled.
+ */
+export const COMPOSITION_TICKS = setting("COMPOSITION_TICKS", 300_000);
+
+/** How many bodies each composition places. */
+export const COMPOSITION_BODIES = setting("COMPOSITION_BODIES", 40);
+
+/** How often the composition runs read the depths. */
+export const COMPOSITION_SAMPLE_EVERY = setting(
+  "COMPOSITION_SAMPLE_EVERY",
+  100,
+);
+
+/** How often `X(y)` reads the baseline bodies, and how many it places. */
+export const EARNINGS_SAMPLE_EVERY = setting("EARNINGS_SAMPLE_EVERY", 100);
+export const EARNINGS_BODIES = setting("EARNINGS_BODIES", 40);

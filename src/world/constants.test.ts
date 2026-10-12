@@ -28,6 +28,15 @@ describe("constant overrides", () => {
     expect(K_PHOTO).toBe(0.03);
   });
 
+  it("derives kChloro as twice kPhoto and follows it", async () => {
+    expect((await importConstants()).K_CHLORO).toBe(0.06);
+
+    vi.stubEnv("ACQUARIO_K_PHOTO", "0.25");
+    vi.resetModules();
+
+    expect((await importConstants()).K_CHLORO).toBe(0.5);
+  });
+
   it("takes the environment's value for a scalar constant", async () => {
     vi.stubEnv("ACQUARIO_K_PHOTO", "0.25");
 

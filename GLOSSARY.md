@@ -149,8 +149,8 @@ The currency of _work_ — paid for existing, maintaining a body and reproducing
 _Avoid_: ATP, fuel, calories
 
 **Photosynthesis**:
-The passive reaction fixing carbon: `CO₂ + light → food + O₂`. Produces no energy.
-_Avoid_: carbon fixation (as a separate term), light reaction
+The reaction fixing carbon: `CO₂ + light → food + O₂`. Produces no energy. Every body runs it passively, on its own diameter with the light at its centre; from v0.2 each **Chloroplast** also runs it on its own disc, with the light where that disc sits. The carbon one of them fixes per tick is its **fixation**: a quantity, never the reaction's name.
+_Avoid_: carbon fixation (as the reaction's name), light reaction
 
 **Respiration**:
 The passive reaction releasing energy: `food + O₂ → energy + CO₂`. The only source of energy in the simulation.

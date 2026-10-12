@@ -56,12 +56,11 @@ const LIGHT_TABLE = buildLightTable();
  * rather than reading past the table: above the surface reads as the
  * surface's value, below the floor as the floor's.
  *
- * Callers sample at a body's *centre*, never its upper edge. The
- * projected-width factor in the photosynthesis rate already carries body
- * size; sampling the edge would hand a large body a second advantage
- * nothing in the model intends. Nothing calls this with a body's edge yet —
- * photosynthesis arrives later in the milestone — but the rule belongs here,
- * on the function that owns it.
+ * The body's passive photosynthesis samples at its *centre*, never its upper
+ * edge. The projected-width factor in the rate already carries body size;
+ * sampling the edge would hand a large body a second advantage nothing in the
+ * model intends. A chloroplast samples at its own disc's centre, in the same
+ * way. The rule belongs here, on the function that owns it.
  */
 export function lightAt(y: number): number {
   const clampedY = Math.min(Math.max(y, 0), AQUARIUM_HEIGHT);

@@ -127,8 +127,9 @@ export interface WorldOptions {
   readonly generation0?: Generation0;
   /**
    * The organelle types the world's structural mutation draws insertions
-   * from (ADR-0032). Defaults to M7's roster, the neuron; an empty roster
-   * is M6's world, with no structural event ever drawn.
+   * from (ADR-0032). Defaults to M9's roster, the neuron, the float and the
+   * chloroplast; an empty roster is M6's world, with no structural event ever
+   * drawn.
    */
   readonly roster?: readonly OrganelleType[];
 }
@@ -368,8 +369,15 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   //    reaction never calls `exchange` itself.
   for (const organism of state.population) {
     tracer.start(organism);
-    applyPhotosynthesis(organism, grantEnvironment);
-    tracer.end("photosynthesis", organism);
+    tracer.endPhotosynthesis(
+      organism,
+      applyPhotosynthesis(
+        organism,
+        grantEnvironment,
+        undefined,
+        tracer.discSink(organism),
+      ),
+    );
   }
   // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
   //    so an illuminated organism nets light → energy within this tick
