@@ -36,3 +36,5 @@ The done-criteria runs used to be the second, as a long-suite file left red on p
 `npm run neuron` is a third sibling, for the same reason: M7's neuron carrier fraction and ceiling readings (#66) run five seeds of 100k ticks twice, once with `c_neuron = 0`. It asserts nothing either.
 
 `npm run buoyancy` is a fourth, for M8's gravity readings: the `g` check (#77), a Fixed Population of float carriers against the predicted depth profile, then the float on the Reference World (#81). It asserts nothing either.
+
+`npm run chloroplast` is a fifth, for M9: what a chloroplast earns by depth (`X(y)`, `r*(y)`), then the Resting Depth by composition (1F+1C, 1F+2C) in Fixed Populations (#87). It asserts nothing either.

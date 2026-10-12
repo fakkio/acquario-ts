@@ -7,6 +7,7 @@ import {
   getPopulation,
   getWorstPenetration,
   type Founder,
+  type OrganismView,
 } from "../../src/world";
 import {G, R_NEW} from "../../src/world/constants";
 import {createRngStream, nextRng, type RngStream} from "../../src/world/rng";
@@ -66,7 +67,10 @@ export interface BuoyancyCheck {
 
 /** The depth range a body's centre can occupy: the walls clamp the whole
  * circle, and a baseline body carrying a float has this radius. */
-function centreRange(): {readonly lowest: number; readonly highest: number} {
+export function centreRange(): {
+  readonly lowest: number;
+  readonly highest: number;
+} {
   const radius = Math.sqrt(1 + R_NEW * R_NEW);
 
   return {lowest: radius, highest: AQUARIUM_HEIGHT - radius};
@@ -97,7 +101,14 @@ export function predictedProfile(): {
   return {meanDepth: depthSum / total, brightFraction: bright / total};
 }
 
-function randomFounders(count: number, seed: number): readonly Founder[] {
+/** Baseline bodies at random positions, each carrying `genes` at the centre. */
+export function randomFounders(
+  count: number,
+  seed: number,
+  genes: Founder["genome"]["genes"] = [
+    {type: "float", radius: R_NEW, x: 0, y: 0},
+  ],
+): readonly Founder[] {
   let stream: RngStream = createRngStream(seed);
   const draw = (): number => {
     const next = nextRng(stream);
@@ -111,10 +122,7 @@ function randomFounders(count: number, seed: number): readonly Founder[] {
   return Array.from({length: count}, () => ({
     x: lowest + draw() * (AQUARIUM_WIDTH - 2 * lowest),
     y: lowest + draw() * (highest - lowest),
-    genome: {
-      ...BASELINE_GENOME,
-      genes: [{type: "float" as const, radius: R_NEW, x: 0, y: 0}],
-    },
+    genome: {...BASELINE_GENOME, genes},
   }));
 }
 
@@ -205,19 +213,64 @@ interface WorldSample {
 export interface ReferenceWorldRun {
   readonly seed: number;
   readonly samples: readonly WorldSample[];
+  /** The worst overlap of the run, whichever pair held it. */
   readonly worstOverlap: number;
+  /** The worst overlap on ticks where the worst pair holds a body of age 0
+   * (a newborn placed after separation), and on every other tick, read
+   * against M1's 0.5. */
+  readonly worstBirthOverlap: number;
+  readonly worstRestOverlap: number;
+}
+
+/** Whether the deepest pair holds a body that was not in the population the
+ * tick before, by identity: bodies are never copied, so a newborn is the one
+ * object `seen` has not met. */
+export function worstPairHoldsNewborn(
+  population: readonly OrganismView[],
+  seen: WeakSet<OrganismView>,
+): boolean {
+  let worst = -Infinity;
+  let newborn = false;
+  for (let i = 0; i < population.length; i++) {
+    for (let j = i + 1; j < population.length; j++) {
+      const a = population[i];
+      const b = population[j];
+      const depth =
+        a.bodyRadius + b.bodyRadius - Math.hypot(a.x - b.x, a.y - b.y);
+      if (depth > worst) {
+        worst = depth;
+        newborn = !seen.has(a) || !seen.has(b);
+      }
+    }
+  }
+
+  return newborn;
 }
 
 function runReferenceWorld(seed: number): ReferenceWorldRun {
   const samples: WorldSample[] = [];
   let worstOverlap = 0;
+  let worstBirthOverlap = 0;
+  let worstRestOverlap = 0;
+  const seen = new WeakSet<OrganismView>();
+  let hasSeen = false;
 
   runTicksWatching(createWorld(seed), WORLD_TICKS, (world, tick) => {
-    worstOverlap = Math.max(worstOverlap, getWorstPenetration(world));
+    const population = getPopulation(world);
+    const overlap = getWorstPenetration(world);
+    worstOverlap = Math.max(worstOverlap, overlap);
+    if (hasSeen && overlap > Math.min(worstBirthOverlap, worstRestOverlap)) {
+      if (worstPairHoldsNewborn(population, seen)) {
+        worstBirthOverlap = Math.max(worstBirthOverlap, overlap);
+      } else {
+        worstRestOverlap = Math.max(worstRestOverlap, overlap);
+      }
+    }
+    population.forEach((organism) => seen.add(organism));
+    hasSeen = true;
     if (tick % WORLD_SAMPLE_EVERY !== 0) {
       return;
     }
-    const population = getPopulation(world);
     let floatCarriers = 0;
     let floats = 0;
     let neuronCarriers = 0;
@@ -233,7 +286,9 @@ function runReferenceWorld(seed: number): ReferenceWorldRun {
       const floatCount = organism.organelles.filter(
         (gene) => gene.type === "float",
       ).length;
-      const neuronCount = organism.organelles.length - floatCount;
+      const neuronCount = organism.organelles.filter(
+        (gene) => gene.type === "neuron",
+      ).length;
       floats += floatCount;
       neurons += neuronCount;
       neuronCarriers += neuronCount > 0 ? 1 : 0;
@@ -275,7 +330,7 @@ function runReferenceWorld(seed: number): ReferenceWorldRun {
     });
   });
 
-  return {seed, samples, worstOverlap};
+  return {seed, samples, worstOverlap, worstBirthOverlap, worstRestOverlap};
 }
 
 export function measureReferenceWorld(): readonly ReferenceWorldRun[] {
@@ -332,6 +387,8 @@ export function reportReferenceWorld(runs: readonly ReferenceWorldRun[]): void {
       "lever |angle|",
       "lever cos",
       "worst overlap",
+      "at births",
+      "otherwise",
     ],
     runs.map((run) => {
       const half = secondHalf(run);
@@ -382,6 +439,8 @@ export function reportReferenceWorld(runs: readonly ReferenceWorldRun[]): void {
           3,
         ),
         num(run.worstOverlap),
+        num(run.worstBirthOverlap),
+        num(run.worstRestOverlap),
       ];
     }),
   );
@@ -421,5 +480,9 @@ export function reportReferenceWorld(runs: readonly ReferenceWorldRun[]): void {
   row(
     "worst overlap, any run",
     num(Math.max(...runs.map((run) => run.worstOverlap))),
+  );
+  row(
+    "worst overlap, no birth (M1 0.5)",
+    num(Math.max(...runs.map((run) => run.worstRestOverlap))),
   );
 }

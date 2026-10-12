@@ -31,6 +31,7 @@ export {
   type Resource,
 } from "./organism";
 export {type StoreDeltas, type TickFlows} from "./tickFlows";
+export {type DiscReading} from "./metabolism";
 export {createRngStream, deriveChildStream, type RngStream} from "./rng";
 export {
   advance,

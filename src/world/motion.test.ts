@@ -402,6 +402,35 @@ describe("applyMotion under gravity", () => {
       },
     );
 
+    const chloroplast = (x: number) => ({
+      type: "chloroplast" as const,
+      radius: 0.3,
+      x,
+      y: 0,
+    });
+
+    it.each([5, 35])(
+      "settles the real float and the real chloroplast at a quarter of the column from y = %d",
+      (start) => {
+        const carrier = bearerAt(CENTRE_X, start, [
+          floating(-0.3),
+          chloroplast(0.3),
+        ]);
+
+        settle(carrier);
+
+        expect(carrier.y / AQUARIUM_HEIGHT).toBeCloseTo(0.25, 3);
+      },
+    );
+
+    it("ends against the floor when it carries only chloroplasts", () => {
+      const carrier = bearerAt(CENTRE_X, CENTRE_Y, [chloroplast(0)]);
+
+      settle(carrier);
+
+      expect(carrier.y).toBe(AQUARIUM_HEIGHT - carrier.bodyRadius);
+    });
+
     it("ends against the surface when the composition is lighter than all the water", () => {
       const carrier = bearerAt(CENTRE_X, CENTRE_Y, [floating(0)]);
 

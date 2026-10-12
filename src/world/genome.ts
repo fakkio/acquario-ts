@@ -29,7 +29,8 @@ import {drawUnitVector, nextRng, type RngStream} from "./rng";
  * The structural gene describing one organelle (glossary: Organelle Gene):
  * its type, its Innovation Id, its radius and its position in the genome's
  * frame. A type's further parameters join it when a type declares one (M8
- * on); the neuron and the float declare only radius and position (`organelles.ts`).
+ * on); the neuron, the float and the chloroplast declare only radius and
+ * position (`organelles.ts`).
  */
 export interface OrganelleGene {
   readonly type: OrganelleType;

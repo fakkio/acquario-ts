@@ -1,3 +1,4 @@
+import type {DiscReading, PhotosynthesisOutcome} from "./metabolism";
 import type {Organism, Resource} from "./organism";
 
 /** A signed amount per internal store. */
@@ -6,13 +7,18 @@ export type StoreDeltas = Readonly<Record<Resource, number>>;
 /**
  * What each step of one tick did to one organism's four stores: the
  * inspector's answer to "where did it go". Every field is a signed change,
- * so the five of them add up to the tick's whole change in the stores.
+ * so the six of them add up to the tick's whole change in the stores.
  */
 export interface TickFlows {
   /** Passive exchange with the water, both sub-passes (step 2). */
   readonly exchange: StoreDeltas;
-  /** CO₂ + light → food + O₂ (step 3). */
-  readonly photosynthesis: StoreDeltas;
+  /** CO₂ + light → food + O₂ (step 3): the body's passive share. */
+  readonly photosynthesisBody: StoreDeltas;
+  /** Step 3's other share: what the chloroplasts fixed, as granted after the
+   * throttle. The two shares sum to the tick's single photosynthesis entry. */
+  readonly photosynthesisChloroplasts: StoreDeltas;
+  /** What each chloroplast read and fixed (step 3), in genome order. */
+  readonly discs: readonly DiscReading[];
   /** food + O₂ → energy + CO₂ (step 4). */
   readonly respiration: StoreDeltas;
   /** Maintenance, an energy charge (step 5). */
@@ -21,7 +27,7 @@ export interface TickFlows {
   readonly mitosis: StoreDeltas;
 }
 
-export type FlowStep = keyof TickFlows;
+export type FlowStep = Exclude<keyof TickFlows, "discs">;
 
 type Stores = Record<Resource, number>;
 
@@ -50,6 +56,7 @@ export class FlowTracer {
   private readonly watched: Organism | undefined;
   private before: Stores | null = null;
   private readonly deltas: Partial<Record<FlowStep, StoreDeltas>> = {};
+  private readonly discs: DiscReading[] = [];
 
   constructor(watched: Organism | undefined) {
     this.watched = watched;
@@ -60,6 +67,29 @@ export class FlowTracer {
     if (organism === this.watched) {
       this.before = readStores(organism);
     }
+  }
+
+  /** The sink photosynthesis fills with each chloroplast's reading, for the
+   * watched organism only: any other gets none and allocates nothing. */
+  discSink(organism: Organism): DiscReading[] | undefined {
+    return organism === this.watched ? this.discs : undefined;
+  }
+
+  /** Call just after photosynthesis: records its two shares. The reaction
+   * moves CO₂ into food and O₂ at 1:1:1, so each share is one number. */
+  endPhotosynthesis(organism: Organism, outcome: PhotosynthesisOutcome): void {
+    if (organism !== this.watched) {
+      return;
+    }
+    const share = (fixed: number): StoreDeltas => ({
+      energy: 0,
+      oxygen: fixed,
+      carbonDioxide: -fixed,
+      food: fixed,
+    });
+    this.deltas.photosynthesisBody = share(outcome.body);
+    this.deltas.photosynthesisChloroplasts = share(outcome.chloroplasts);
+    this.before = null;
   }
 
   /** Call just after the step: records what it did to the stores. */
@@ -100,7 +130,9 @@ export class FlowTracer {
 
     return {
       exchange: at("exchange"),
-      photosynthesis: at("photosynthesis"),
+      photosynthesisBody: at("photosynthesisBody"),
+      photosynthesisChloroplasts: at("photosynthesisChloroplasts"),
+      discs: this.discs,
       respiration: at("respiration"),
       maintenance: at("maintenance"),
       mitosis: at("mitosis"),

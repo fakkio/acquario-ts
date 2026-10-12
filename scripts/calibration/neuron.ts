@@ -133,8 +133,9 @@ function runNeuron(seed: number): NeuronRun {
       let carrierReachSet = 0;
       let plainReachSet = 0;
       for (const organism of population) {
-        // M7's roster is the neuron alone, so every organelle is one.
-        const count = organism.organelles.length;
+        const count = organism.organelles.filter(
+          (gene) => gene.type === "neuron",
+        ).length;
         const {ratio, reachSets} = ceilingOverArea(organism);
         if (count > 0) {
           carriers++;

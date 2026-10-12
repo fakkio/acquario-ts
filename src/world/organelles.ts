@@ -4,6 +4,7 @@ import {
   C_ORGANELLE,
   DELTA_ORGANELLE_POSITION,
   DELTA_ORGANELLE_RADIUS,
+  K_CHLORO,
   R_MIN,
 } from "./constants";
 
@@ -55,6 +56,13 @@ export interface OrganelleTypeDeclaration {
    * costs.
    */
   readonly density: number | "weightless";
+  /**
+   * The type's photosynthesis coefficient (ADR-0029): each piece fixes
+   * `k × light × 2·r × C` on its own disc. Absent for a type that does not
+   * photosynthesise, so M13's knockout is a different declaration, not a
+   * branch in the metabolism.
+   */
+  readonly photosynthesis?: number;
 }
 
 /**
@@ -89,8 +97,6 @@ const NEURON: OrganelleTypeDeclaration = {
  * span lighter than the surface's water, so it lifts at every depth and
  * more the deeper it sits (ADR-0032). It has the neuron's laws, no ports, and
  * pays the shared `c_organelle` as its overhead and `β` on its tissue.
- * Declared in the table but out of the default roster until it joins the
- * Reference World; a world takes it through its roster or its founders.
  */
 const FLOAT: OrganelleTypeDeclaration = {
   parameters: NEURON.parameters,
@@ -99,17 +105,37 @@ const FLOAT: OrganelleTypeDeclaration = {
   density: -1,
 };
 
+/**
+ * M9's chloroplast: the first organelle that moves carbon, and the second
+ * that weighs. Denser than the floor's water (`+3/2`), so alone it sinks its
+ * carrier. It has the neuron's laws, no ports, and pays the shared
+ * `c_organelle` as its overhead and `β` on its tissue. In the default roster
+ * since M9.
+ */
+const CHLOROPLAST: OrganelleTypeDeclaration = {
+  parameters: NEURON.parameters,
+  overhead: C_ORGANELLE,
+  tissueCost: BODY_COST_COEFFICIENT,
+  density: 1.5,
+  photosynthesis: K_CHLORO,
+};
+
 export const ORGANELLE_TYPES = {
   neuron: NEURON,
   float: FLOAT,
+  chloroplast: CHLOROPLAST,
 } as const satisfies Readonly<Record<string, OrganelleTypeDeclaration>>;
 
 export type OrganelleType = keyof typeof ORGANELLE_TYPES;
 
 /**
  * The roster a world runs with unless it is given another (ADR-0032): the
- * organelle types its insertions draw from. M8's is the neuron and the
- * float; an
- * empty roster is M6's world.
+ * organelle types its insertions draw from. M9's is the neuron, the float
+ * and the chloroplast, a third of the insertions each; an empty roster is
+ * M6's world.
  */
-export const DEFAULT_ROSTER: readonly OrganelleType[] = ["neuron", "float"];
+export const DEFAULT_ROSTER: readonly OrganelleType[] = [
+  "neuron",
+  "float",
+  "chloroplast",
+];
