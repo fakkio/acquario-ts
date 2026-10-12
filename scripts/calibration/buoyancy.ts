@@ -225,7 +225,7 @@ export interface ReferenceWorldRun {
 /** Whether the deepest pair holds a body that was not in the population the
  * tick before, by identity: bodies are never copied, so a newborn is the one
  * object `seen` has not met. */
-function worstPairHoldsNewborn(
+export function worstPairHoldsNewborn(
   population: readonly OrganismView[],
   seen: WeakSet<OrganismView>,
 ): boolean {

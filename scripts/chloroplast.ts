@@ -2,11 +2,12 @@ import {
   reportEarnings,
   reportRestingDepthByComposition,
 } from "./calibration/chloroplast";
+import {reportChloroplastOnReferenceWorld} from "./calibration/chloroplastWorld";
 import {heading, note, rendered} from "./calibration/report";
 import {reportTheWorldMeasured} from "./calibration/worldHeader";
 
 /**
- * `npm run chloroplast`: M9's readings (#87 on), an entry point beside
+ * `npm run chloroplast`: M9's readings (#87, #88), an entry point beside
  * `buoyancy` and `neuron`. It asserts nothing (ADR-0024).
  */
 function main(): void {
@@ -18,6 +19,7 @@ function main(): void {
   reportTheWorldMeasured();
   reportEarnings();
   reportRestingDepthByComposition();
+  reportChloroplastOnReferenceWorld();
 
   console.log(rendered().trimEnd());
 }

@@ -139,7 +139,20 @@ function crossing(bands: readonly Band[], target: number): number | null {
   return null;
 }
 
-export function reportEarnings(): void {
+let earnings: EarningsMeasure | undefined;
+
+interface EarningsMeasure {
+  readonly edges: readonly number[];
+  readonly runs: readonly EarningsRun[];
+  readonly bands: readonly Band[];
+}
+
+/** The section's measurement, taken once: the Reference World section reads
+ * `r*(y)` off the same bands rather than running them again. */
+export function measureEarningsBands(): EarningsMeasure {
+  if (earnings !== undefined) {
+    return earnings;
+  }
   const edges = bandEdges();
   const runs = seeds().map((seed) => measureEarnings(seed, edges));
 
@@ -156,6 +169,28 @@ export function reportEarnings(): void {
       x: readings > 0 ? x / readings : Number.NaN,
     };
   });
+  earnings = {edges, runs, bands};
+
+  return earnings;
+}
+
+/** `r*(y)` of the band holding `depth`, or null where the band has no
+ * reading. */
+export function breakEvenRadius(depth: number): number | null {
+  const {edges, bands} = measureEarningsBands();
+  const band = edges.findIndex(
+    (edge, index) =>
+      index < bands.length && depth >= edge && depth < edges[index + 1],
+  );
+  if (band < 0 || bands[band].readings === 0) {
+    return null;
+  }
+
+  return C_ORGANELLE / (K_CHLORO * bands[band].x);
+}
+
+export function reportEarnings(): void {
+  const {edges, runs, bands} = measureEarningsBands();
 
   heading("What a chloroplast earns by depth: X(y) in a Fixed Population");
   note(
