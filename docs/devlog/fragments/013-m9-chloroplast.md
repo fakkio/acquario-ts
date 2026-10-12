@@ -77,3 +77,35 @@ Due cose che le revisioni hanno segnalato e che l'agente non ha toccato: `predic
 ---
 
 Una cosa piccola e comica: il comando che pubblicava il commento su GitHub è rimasto appeso due minuti perché un `cat` senza file leggeva uno stdin che non arrivava mai. Non è stato pubblicato niente, e il giro successivo è partito pulito.
+
+---
+
+#88, il cloroplasto sul Mondo di Riferimento, semi 7-11 a 100k tick. La previsione diceva "ogni frazione di portatori vicina alla deriva, quella del cloroplasto sotto quella del galleggiante". L'ordine è giusto (cloroplasto 1,0%, galleggiante 5,9%, neurone 1,7%), ma tutte e tre stanno molto sotto il 6,7% a cui le inserzioni li producono. Non è "vicino alla deriva": è che un portatore, in questo mondo, vive poco. Il numero da spiegare non è il cloroplasto sotto il galleggiante, è tutti e tre sotto il tasso con cui nascono.
+
+---
+
+Il portatore ha sempre un solo pezzo: media 1,00 per tipo, in tutti e tre. Nessun corpo ha due cloroplasti, nessuno ha cloroplasto e galleggiante insieme (zero corpi su 4.352 letture). La lista dei Resting Depth interni, che era il motivo per cui M9 esiste (il primo Resting Depth interno che un lignaggio può raggiungere), è vuota. L'invariante di M8 e M9 vive solo nella Popolazione Fissa, dove l'ho messo io a mano. Il mondo non ci arriva.
+
+---
+
+Una previsione che l'harness non può giudicare: "la luce di un cloroplasto sta sotto quella del centro del corpo, nei corpi eretti". I cloroplasti misurati sono 40 in tutto, e quelli con l'asse entro 30° dalla verticale sono 3. Quei 3 leggono 1,09, cioè sopra il centro, il contrario. Con tre punti non è una smentita, è l'assenza di uno strumento: la domanda richiede corpi che il mondo non produce.
+
+---
+
+Il raggio dei cloroplasti è 0,02 ovunque, cioè `r_new`. La colonna "raggio / r*" è piena e non dice niente, perché nessun cloroplasto è cresciuto o si è ridotto. Nella tabella per fasce il rapporto scende da 0,78 in superficie a 0,08 a metà colonna, ma è solo `r*(y)` che sale: il numeratore non si muove. Una tabella che sembra un risultato e invece è una costante divisa per una curva.
+
+---
+
+L'angolo della leva del galleggiante: 0,10° per i portatori più vecchi di 40k tick, 5,55° su tutte le età (192 letture contro 248). I corpi che hanno avuto il tempo di raddrizzarsi sono raddrizzati, e la media su tutte le età è dominata dai giovani. Attenzione a come si legge: i vecchi sono anche quelli sopravvissuti, quindi non si può dire che il raddrizzamento sia stato misurato su un corpo, solo che chi è rimasto lo è.
+
+---
+
+Il tempo fra generazioni l'agente non l'ha trovato, l'ha derivato: tick totali divisi per la Generazione media dell'ultima popolazione, per seme. Risultato 22.737 ± 3.942 tick contro i circa 20k previsti, con i semi che vanno da 17,7k a 26,5k. È un proxy, e dice "una generazione ogni 22k circa" solo se le generazioni sono ugualmente spaziate. Gli altri tre tempi (salita 36k, rilassamento 71k, raddrizzamento 20k) sono le costanti di `vision.md` ricopiate nel report, non misurate.
+
+---
+
+Domanda di Fabio, dopo il resoconto: "are you suggesting to change timescales?". L'agente aveva scritto che i tre tempi erano "ricopiati, non misurati", per dire da dove vengono, e quella frase si è letta come una proposta di cambiarli. Non lo era: stava dichiarando la provenienza di un numero in una tabella. Da ricordare per la scrittura dei report: una nota onesta sull'origine di un valore, messa vicino a un valore che il ticket vuole confrontare, sembra un'obiezione al valore.
+
+---
+
+Piccolo, dell'agente: la prima esecuzione ha stampato "chloroplast light / body-centre light, all0.9257", etichetta e valore incollati, perché `row` pad a 42 colonne e l'etichetta ne aveva di più. Non è un errore del mondo, è un errore dell'agente che ha scritto etichette come frasi. Le ha accorciate dopo aver visto il risultato, senza rilanciare i 100k tick per vederlo.
