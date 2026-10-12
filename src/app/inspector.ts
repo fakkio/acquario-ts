@@ -67,7 +67,8 @@ const signed = (value: number): string =>
 /** The steps of a tick, in the order they run, with the short label the panel gives them. */
 const FLOW_STEPS = [
   ["exchange", "exch"],
-  ["photosynthesis", "photo"],
+  ["photosynthesisBody", "photo body"],
+  ["photosynthesisChloroplasts", "photo chloro"],
   ["respiration", "resp"],
   ["maintenance", "maint"],
   ["mitosis", "mitosis"],
@@ -164,16 +165,40 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   container.append(summary, table);
 
   let tableFor: OrganismView | null = null;
+  // The two columns that change every tick, by organelle id, refilled from
+  // the flows without rebuilding the table.
+  let readingCells = new Map<
+    number,
+    {light: HTMLTableCellElement; fixation: HTMLTableCellElement}
+  >();
+
+  const fillReadings = (flows: TickFlows | null): void => {
+    for (const [id, cells] of readingCells) {
+      const reading = flows?.discs.find((disc) => disc.innovationId === id);
+      cells.light.textContent = reading ? fixed(reading.light) : "";
+      cells.fixation.textContent = reading ? fixed(reading.fixation, 5) : "";
+    }
+  };
 
   const rebuildTable = (organism: OrganismView): void => {
     table.replaceChildren();
+    readingCells = new Map();
     if (organism.organelles.length === 0) {
       tableFor = organism;
       return;
     }
 
     const head = table.insertRow();
-    for (const title of ["type", "id", "radius", "x", "y", "density"]) {
+    for (const title of [
+      "type",
+      "id",
+      "radius",
+      "x",
+      "y",
+      "density",
+      "light",
+      "fixation",
+    ]) {
       const cell = document.createElement("th");
       cell.textContent = title;
       cell.style.textAlign = "right";
@@ -196,6 +221,16 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         cell.style.textAlign = "right";
         cell.style.padding = "0 6px";
       }
+      // Empty for every type that declares no photosynthesis coefficient.
+      const light = row.insertCell();
+      const fixation = row.insertCell();
+      for (const cell of [light, fixation]) {
+        cell.style.textAlign = "right";
+        cell.style.padding = "0 6px";
+      }
+      if (ORGANELLE_TYPES[organelle.type].photosynthesis !== undefined) {
+        readingCells.set(organelle.innovationId, {light, fixation});
+      }
     }
     tableFor = organism;
   };
@@ -213,6 +248,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       if (selection.kind === "dead") {
         summary.textContent = `Died at tick ${String(selection.tick)}`;
         table.replaceChildren();
+        readingCells = new Map();
         tableFor = null;
         return;
       }
@@ -268,6 +304,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       if (tableFor !== organism) {
         rebuildTable(organism);
       }
+      fillReadings(flows);
     },
   };
 }

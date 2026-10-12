@@ -369,8 +369,15 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   //    reaction never calls `exchange` itself.
   for (const organism of state.population) {
     tracer.start(organism);
-    applyPhotosynthesis(organism, grantEnvironment);
-    tracer.end("photosynthesis", organism);
+    tracer.endPhotosynthesis(
+      organism,
+      applyPhotosynthesis(
+        organism,
+        grantEnvironment,
+        undefined,
+        tracer.discSink(organism),
+      ),
+    );
   }
   // 4. Respiration: food + O₂ → energy + CO₂, chained after photosynthesis
   //    so an illuminated organism nets light → energy within this tick

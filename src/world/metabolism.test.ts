@@ -18,6 +18,7 @@ import {
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
+  type DiscReading,
 } from "./metabolism";
 import {BASELINE_GENOME} from "./genome";
 import {ORGANELLE_TYPES} from "./organelles";
@@ -849,6 +850,47 @@ describe("applyPhotosynthesis on a chloroplast's disc", () => {
 
     expect(organism.carbonDioxide).toBe(0);
     expect(fixed).toBeCloseTo(1e-3, 15);
+  });
+
+  it("reports the body's and the chloroplasts' shares as granted, summing to the carbon fixed", () => {
+    for (const co2 of [0.1, 1e-4]) {
+      const organism = bearer([
+        {type: "chloroplast", radius: 0.3, x: 0, y: -0.4},
+        {type: "chloroplast", radius: 0.2, x: 0, y: 0.4},
+      ]);
+      organism.carbonDioxide = co2;
+      const before = organism.carbonDioxide;
+      const readings: DiscReading[] = [];
+
+      const outcome = applyPhotosynthesis(
+        organism,
+        lightBy((pos) => 1 / (1 + pos.y)),
+        undefined,
+        readings,
+      );
+      const fixed = before - organism.carbonDioxide;
+
+      expect(outcome.body + outcome.chloroplasts).toBeCloseTo(fixed, 15);
+      expect(readings).toHaveLength(2);
+      expect(readings[0].fixation + readings[1].fixation).toBeCloseTo(
+        outcome.chloroplasts,
+        15,
+      );
+      expect(readings[1].light).toBeLessThan(readings[0].light);
+    }
+  });
+
+  it("reports a chloroplast share of zero for a body with none", () => {
+    const organism = bearer([]);
+    organism.carbonDioxide = 0.1;
+
+    const outcome = applyPhotosynthesis(
+      organism,
+      lightBy(() => 0.5),
+    );
+
+    expect(outcome.chloroplasts).toBe(0);
+    expect(outcome.body).toBeGreaterThan(0);
   });
 
   it("conserves internal carbon and oxygen", () => {

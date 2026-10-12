@@ -109,6 +109,12 @@ export function applyPassiveExchange(
  * already reflects this tick's settled grant rather than last tick's — the
  * substrate this limits against is the exact number the settlement struck,
  * not an optimistic one.
+ *
+ * Returns where the fixed carbon went, as granted after the throttle: the
+ * body's passive share and the chloroplasts', which sum to what was fixed.
+ * `discReadings`, when given, is filled with each chloroplast's light and
+ * granted fixation for the inspector; the tick passes it for the watched
+ * organism only, so no other pays for it.
  */
 export function applyPhotosynthesis(
   organism: Organism,
@@ -116,7 +122,8 @@ export function applyPhotosynthesis(
   declarations: Readonly<
     Record<string, OrganelleTypeDeclaration>
   > = ORGANELLE_TYPES,
-): void {
+  discReadings?: DiscReading[],
+): PhotosynthesisOutcome {
   const diameter = 2 * organism.bodyRadius;
   const internalCo2Concentration =
     organism.carbonDioxide / organism.cytoplasmArea;
@@ -140,8 +147,16 @@ export function applyPhotosynthesis(
       x: organism.x + turned.x,
       y: organism.y + turned.y,
     });
-    rate +=
+    const term =
       coefficient * internalCo2Concentration * discLight * 2 * organelle.radius;
+    rate += term;
+    if (discReadings) {
+      discReadings.push({
+        innovationId: organelle.innovationId,
+        light: discLight,
+        fixation: term,
+      });
+    }
   }
   const substrateAvailable = organism.carbonDioxide;
 
@@ -150,6 +165,35 @@ export function applyPhotosynthesis(
   organism.carbonDioxide -= fixed;
   organism.food += fixed;
   organism.oxygen += fixed;
+
+  // The throttle scales every term by the same factor, so each share is what
+  // was granted: the chloroplasts' by their summed demand, the body's the rest.
+  const scale = rate > 0 ? fixed / rate : 0;
+  if (discReadings) {
+    for (let i = 0; i < discReadings.length; i++) {
+      const reading = discReadings[i];
+      discReadings[i] = {...reading, fixation: reading.fixation * scale};
+    }
+  }
+  const chloroplastsFixed = (rate - passiveRate) * scale;
+
+  return {body: fixed - chloroplastsFixed, chloroplasts: chloroplastsFixed};
+}
+
+/** What one chloroplast read and fixed in a tick, for the inspector. */
+export interface DiscReading {
+  readonly innovationId: number;
+  /** The light at its world position, as the tick started. */
+  readonly light: number;
+  /** What it fixed, as granted after the throttle. */
+  readonly fixation: number;
+}
+
+/** Where a tick's photosynthesis went, as granted after the throttle. The
+ * two add up to the carbon fixed. */
+export interface PhotosynthesisOutcome {
+  readonly body: number;
+  readonly chloroplasts: number;
 }
 
 /** What `applyRespiration` reports back, beyond the mutation it makes to
