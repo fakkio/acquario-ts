@@ -67,7 +67,10 @@ export interface BuoyancyCheck {
 
 /** The depth range a body's centre can occupy: the walls clamp the whole
  * circle, and a baseline body carrying a float has this radius. */
-function centreRange(): {readonly lowest: number; readonly highest: number} {
+export function centreRange(): {
+  readonly lowest: number;
+  readonly highest: number;
+} {
   const radius = Math.sqrt(1 + R_NEW * R_NEW);
 
   return {lowest: radius, highest: AQUARIUM_HEIGHT - radius};
@@ -98,7 +101,14 @@ export function predictedProfile(): {
   return {meanDepth: depthSum / total, brightFraction: bright / total};
 }
 
-function randomFounders(count: number, seed: number): readonly Founder[] {
+/** Baseline bodies at random positions, each carrying `genes` at the centre. */
+export function randomFounders(
+  count: number,
+  seed: number,
+  genes: Founder["genome"]["genes"] = [
+    {type: "float", radius: R_NEW, x: 0, y: 0},
+  ],
+): readonly Founder[] {
   let stream: RngStream = createRngStream(seed);
   const draw = (): number => {
     const next = nextRng(stream);
@@ -112,10 +122,7 @@ function randomFounders(count: number, seed: number): readonly Founder[] {
   return Array.from({length: count}, () => ({
     x: lowest + draw() * (AQUARIUM_WIDTH - 2 * lowest),
     y: lowest + draw() * (highest - lowest),
-    genome: {
-      ...BASELINE_GENOME,
-      genes: [{type: "float" as const, radius: R_NEW, x: 0, y: 0}],
-    },
+    genome: {...BASELINE_GENOME, genes},
   }));
 }
 

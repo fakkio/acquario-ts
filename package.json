@@ -40,6 +40,7 @@
     "buoyancy": "node --import ./scripts/ts-esm-resolver.mjs scripts/buoyancy.ts",
     "caps": "node --import ./scripts/ts-esm-resolver.mjs scripts/caps.ts",
     "calibrate": "node --import ./scripts/ts-esm-resolver.mjs scripts/calibrate.ts",
+    "chloroplast": "node --import ./scripts/ts-esm-resolver.mjs scripts/chloroplast.ts",
     "dev": "vite",
     "done-criteria": "node --import ./scripts/ts-esm-resolver.mjs scripts/doneCriteria.ts",
     "lint": "eslint .",
