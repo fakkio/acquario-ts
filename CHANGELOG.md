@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The chloroplast** (ADR-0029, ADR-0032), the first organelle that moves carbon and the second that weighs. Each chloroplast fixes `kChloro × light × 2·r × C_cytoplasm(CO₂)` on its own disc, reading the light at its own world position (the body's position plus its body-frame position turned through the Body Axis). The body's passive term keeps its arithmetic; all terms read the same internal CO₂ and share one throttle, scaled in proportion when it binds. Density `+3/2`, overhead `c_organelle`, no ports.
+- An organelle type declaration states its photosynthesis coefficient (the chloroplast's is `kChloro`, every other type's none). `kChloro` is an exported tunable derived as `2·kPhoto`.
+- The default roster is the neuron, the float and the chloroplast, a third of the insertions each. An empty roster still moves exactly as M8's world.
+- The tick's flow record splits photosynthesis into the body's share and the chloroplasts'. The inspector shows both, and each chloroplast's light and fixation. Chloroplasts are drawn green, opaque, with a dark outline; the HUD shows their carrier fraction.
+- `npm run chloroplast`: `X(y)` and `r*(y)` by depth in a Fixed Population, the Resting Depth by composition (1 float + 1 chloroplast, 1 float + 2 chloroplasts) over 300k ticks, and the Reference World over seeds 7–11 by composition. Reported, never gated (ADR-0024). `npm run buoyancy` and `npm run neuron` count organelles by type.
+- A 100k-tick conservation run whose founders all carry chloroplasts, some at the surface where the CO₂ throttle binds.
+- Devlog article 013, _Il cloroplasto che non regge_.
+
+### Changed
+
+- The golden hash keeps M8's value: a body with no chloroplast fixes exactly what it did.
+
 ## [0.1.4] - 2026-10-11
 
 ### Added
