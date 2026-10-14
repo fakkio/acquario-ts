@@ -114,4 +114,11 @@ describe("thruster constants (M10)", () => {
     expect(DELTA_DRIVE).toBe(0.05);
     expect(EPSILON_ORIENTATION).toBe(0.25);
   });
+
+  it("derives k_thrust so a new thruster at full power pays its overhead a second time", async () => {
+    const {C_ORGANELLE, K_FORCE, K_THRUST, R_NEW} = await importConstants();
+
+    expect(K_THRUST).toBeCloseTo(11.8, 1);
+    expect(K_THRUST).toBe(C_ORGANELLE / (K_FORCE * 2 * R_NEW));
+  });
 });

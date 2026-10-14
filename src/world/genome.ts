@@ -410,6 +410,8 @@ export interface Thruster {
   readonly signal: number;
   /** `kForce × 2·r`. */
   readonly maxForce: number;
+  /** `k_thrust`: the energy a unit of force costs this thruster per tick. */
+  readonly thrustCost: number;
 }
 
 /**
@@ -453,7 +455,7 @@ function thrustersOf(
 ): Thruster[] {
   const thrusters: Thruster[] = [];
   for (const {type, radius, x, y, orientation, drive} of organelles) {
-    const {force} = declarations[type];
+    const {force, thrustCost} = declarations[type];
     if (force === undefined || orientation === undefined) {
       continue;
     }
@@ -464,6 +466,7 @@ function thrustersOf(
       dy: orientation.sin,
       signal: drive ?? 0,
       maxForce: force * 2 * radius,
+      thrustCost: thrustCost ?? 0,
     });
   }
   return thrusters;

@@ -71,6 +71,7 @@ const FLOW_STEPS = [
   ["photosynthesisChloroplasts", "photo chloro"],
   ["respiration", "resp"],
   ["maintenance", "maint"],
+  ["thrust", "thrust"],
   ["mitosis", "mitosis"],
 ] as const;
 

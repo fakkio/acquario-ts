@@ -670,6 +670,23 @@ export const K_FORCE = tunable(
 );
 
 /**
+ * `k_thrust`, the Thrust Cost coefficient: a thruster pays `k_thrust × |F|`
+ * per tick for the force it pushes with. Derived from the thruster's own
+ * price:
+ *
+ *     k_thrust = c_organelle / (kForce·2·r_new)  ≈ 11.8,
+ *
+ * so a new thruster at full power pays its overhead a second time, and at
+ * `drive_new` a tenth of it.
+ *
+ * Tunable, but its committed value stays the derivation.
+ */
+export const K_THRUST = tunable(
+  "K_THRUST",
+  C_ORGANELLE / (K_FORCE * 2 * R_NEW),
+);
+
+/**
  * Last, once every `tunable` above has registered its name: an
  * `ACQUARIO_`-prefixed variable that matched nothing is a typo, or a
  * constant somebody expected to be reachable and is not, and either way

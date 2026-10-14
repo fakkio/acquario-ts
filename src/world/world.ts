@@ -13,6 +13,7 @@ import {
 } from "./ledger";
 import {
   applyMaintenance,
+  applyThrustCost,
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
@@ -398,6 +399,14 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
     tracer.start(organism);
     applyMaintenance(organism);
     tracer.end("maintenance", organism);
+  }
+  //    Then the Thrust Cost, its own flow: k_thrust·|F| per thruster, from the
+  //    signals the motion step reads. Before the immortal floor, so an
+  //    immortal world never ends this step below zero.
+  for (const organism of state.population) {
+    tracer.start(organism);
+    applyThrustCost(organism);
+    tracer.end("thrust", organism);
   }
   // Immortal floor (ADR-0017), not one of ADR-0006's numbered steps: only
   // in a world constructed with `mortality: "off"` does energy stop here

@@ -8,6 +8,7 @@ import {
   EPSILON_ORIENTATION,
   K_CHLORO,
   K_FORCE,
+  K_THRUST,
   R_MIN,
 } from "./constants";
 
@@ -85,6 +86,12 @@ export interface OrganelleTypeDeclaration {
    * does not push, so a knockout is a different declaration.
    */
   readonly force?: number;
+  /**
+   * The type's Thrust Cost coefficient `k_thrust`: each piece pays
+   * `k_thrust × |F|` of energy per tick for the force it pushes with. Absent
+   * for a type that does not push.
+   */
+  readonly thrustCost?: number;
   /** The names of the input ports the type declares. Nothing can wire one
    * before M11's synapses. */
   readonly inputPorts?: readonly string[];
@@ -167,6 +174,7 @@ const THRUSTER: OrganelleTypeDeclaration = {
   tissueCost: BODY_COST_COEFFICIENT,
   density: "weightless",
   force: K_FORCE,
+  thrustCost: K_THRUST,
   inputPorts: ["power"],
 };
 
