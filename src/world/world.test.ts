@@ -16,6 +16,7 @@ import {
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
+  applyThrustCost,
 } from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
 import {applyMotion} from "./motion";
@@ -398,6 +399,11 @@ describe("collisions", () => {
 
     for (let tick = 0; tick < PIPELINE_TICKS; tick++) {
       pools = runMetabolism(byHand, pools);
+      // The Thrust Cost is its own flow after maintenance, not one of
+      // `runMetabolism`'s steps.
+      for (const organism of byHand) {
+        applyThrustCost(organism);
+      }
       // The immortal floor (ADR-0017): a world constructed with
       // `mortality: "off"` clamps energy at zero inside `runTick`, outside
       // `runMetabolism`'s own steps, so it has to be replicated here too —
@@ -1458,10 +1464,10 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  it("defaults to the neuron, the float and the chloroplast, and an empty roster is M6's world", () => {
+  it("defaults to the neuron, the float, the chloroplast and the thruster, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
     const explicit = createWorld(1234, {
-      roster: ["neuron", "float", "chloroplast"],
+      roster: ["neuron", "float", "chloroplast", "thruster"],
     });
     const m6 = createWorld(1234, {roster: []});
 
@@ -1472,7 +1478,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
     ).toBe(true);
   });
 
-  it("draws every type of the default roster, the chloroplast among them", () => {
+  it("draws every type of the default roster, the thruster among them", () => {
     // A world's insertions are rare in the first thousands of ticks (a few
     // carriers by tick 8000), so the roster is read where it is drawn from:
     // the structural law, with every trial forced to an event.
@@ -1485,7 +1491,9 @@ describe("the roster and the Innovation Id counter (M7)", () => {
       child.genome.genes.forEach((gene) => types.add(gene.type));
     }
 
-    expect(types).toEqual(new Set(["neuron", "float", "chloroplast"]));
+    expect(types).toEqual(
+      new Set(["neuron", "float", "chloroplast", "thruster"]),
+    );
   });
 
   it("never inserts a neuron into an unprimed world with an empty roster", () => {
