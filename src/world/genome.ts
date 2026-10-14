@@ -455,8 +455,8 @@ function thrustersOf(
 ): Thruster[] {
   const thrusters: Thruster[] = [];
   for (const {type, radius, x, y, orientation, drive} of organelles) {
-    const {force, thrustCost} = declarations[type];
-    if (force === undefined || orientation === undefined) {
+    const {thrust} = declarations[type];
+    if (thrust === undefined || orientation === undefined) {
       continue;
     }
     thrusters.push({
@@ -465,8 +465,8 @@ function thrustersOf(
       dx: orientation.cos,
       dy: orientation.sin,
       signal: drive ?? 0,
-      maxForce: force * 2 * radius,
-      thrustCost: thrustCost ?? 0,
+      maxForce: thrust.force * 2 * radius,
+      thrustCost: thrust.cost,
     });
   }
   return thrusters;

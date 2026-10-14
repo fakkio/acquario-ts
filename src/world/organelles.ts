@@ -81,17 +81,13 @@ export interface OrganelleTypeDeclaration {
    */
   readonly photosynthesis?: number;
   /**
-   * The type's force coefficient `kForce` (ADR-0032): each piece pushes with
-   * `signal × kForce × 2·r` along its orientation. Absent for a type that
-   * does not push, so a knockout is a different declaration.
+   * What the type pushes with and pays for it (ADR-0032, ADR-0029): `force`
+   * is `kForce`, each piece pushing with `signal × kForce × 2·r` along its
+   * orientation, and `cost` is `k_thrust`, each piece paying `k_thrust × |F|`
+   * of energy per tick. One field, so a type cannot push for free. Absent for
+   * a type that does not push, so a knockout is a different declaration.
    */
-  readonly force?: number;
-  /**
-   * The type's Thrust Cost coefficient `k_thrust`: each piece pays
-   * `k_thrust × |F|` of energy per tick for the force it pushes with. Absent
-   * for a type that does not push.
-   */
-  readonly thrustCost?: number;
+  readonly thrust?: {readonly force: number; readonly cost: number};
   /** The names of the input ports the type declares. Nothing can wire one
    * before M11's synapses. */
   readonly inputPorts?: readonly string[];
@@ -173,8 +169,7 @@ const THRUSTER: OrganelleTypeDeclaration = {
   overhead: C_ORGANELLE,
   tissueCost: BODY_COST_COEFFICIENT,
   density: "weightless",
-  force: K_FORCE,
-  thrustCost: K_THRUST,
+  thrust: {force: K_FORCE, cost: K_THRUST},
   inputPorts: ["power"],
 };
 
