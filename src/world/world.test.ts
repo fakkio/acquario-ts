@@ -1563,3 +1563,37 @@ describe("placeFounders (M7)", () => {
     expect(founder.genome.genes[0]?.x).not.toBe(3);
   });
 });
+
+describe("the thruster in the world (M10)", () => {
+  const founderWith = (drive: number): Founder[] => [
+    {
+      x: 10,
+      y: 10,
+      genome: {
+        ...BASELINE_GENOME,
+        genes: [
+          {
+            type: "thruster",
+            x: 0,
+            y: 0,
+            radius: 0.05,
+            orientation: {cos: 0, sin: -1},
+            drive,
+          },
+        ],
+      },
+    },
+  ];
+  const hashFor = (drive: number) =>
+    hashState(
+      createWorld(1234, {
+        generation0: {founders: founderWith(drive)},
+        roster: [],
+      }),
+    );
+
+  it("hashes two worlds differing only in a thruster's drive differently", () => {
+    expect(hashFor(0.1)).not.toBe(hashFor(0.2));
+    expect(hashFor(0.1)).toBe(hashFor(0.1));
+  });
+});

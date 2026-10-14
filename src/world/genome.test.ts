@@ -3,6 +3,9 @@ import {describe, expect, it} from "vitest";
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
   DELTA_CYTOPLASM_RADIUS,
+  DELTA_DRIVE,
+  DRIVE_NEW,
+  EPSILON_ORIENTATION,
   DELTA_ORGANELLE_POSITION,
   DELTA_ORGANELLE_RADIUS,
   MAX_STRUCTURAL_EVENTS,
@@ -933,3 +936,139 @@ function organelleArea(genome: Genome): number {
   }
   return area;
 }
+
+function thruster(
+  innovationId: number,
+  x: number,
+  y: number,
+  radius: number,
+  orientation = {cos: 1, sin: 0},
+  drive = DRIVE_NEW,
+): OrganelleGene {
+  return {type: "thruster", innovationId, x, y, radius, orientation, drive};
+}
+
+describe("the thruster's laws (M10)", () => {
+  it("inserts a thruster at r_new, drive_new and a unit orientation", () => {
+    for (let seed = 0; seed < 50; seed++) {
+      const {genome} = mutateGenome(BASELINE_GENOME, createRngStream(seed), {
+        roster: ["thruster"],
+        eventProbability: 1,
+        operatorWeights: only("insertion"),
+      });
+      const gene = genome.genes[0];
+
+      expect(gene.type).toBe("thruster");
+      expect(gene.radius).toBe(R_NEW);
+      expect(gene.drive).toBe(DRIVE_NEW);
+      expect(
+        Math.hypot(gene.orientation?.cos ?? 0, gene.orientation?.sin ?? 0),
+      ).toBeCloseTo(1, 12);
+    }
+  });
+
+  it("carries neither field on the other types, and draws for them what it drew before", () => {
+    const insertion = (type: "neuron" | "float" | "chloroplast" | "thruster") =>
+      mutateGenome(BASELINE_GENOME, createRngStream(3), {
+        roster: [type],
+        eventProbability: 1,
+        operatorWeights: only("insertion"),
+      });
+
+    for (const type of ["neuron", "float", "chloroplast"] as const) {
+      const gene = insertion(type).genome.genes[0];
+      expect(gene.orientation).toBeUndefined();
+      expect(gene.drive).toBeUndefined();
+    }
+    // The orientation is the one extra draw, after the position.
+    const [neuronStream, floatStream] = [
+      insertion("neuron"),
+      insertion("float"),
+    ];
+    expect(floatStream.stream).toEqual(neuronStream.stream);
+    expect(insertion("thruster").stream).not.toEqual(neuronStream.stream);
+  });
+
+  it("turns an orientation by at most atan(ε), unit-length, and moves drive by at most δ_drive inside [0, 1]", () => {
+    const parent: Genome = {
+      ...BASELINE_GENOME,
+      genes: [thruster(1, 0, 0, 0.2, {cos: 0.6, sin: 0.8}, 0.99)],
+    };
+    let turned = 0;
+    let moved = 0;
+
+    for (let seed = 0; seed < 400; seed++) {
+      const {genome} = mutateGenome(parent, createRngStream(seed), {
+        roster: [],
+        eventProbability: 1,
+        operatorWeights: only("parameterChange"),
+      });
+      const gene = genome.genes[0];
+      const {cos, sin} = gene.orientation ?? {cos: 0, sin: 0};
+      const angle = Math.abs(
+        Math.atan2(0.6 * sin - 0.8 * cos, 0.6 * cos + 0.8 * sin),
+      );
+
+      expect(Math.hypot(cos, sin)).toBeCloseTo(1, 12);
+      expect(angle).toBeLessThanOrEqual(Math.atan(EPSILON_ORIENTATION) + 1e-12);
+      expect(gene.drive).toBeGreaterThanOrEqual(0);
+      expect(gene.drive).toBeLessThanOrEqual(1);
+      expect(Math.abs((gene.drive ?? 0) - 0.99)).toBeLessThanOrEqual(
+        DELTA_DRIVE + 1e-12,
+      );
+      if (angle > 1e-9) {
+        turned++;
+      }
+      if (gene.drive !== 0.99) {
+        moved++;
+      }
+    }
+    expect(turned).toBeGreaterThan(50);
+    expect(moved).toBeGreaterThan(50);
+  });
+
+  it("copies orientation and drive to both pieces of a split", () => {
+    const parent: Genome = {
+      ...BASELINE_GENOME,
+      genes: [thruster(1, 0, 0, 0.2, {cos: 0, sin: -1}, 0.4)],
+    };
+    const {genome} = mutateGenome(parent, createRngStream(1), {
+      roster: [],
+      eventProbability: 1,
+      operatorWeights: only("split"),
+    });
+
+    expect(genome.genes.length).toBeGreaterThanOrEqual(2);
+    for (const gene of genome.genes) {
+      expect(gene.orientation).toEqual({cos: 0, sin: -1});
+      expect(gene.drive).toBe(0.4);
+    }
+  });
+
+  it("prices a thruster genome at the Birth Cost Ceiling of the same genome with floats", () => {
+    const layout = [
+      [0, 0, 0.2],
+      [0.5, 0, 0.1],
+      [-0.5, 0.3, 0.05],
+    ] as const;
+    const withThrusters: Genome = {
+      ...BASELINE_GENOME,
+      genes: layout.map(([x, y, r], i) => thruster(i + 1, x, y, r)),
+    };
+    const withFloats: Genome = {
+      ...BASELINE_GENOME,
+      genes: layout.map(([x, y, r], i) => ({
+        type: "float" as const,
+        innovationId: i + 1,
+        x,
+        y,
+        radius: r,
+      })),
+    };
+    const roster = ["neuron", "float", "chloroplast", "thruster"] as const;
+
+    expect(birthCostCeiling(withThrusters, roster)).toBe(
+      birthCostCeiling(withFloats, roster),
+    );
+  });
+});

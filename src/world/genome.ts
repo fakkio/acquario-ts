@@ -5,6 +5,7 @@ import {
   DELTA_CYTOPLASM_RADIUS,
   DELTA_LINEAGE_HUE,
   DELTA_MITOSIS_ENERGY_THRESHOLD,
+  DRIVE_NEW,
   INSERTION_WEIGHT,
   MAX_STRUCTURAL_EVENTS,
   MUTATION_PROBABILITY,
@@ -28,9 +29,9 @@ import {drawUnitVector, nextRng, type RngStream} from "./rng";
 /**
  * The structural gene describing one organelle (glossary: Organelle Gene):
  * its type, its Innovation Id, its radius and its position in the genome's
- * frame. A type's further parameters join it when a type declares one (M8
- * on); the neuron, the float and the chloroplast declare only radius and
- * position (`organelles.ts`).
+ * frame. A type's further parameters join it when a type declares one: the
+ * thruster's `orientation` and `drive` (M10); the neuron, the float and the
+ * chloroplast declare only radius and position (`organelles.ts`).
  */
 export interface OrganelleGene {
   readonly type: OrganelleType;
@@ -49,6 +50,11 @@ export interface OrganelleGene {
   readonly radius: number;
   readonly x: number;
   readonly y: number;
+  /** The direction the organelle acts along, a unit `(cos, sin)` in the
+   * genome's frame. Only on a type that declares an `orientation`. */
+  readonly orientation?: {readonly cos: number; readonly sin: number};
+  /** How hard it acts, in `[0, 1]`. Only on a type that declares a `drive`. */
+  readonly drive?: number;
 }
 
 /**
@@ -385,6 +391,25 @@ export interface Body {
   /** The layout moments over weighing organelles that gravity reads
    * (`gravity.ts`), zero for a body with none. */
   readonly moments: LayoutMoments;
+  /**
+   * The body's thrusters in genome order, each with its position and
+   * direction in the body frame and the signal and maximum force they are
+   * read with, fixed at birth with the body. The force is `signal × maxForce`
+   * along `(dx, dy)`; the signal is the thruster's `drive` until M11 wires
+   * `power`.
+   */
+  readonly thrusters: readonly Thruster[];
+}
+
+/** One thruster as the motion step reads it (`Body.thrusters`). */
+export interface Thruster {
+  readonly x: number;
+  readonly y: number;
+  readonly dx: number;
+  readonly dy: number;
+  readonly signal: number;
+  /** `kForce × 2·r`. */
+  readonly maxForce: number;
 }
 
 /**
@@ -418,7 +443,30 @@ export function deriveBody(
     reach: organelleReach,
     organelles: relaxed,
     moments: layoutMoments(relaxed, declarations),
+    thrusters: thrustersOf(relaxed, declarations),
   };
+}
+
+function thrustersOf(
+  organelles: readonly OrganelleGene[],
+  declarations: Readonly<Record<string, OrganelleTypeDeclaration>>,
+): Thruster[] {
+  const thrusters: Thruster[] = [];
+  for (const {type, radius, x, y, orientation, drive} of organelles) {
+    const {force} = declarations[type];
+    if (force === undefined || orientation === undefined) {
+      continue;
+    }
+    thrusters.push({
+      x,
+      y,
+      dx: orientation.cos,
+      dy: orientation.sin,
+      signal: drive ?? 0,
+      maxForce: force * 2 * radius,
+    });
+  }
+  return thrusters;
 }
 
 /** `R_area`: the radius of a circle of the cytoplasm's area plus
@@ -570,6 +618,15 @@ function applyEvent(
       );
       const offset = draws.pointInUnitDisc();
       const within = bodyRadius - R_NEW;
+      const {parameters} = ORGANELLE_TYPES[type];
+      // A type's further parameters are born after the position, and only a
+      // type that declares them draws or carries them.
+      const orientation = parameters.some(({name}) => name === "orientation")
+        ? draws.unitVector()
+        : undefined;
+      const drive = parameters.some(({name}) => name === "drive")
+        ? DRIVE_NEW
+        : undefined;
       return [
         ...layout,
         {
@@ -578,6 +635,10 @@ function applyEvent(
           radius: R_NEW,
           x: offset.x * within,
           y: offset.y * within,
+          ...(orientation && {
+            orientation: {cos: orientation.x, sin: orientation.y},
+          }),
+          ...(drive !== undefined && {drive}),
         },
       ];
     }
@@ -609,6 +670,8 @@ function applyEvent(
  * (ADR-0028's closed menu): the symmetric multiplicative law is the
  * radius's, clamped up to its floor (ADR-0034), and the Cartesian step is
  * the position's, uniform over a disc of `δ` of the organelle's own radius.
+ * The additive clamped law moves `drive`, and the unit-vector rotation turns
+ * `orientation`.
  */
 function changeParameter(
   gene: Gene,
@@ -632,6 +695,24 @@ function changeParameter(
         x: gene.x + step.x * reach,
         y: gene.y + step.y * reach,
       };
+    }
+    case "additiveClamped":
+      return {
+        ...gene,
+        drive: Math.min(
+          law.max,
+          Math.max(law.min, (gene.drive ?? 0) + draws.signed() * law.delta),
+        ),
+      };
+    case "unitVectorRotation": {
+      // The Body Axis's own update: a small rotation and a renormalising
+      // square root, so no `sin` or `cos`.
+      const epsilon = draws.signed() * law.epsilon;
+      const {cos: c, sin: s} = gene.orientation ?? {cos: 1, sin: 0};
+      const cos = c - epsilon * s;
+      const sin = s + epsilon * c;
+      const norm = Math.sqrt(cos * cos + sin * sin);
+      return {...gene, orientation: {cos: cos / norm, sin: sin / norm}};
     }
   }
 }
@@ -802,6 +883,10 @@ function successors(
             ...body,
             reach: body.reach + law.delta * organelle.radius,
           });
+          break;
+        case "additiveClamped":
+        case "unitVectorRotation":
+          // No area, no reach: the body the ceiling prices is unchanged.
           break;
       }
     }

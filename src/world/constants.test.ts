@@ -100,3 +100,18 @@ describe("constant overrides", () => {
     expect(K_PHOTO).toBe(0.03);
   });
 });
+
+describe("thruster constants (M10)", () => {
+  it("derives kForce so a new thruster pushes as hard as a new float lifts at the surface", async () => {
+    const {G, R_NEW, K_FORCE, DRIVE_NEW, DELTA_DRIVE, EPSILON_ORIENTATION} =
+      await importConstants();
+
+    expect(K_FORCE).toBeCloseTo(1.3263, 4);
+    expect(DRIVE_NEW * K_FORCE * 2 * R_NEW).toBeCloseTo(
+      G * Math.PI * R_NEW ** 2,
+      12,
+    );
+    expect(DELTA_DRIVE).toBe(0.05);
+    expect(EPSILON_ORIENTATION).toBe(0.25);
+  });
+});

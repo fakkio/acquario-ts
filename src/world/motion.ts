@@ -1,6 +1,6 @@
 import {AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
 import {BROWNIAN_FORCE, DRAG_PER_RADIUS} from "./constants";
-import {buoyantTorque, buoyantWeight} from "./gravity";
+import {buoyantTorque, buoyantWeight, turn} from "./gravity";
 import type {Organism} from "./organism";
 import {drawUnitVector} from "./rng";
 
@@ -48,11 +48,13 @@ export interface MotionOptions {
  * Resolve phase, step 6. Reads and writes only this organism — its position
  * and its own stream — which is what lets the phase run in any order.
  *
- * Two forces move a body, both over its drag `6π·R`: a Brownian push in a
- * random direction (the step's first and only draw), and the Buoyant Weight
- * straight down, positive towards the floor (`gravity.ts`). Its torque turns
- * the Body Axis at `τ / 8π·R³`. A body with nothing that weighs feels
- * neither, and moves exactly as in v0.1.
+ * Three forces move a body, all over its drag `6π·R`: a Brownian push in a
+ * random direction (the step's first and only draw), the Buoyant Weight
+ * straight down, positive towards the floor (`gravity.ts`), and each
+ * thruster's push along its orientation, turned through the axis the tick
+ * started with. The buoyant torque and the thrusters' torques `p × F` add,
+ * and their sum turns the Body Axis at `τ / 8π·R³`. A body with nothing that
+ * weighs and no thruster feels none of them, and moves exactly as in v0.1.
  */
 export function applyMotion(
   organism: Organism,
@@ -60,6 +62,7 @@ export function applyMotion(
 ): void {
   const radius = organism.bodyRadius;
   const moments = organism.moments;
+  const {thrusters} = organism;
 
   if (options.brownian !== "off") {
     const direction = drawUnitVector(organism.rng);
@@ -72,14 +75,32 @@ export function applyMotion(
     organism.y += direction.y * velocity;
   }
 
-  if (moments.area === 0) {
+  if (moments.area === 0 && thrusters.length === 0) {
     return;
   }
 
   const {axis} = organism;
   const weight = buoyantWeight(moments, organism.y, axis);
-  const torque = buoyantTorque(moments, organism.y, axis);
+  let torque = buoyantTorque(moments, organism.y, axis);
   organism.y += weight / (DRAG_PER_RADIUS * radius);
+
+  // Each thruster in genome order: its force in the body frame, turned into
+  // the world for the translation, and `p × F` for the torque (the cross
+  // product is the same in either frame), signed as gravity's is.
+  let thrustX = 0;
+  let thrustY = 0;
+  for (const thruster of thrusters) {
+    const magnitude = thruster.signal * thruster.maxForce;
+    const fx = thruster.dx * magnitude;
+    const fy = thruster.dy * magnitude;
+    const world = turn(axis, fx, fy);
+    thrustX += world.x;
+    thrustY += world.y;
+    torque += thruster.x * fy - thruster.y * fx;
+  }
+  const drag = DRAG_PER_RADIUS * radius;
+  organism.x += thrustX / drag;
+  organism.y += thrustY / drag;
 
   // The rotational drag of the Stokes sphere whose translational drag is
   // `6π·R`. One small rotation by `ω` and a renormalising square root: no

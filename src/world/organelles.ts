@@ -2,9 +2,12 @@ import {
   BODY_COST_COEFFICIENT,
   C_NEURON,
   C_ORGANELLE,
+  DELTA_DRIVE,
   DELTA_ORGANELLE_POSITION,
   DELTA_ORGANELLE_RADIUS,
+  EPSILON_ORIENTATION,
   K_CHLORO,
+  K_FORCE,
   R_MIN,
 } from "./constants";
 
@@ -19,8 +22,8 @@ import {
 
 /**
  * The closed menu of mutation laws a parameter can declare (ADR-0028),
- * widened only by ADR. M7 needs two of them; the additive clamped law and
- * the wrapping angle arrive with the first type that declares one.
+ * widened only by ADR. M7 needed two of them; M10's thruster brings the
+ * additive clamped law and the wrapping angle.
  */
 export type ParameterLaw =
   /** `× (1 + u·δ)` or its reciprocal with equal probability, clamped up to
@@ -32,12 +35,25 @@ export type ParameterLaw =
     }
   /** A step in the genome's frame of at most `delta` times the organelle's
    * own radius. */
-  | {readonly kind: "cartesianStep"; readonly delta: number};
+  | {readonly kind: "cartesianStep"; readonly delta: number}
+  /** `+ u·delta`, `u` signed, clamped to `[min, max]`. Adds no area or
+   * reach. */
+  | {
+      readonly kind: "additiveClamped";
+      readonly delta: number;
+      readonly min: number;
+      readonly max: number;
+    }
+  /** A unit vector `(c, s)` turned by `(c, s) += ε·(−s, c)`, `ε` a signed
+   * step of at most `epsilon`, and renormalised: it wraps by construction
+   * and evaluates no `sin` or `cos`. Adds no area or reach. */
+  | {readonly kind: "unitVectorRotation"; readonly epsilon: number};
 
 export interface ParameterDeclaration {
-  /** The Organelle Gene field it mutates: `radius`, or `position` for the
-   * `x`/`y` pair. */
-  readonly name: "radius" | "position";
+  /** The Organelle Gene field it mutates: `radius`, `position` for the
+   * `x`/`y` pair, `orientation` or `drive`. The field a law writes follows
+   * this name, not the law's kind. */
+  readonly name: "radius" | "position" | "orientation" | "drive";
   readonly law: ParameterLaw;
 }
 
@@ -63,6 +79,15 @@ export interface OrganelleTypeDeclaration {
    * branch in the metabolism.
    */
   readonly photosynthesis?: number;
+  /**
+   * The type's force coefficient `kForce` (ADR-0032): each piece pushes with
+   * `signal × kForce × 2·r` along its orientation. Absent for a type that
+   * does not push, so a knockout is a different declaration.
+   */
+  readonly force?: number;
+  /** The names of the input ports the type declares. Nothing can wire one
+   * before M11's synapses. */
+  readonly inputPorts?: readonly string[];
 }
 
 /**
@@ -120,10 +145,36 @@ const CHLOROPLAST: OrganelleTypeDeclaration = {
   photosynthesis: K_CHLORO,
 };
 
+/**
+ * M10's thruster: the only actuator of v0.2 and the second weightless type.
+ * It has the neuron's radius and position laws, plus `orientation` and
+ * `drive`, pays the shared `c_organelle` and `β`, and declares the `power`
+ * port nothing can wire until M11: unwired, it pushes at its `drive`.
+ */
+const THRUSTER: OrganelleTypeDeclaration = {
+  parameters: [
+    ...NEURON.parameters,
+    {
+      name: "orientation",
+      law: {kind: "unitVectorRotation", epsilon: EPSILON_ORIENTATION},
+    },
+    {
+      name: "drive",
+      law: {kind: "additiveClamped", delta: DELTA_DRIVE, min: 0, max: 1},
+    },
+  ],
+  overhead: C_ORGANELLE,
+  tissueCost: BODY_COST_COEFFICIENT,
+  density: "weightless",
+  force: K_FORCE,
+  inputPorts: ["power"],
+};
+
 export const ORGANELLE_TYPES = {
   neuron: NEURON,
   float: FLOAT,
   chloroplast: CHLOROPLAST,
+  thruster: THRUSTER,
 } as const satisfies Readonly<Record<string, OrganelleTypeDeclaration>>;
 
 export type OrganelleType = keyof typeof ORGANELLE_TYPES;
