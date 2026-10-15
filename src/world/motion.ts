@@ -35,7 +35,7 @@ import {drawUnitVector} from "./rng";
 
 /** `8π`, the rotational drag of a Stokes sphere per cubed radius; its
  * translational sibling is `DRAG_PER_RADIUS = 6π`. */
-const ROTATIONAL_DRAG_PER_CUBE = 8 * Math.PI;
+export const ROTATIONAL_DRAG_PER_CUBE = 8 * Math.PI;
 
 /** What a test may change about the motion step. Production passes none; the
  * declarations it reads are the organism's, supplied at its construction. */

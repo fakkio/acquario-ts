@@ -4,14 +4,19 @@ import {
   bodyAreaOfRadius,
   buoyantTorque,
   buoyantWeight,
+  DRAG_PER_RADIUS,
   energyCap,
   maintenanceBreakdown,
   ORGANELLE_TYPES,
   restingDepth,
+  ROTATIONAL_DRAG_PER_CUBE,
+  turn,
+  type BodyAxis,
   type OrganelleType,
   type OrganismView,
   type Pools,
   type Resource,
+  type Thruster,
   type TickFlows,
 } from "../world";
 import type {Selection} from "./selection";
@@ -43,10 +48,63 @@ const buoyantWeightText = (organism: OrganismView): string => {
 /** The Body Axis in degrees from the vertical (0 upright, positive turned
  * clockwise on the screen), and the torque turning it. */
 const axisText = (organism: OrganismView): string => {
-  const {cos, sin} = organism.axis;
   const torque = buoyantTorque(organism.moments, organism.y, organism.axis);
 
-  return `${fixed((Math.atan2(sin, cos) * 180) / Math.PI, 1)}°  torque ${torque === 0 ? "0" : signed(torque)}`;
+  // The body's up, `(0, −1)` in its own frame, turned into the world.
+  const up = turn(organism.axis, 0, -1);
+
+  return `${fixed(fromVertical(up.x, up.y), 1)}°  torque ${torque === 0 ? "0" : signed(torque)}`;
+};
+
+const degrees = (radians: number): number => (radians * 180) / Math.PI;
+
+/** A direction's angle from straight up in degrees, positive turned clockwise
+ * on the screen (whose y runs down). */
+const fromVertical = (x: number, y: number): number =>
+  degrees(Math.atan2(x, -y));
+
+/** One thruster's push: `|F| = signal × maxForce` along its body-frame
+ * direction, and the torque `p × F` it puts on the body, signed as gravity's. */
+const thrustOf = (thruster: Thruster) => {
+  const magnitude = thruster.signal * thruster.maxForce;
+  const fx = thruster.dx * magnitude;
+  const fy = thruster.dy * magnitude;
+
+  return {
+    magnitude,
+    fx,
+    fy,
+    torque: thruster.x * fy - thruster.y * fx,
+  };
+};
+
+/** The thrusters' net force in the world and net torque, with the velocity
+ * `ΣF/(6π·R)` and turn rate `τ/(8π·R³)` they give, as the motion step reads
+ * them. Empty for a body with no thruster. */
+const thrustLines = (organism: OrganismView): string[] => {
+  if (organism.thrusters.length === 0) {
+    return [];
+  }
+  let fx = 0;
+  let fy = 0;
+  let torque = 0;
+  for (const thruster of organism.thrusters) {
+    const push = thrustOf(thruster);
+    const world = turn(organism.axis, push.fx, push.fy);
+    fx += world.x;
+    fy += world.y;
+    torque += push.torque;
+  }
+  const drag = DRAG_PER_RADIUS * organism.bodyRadius;
+  const turnRate =
+    torque / (ROTATIONAL_DRAG_PER_CUBE * organism.bodyRadius ** 3);
+
+  return [
+    `  thrust force        ${signed(fx)}, ${signed(fy)}`,
+    `  thrust torque       ${signed(torque)}`,
+    `  thrust velocity     ${signed(fx / drag)}, ${signed(fy / drag)}`,
+    `  thrust turn rate    ${signed(turnRate)} rad/tick`,
+  ];
 };
 
 const restingDepthText = (organism: OrganismView): string => {
@@ -172,8 +230,21 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
     number,
     {light: HTMLTableCellElement; fixation: HTMLTableCellElement}
   >();
+  // A thruster's direction in the world turns with the body, so it is
+  // refilled every frame too, by the thruster's place in genome order.
+  let worldCells: {
+    cell: HTMLTableCellElement;
+    thruster: Thruster;
+  }[] = [];
 
-  const fillReadings = (flows: TickFlows | null): void => {
+  const fillReadings = (
+    flows: TickFlows | null,
+    axis: Readonly<BodyAxis>,
+  ): void => {
+    for (const {cell, thruster} of worldCells) {
+      const world = turn(axis, thruster.dx, thruster.dy);
+      cell.textContent = `${fixed(fromVertical(world.x, world.y), 1)}°`;
+    }
     for (const [id, cells] of readingCells) {
       const reading = flows?.discs.find((disc) => disc.innovationId === id);
       cells.light.textContent = reading ? fixed(reading.light) : "";
@@ -184,6 +255,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   const rebuildTable = (organism: OrganismView): void => {
     table.replaceChildren();
     readingCells = new Map();
+    worldCells = [];
     if (organism.organelles.length === 0) {
       tableFor = organism;
       return;
@@ -199,6 +271,11 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       "density",
       "light",
       "fixation",
+      "dir body",
+      "dir world",
+      "drive",
+      "|F|",
+      "torque",
     ]) {
       const cell = document.createElement("th");
       cell.textContent = title;
@@ -206,6 +283,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       cell.style.padding = "0 6px";
       head.appendChild(cell);
     }
+    let thrusterIndex = 0;
     for (const organelle of organism.organelles) {
       const row = table.insertRow();
       const values = [
@@ -232,6 +310,26 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       if (ORGANELLE_TYPES[organelle.type].photosynthesis !== undefined) {
         readingCells.set(organelle.innovationId, {light, fixation});
       }
+
+      // Empty for every type without a thrust declaration. Thrusters are the
+      // organelles that declare one, in genome order (`Body.thrusters`).
+      const thrustCells = Array.from({length: 5}, () => row.insertCell());
+      for (const cell of thrustCells) {
+        cell.style.textAlign = "right";
+        cell.style.padding = "0 6px";
+      }
+      const thruster =
+        ORGANELLE_TYPES[organelle.type].thrust !== undefined
+          ? organism.thrusters[thrusterIndex++]
+          : undefined;
+      if (thruster) {
+        const push = thrustOf(thruster);
+        thrustCells[0].textContent = `${fixed(fromVertical(thruster.dx, thruster.dy), 1)}°`;
+        thrustCells[2].textContent = fixed(thruster.signal);
+        thrustCells[3].textContent = fixed(push.magnitude, 5);
+        thrustCells[4].textContent = signed(push.torque);
+        worldCells.push({cell: thrustCells[1], thruster});
+      }
     }
     tableFor = organism;
   };
@@ -250,6 +348,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         summary.textContent = `Died at tick ${String(selection.tick)}`;
         table.replaceChildren();
         readingCells = new Map();
+        worldCells = [];
         tableFor = null;
         return;
       }
@@ -275,6 +374,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         `  organelle areas     ${fixed(organelleArea)}`,
         `  buoyant weight      ${buoyantWeightText(organism)}`,
         `  body axis           ${axisText(organism)}`,
+        ...thrustLines(organism),
         `  resting depth       ${restingDepthText(organism)}`,
         "",
         "Mitosis",
@@ -305,7 +405,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       if (tableFor !== organism) {
         rebuildTable(organism);
       }
-      fillReadings(flows);
+      fillReadings(flows, organism.axis);
     },
   };
 }

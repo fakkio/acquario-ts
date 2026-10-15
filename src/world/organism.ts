@@ -83,6 +83,9 @@ export interface OrganismView {
   /** The layout moments over weighing organelles (`gravity.ts`), what the
    * inspector reads the Buoyant Weight and Resting Depth from. */
   readonly moments: LayoutMoments;
+  /** The body's thrusters in genome order (`Body.thrusters`), what the
+   * inspector reads the thrust from. */
+  readonly thrusters: readonly Thruster[];
   /** The Body Axis (`gravity.ts`): the cosine and sine of the body frame's
    * angle in the world. Read-only here; the motion step turns it. */
   readonly axis: Readonly<BodyAxis>;
