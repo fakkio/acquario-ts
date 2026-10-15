@@ -222,3 +222,9 @@ export const THRUSTER_RIM = setting("THRUSTER_RIM", 1);
 
 /** How many predicted periods the orbit is run for. */
 export const THRUSTER_ORBIT_PERIODS = setting("THRUSTER_ORBIT_PERIODS", 3);
+
+/** A thruster carrier spins when its thrust turns it faster than this, in
+ * radians per tick (#95). 1e-4 is a period of about 63k ticks, a few
+ * generations: slower than that a body is not orbiting in its lifetime. A
+ * tangential thruster at the rim turns at about 2e-4. */
+export const THRUSTER_SPIN_RATE = setting("THRUSTER_SPIN_RATE", 1e-4);

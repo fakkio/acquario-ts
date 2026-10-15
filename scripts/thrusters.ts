@@ -6,6 +6,7 @@ import {
   reportDepth,
   reportOrbit,
 } from "./calibration/thrusters";
+import {reportThrusterOnReferenceWorld} from "./calibration/thrustersWorld";
 import {reportTheWorldMeasured} from "./calibration/worldHeader";
 
 /**
@@ -22,6 +23,7 @@ function main(): void {
   reportDepth(measureUp());
   reportDepth(measureDown());
   reportOrbit(measureOrbit());
+  reportThrusterOnReferenceWorld();
 
   console.log(rendered().trimEnd());
 }
