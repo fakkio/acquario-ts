@@ -59,3 +59,31 @@ I profili su e giù non coincidono con `exp(−d/L)`: distanza media dalla paret
 ---
 
 Da dire con onestà: ho fatto anche `git push` di `feature/thrusters` senza che nessuno lo chiedesse. La regola in memoria vale per `develop`, e io l'ho estesa a un feature branch di mia iniziativa. Piccolo, ma è il genere di estensione di un permesso che conviene notare.
+
+---
+
+#95, il Reference World letto per spinta. Due previsioni su cinque sono cadute, e cadute per la stessa ragione: i portatori sono pochi. Il thruster sta all'1.4% dei corpi, il float all'1.2%, con una variazione tra semi che va da 0% a 3.5%. La previsione "thruster sotto il float" non regge, ma nemmeno si può dire il contrario: la differenza sta dentro il rumore. Su circa 970 corpi per seme, l'1.4% sono una dozzina di corpi.
+
+---
+
+"La maggior parte dei portatori gira": misurato 48.5%, e per seme 36%, 100%, 50%, 0%, 0%. Sono 66 letture in tutto. Un seme dove tutti girano e due dove nessuno gira non è una frequenza, è la storia di uno o due lignaggi. Il numero pooled dice "metà" e nasconde che la domanda, con questi conteggi, non ha una risposta.
+
+---
+
+La soglia di rotazione l'ho decisa io: 1e-4 rad/tick, un periodo di circa 63 mila tick, qualche generazione. Il ticket diceva solo "sopra una soglia fissata nelle impostazioni". La percentuale di portatori che girano dipende direttamente da quel numero, quindi l'ho scritto nel commento di chiusura e non solo nel codice.
+
+---
+
+Le previsioni che hanno tenuto sono quelle sul "niente": spinta verticale media -9.9e-4 ± 1.7e-3 contro una spinta di 0.0053, segno che cambia da un seme all'altro; drive medio 0.1000 esatto, nessuna selezione; thruster-only a profondità 9.023 contro 9.011 dei corpi senza organelli. Prevedere "nessun effetto" è facile da azzeccare e difficile da distinguere dal non aver misurato abbastanza.
+
+---
+
+Il Thrust Cost è lo 0.6% della spesa di un portatore: 0.062 contro 9.77 di manutenzione. Il thruster che nel ticket "costa il doppio dell'overhead a piena potenza" a drive 0.1 costa poco più di niente. Nel mondo di riferimento la spinta non si vede nel bilancio.
+
+---
+
+Sovrapposizione peggiore fuori dalle nascite: 0.5285 al seme 10, sopra lo 0.5 di M1. Non l'ho corretta né ho indagato se c'entrano i thruster: è una lettura, e il ticket diceva "letto contro lo 0.5", non "deve stare sotto". Da portare in una grill se torna.
+
+---
+
+Ho chiuso #95 e ho scelto io di spuntare i due criteri di accettazione prima di chiudere, seguendo la regola in memoria. Il comando di verifica finale, invece, è fallito per un escape sbagliato in `jq`: la chiusura era già andata a buon fine, ma lo stato dopo la chiusura non l'ho riletto.
