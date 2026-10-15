@@ -125,6 +125,12 @@ export type Generation0 =
 export interface WorldOptions {
   readonly mortality?: MortalityMode;
   readonly fertility?: FertilityMode;
+  /**
+   * `"off"` draws no Brownian step, so the harness can read a body's drift
+   * and spin without the diffusion that swamps them. Not folded into
+   * `hashState`, for the same reason `mortality` is not.
+   */
+  readonly brownian?: "on" | "off";
   readonly generation0?: Generation0;
   /**
    * The organelle types the world's structural mutation draws insertions
@@ -173,6 +179,8 @@ interface WorldState {
    * a state, not the law that produced it.
    */
   readonly fertility: FertilityMode;
+  /** The world's Brownian mode; see `WorldOptions.brownian`. */
+  readonly brownian: "on" | "off";
   /**
    * The world's roster (ADR-0032). Not folded into `hashState` either: it
    * is the law that produced a state, and a genome's organelles already
@@ -282,6 +290,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     globalRng: stream,
     mortality: options.mortality ?? "on",
     fertility: options.fertility ?? "on",
+    brownian: options.brownian ?? "on",
     roster,
     population,
     pools,
@@ -426,7 +435,7 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   );
   // 6. Brownian motion.
   for (const organism of state.population) {
-    applyMotion(organism);
+    applyMotion(organism, {brownian: state.brownian});
   }
   // 7. Evaluate mitosis: per organism, writing only to that organism —
   //    exactly like the steps above — and enqueuing a pending birth

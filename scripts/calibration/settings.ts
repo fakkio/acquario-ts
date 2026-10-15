@@ -202,3 +202,23 @@ export const COMPOSITION_SAMPLE_EVERY = setting(
 /** How often `X(y)` reads the baseline bodies, and how many it places. */
 export const EARNINGS_SAMPLE_EVERY = setting("EARNINGS_SAMPLE_EVERY", 100);
 export const EARNINGS_BODIES = setting("EARNINGS_BODIES", 40);
+
+/**
+ * A lone thruster in a Fixed Population (#94). Thrust is constant in depth,
+ * so the profile exp(-y/L) relaxes over the same ~10^4 ticks the float's
+ * does, and 150k leaves the second half settled.
+ */
+export const THRUSTER_TICKS = setting("THRUSTER_TICKS", 150_000);
+
+/** How many thruster carriers the up and down populations place. */
+export const THRUSTER_BODIES = setting("THRUSTER_BODIES", 40);
+
+/** How often those populations read the depths. */
+export const THRUSTER_SAMPLE_EVERY = setting("THRUSTER_SAMPLE_EVERY", 100);
+
+/** The tangential thruster's distance l from the body centre; 1 is the
+ * baseline disc radius, the rim. */
+export const THRUSTER_RIM = setting("THRUSTER_RIM", 1);
+
+/** How many predicted periods the orbit is run for. */
+export const THRUSTER_ORBIT_PERIODS = setting("THRUSTER_ORBIT_PERIODS", 3);

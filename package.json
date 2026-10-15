@@ -47,6 +47,7 @@
     "neuron": "node --import ./scripts/ts-esm-resolver.mjs scripts/neuron.ts",
     "prepare": "husky",
     "preview": "vite preview",
+    "thrusters": "node --import ./scripts/ts-esm-resolver.mjs scripts/thrusters.ts",
     "test": "vitest run",
     "test:long": "vitest run --config vitest.long.config.ts",
     "typecheck": "tsc --noEmit"

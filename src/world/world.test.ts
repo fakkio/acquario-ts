@@ -202,6 +202,20 @@ describe("motion", () => {
     expect(worstSoFar).toBeLessThanOrEqual(0);
   });
 
+  it("draws no Brownian step when the world's brownian mode is off", () => {
+    const founders = [{x: 30, y: 20, genome: BASELINE_GENOME}];
+    const run = (brownian: "on" | "off") =>
+      positionsOf(
+        advance(
+          createWorld(5, {generation0: {founders}, fertility: "off", brownian}),
+          TICKS * FIXED_DT_MS,
+        ).world,
+      );
+
+    expect(run("off")).toEqual([{x: 30, y: 20}]);
+    expect(run("on")).not.toEqual([{x: 30, y: 20}]);
+  });
+
   // M0's determinism invariant, now that the hash covers something that
   // actually changes inside a tick.
   it("reaches the same hash at tick N in two runs from the same seed", () => {
