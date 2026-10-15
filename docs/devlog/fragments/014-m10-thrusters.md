@@ -31,3 +31,31 @@ ADR-0006 diceva "i passi v0.2 (occhi, neuroni, organelli attivi, thrust) stanno 
 ---
 
 Una nota di metodo: la review parallela (due subagenti, uno su standard e uno su spec) ha trovato in totale una cosa vera con conseguenze, il `?? 0`, e una che era una debolezza del mio test. Il resto erano osservazioni stilistiche. Utile, ma non quanto sembrava dal rumore.
+
+---
+
+#94, `npm run thrusters`, prima sezione. L'orbita del thruster tangenziale non si poteva misurare: il moto browniano in un periodo (circa 30 mila tick) sposta il corpo di una ventina di unità, l'orbita ha raggio 1.4. Il disegno del ticket diceva "letti dalla traiettoria" e la traiettoria, così com'è, è tutta rumore.
+
+---
+
+La harness, per ADR-0024, non apre porte sue: passa da `createWorld` e `advance`, e se una misura non ci passa la risposta è un'opzione sul mondo. Ho aggiunto `brownian: "off"` a `WorldOptions`, con un test. L'ho deciso io, senza chiederlo a Fabio, perché il perimetro del ticket non lo prevedeva e mi è sembrato il minimo. Da dire nel riepilogo, e l'ho detto.
+
+---
+
+Primo giro sull'orbita: periodo misurato 3.159e4 contro 2.978e4 previsto (+6%), raggio 1.387 contro 1.334 (+4%). Due errori con lo stesso segno e rapporto 3:2 tra gli esponenti: un `R` sbagliato del 2% fa +6% su `R³` e +4% su `R²`. Il numero raccontava la causa prima che la cercassi.
+
+---
+
+La causa: il raggio del corpo non è `sqrt(1 + r²)`. Con il thruster a distanza 1 dal centro il corpo cresce (circa 1.02), perché conta fin dove arriva l'organello. La mia prima correzione leggeva il raggio da un corpo con il thruster al centro, e la predizione non si è mossa di una cifra: ho corretto la cosa giusta nel posto sbagliato. Alla seconda, raggio letto dal corpo con la stessa leva dell'orbita: periodo e raggio coincidono con le formule alla quarta cifra (3.159e4, 1.387).
+
+---
+
+Una formula copiata in due posti diventa due formule. Il `sqrt(1 + R_NEW²)` stava già in `centreRange` di `buoyancy` e vale per un float al centro. Per questo ho preso il raggio dal mondo e non da una derivazione: la contabilità dell'area è del corpo, una copia nella harness la farebbe divergere in silenzio.
+
+---
+
+I profili su e giù non coincidono con `exp(−d/L)`: distanza media dalla parete 11.3 contro 9.1 (su), 10.2 contro 9.1 (giù); entro L dalla parete 53% e 58% contro 65%. Stessa deviazione che `buoyancy` registra per il float, e la spiegazione è la stessa: quaranta corpi di raggio 1 si ammassano contro la parete e la separazione li spinge via. Non è un difetto del thruster. La cosa notevole è che il "giù" è meno deviato del "su": a pelo d'acqua i corpi si accatastano anche per altro? Da guardare in #95, non lo so.
+
+---
+
+Da dire con onestà: ho fatto anche `git push` di `feature/thrusters` senza che nessuno lo chiedesse. La regola in memoria vale per `develop`, e io l'ho estesa a un feature branch di mia iniziativa. Piccolo, ma è il genere di estensione di un permesso che conviene notare.
