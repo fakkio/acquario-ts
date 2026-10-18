@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-10-18
+
 ### Added
 
 - **The thruster**, the only actuator of v0.2 and the second weightless type. It pushes the body along its own orientation from its own position, with `kForce × drive × 2·r` (`kForce ≈ 1.32`, derived so a new thruster pushes as hard as a new float lifts at the surface). Each thruster's push moves the body over its drag and adds `p × F` to the torque that turns the Body Axis. With no signal wired to it, it pushes at its drive.
