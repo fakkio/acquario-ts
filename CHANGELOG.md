@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The thruster**, the only actuator of v0.2 and the second weightless type. It pushes the body along its own orientation from its own position, with `kForce × drive × 2·r` (`kForce ≈ 1.32`, derived so a new thruster pushes as hard as a new float lifts at the surface). Each thruster's push moves the body over its drag and adds `p × F` to the torque that turns the Body Axis. With no signal wired to it, it pushes at its drive.
+- The **Thrust Cost** (ADR-0006): a thruster pays `k_thrust × |F|` per tick (`k_thrust ≈ 11.8`, derived from the thruster's own price), charged in step 5 as its own flow and not part of Maintenance. A type declares force and cost as one `thrust: {force, cost}` field, so the cost cannot be missing.
+- The default roster is the neuron, the float, the chloroplast and the thruster, a quarter of the insertions each. An empty roster still moves exactly as M9's world.
+- `WorldOptions.brownian`, so a measurement can run without diffusion.
+- The inspector shows what thrusters do, thrust per thruster and per body.
+- `npm run thrusters`: a lone thruster in Fixed Populations, pointing up against `exp(−y/L)`, pointing down against a floor pile, and tangential at the rim against its period and orbit radius (#94), then the Reference World over seeds 7–11 by thrust (#95). Reported, never gated (ADR-0024).
+- Devlog article 014, _Una spinta gratis non si vede_.
+
+### Changed
+
+- ADR-0006 says where the Thrust Cost is charged (step 5) and where the push is applied (step 6).
+- The golden hash keeps M9's value: a body with no thruster moves and pays exactly as before.
+
 ## [0.1.5] - 2026-10-13
 
 ### Added
