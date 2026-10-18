@@ -118,6 +118,7 @@ function emptyPool(bands: number): Pool {
       neuron: carriers(),
       float: carriers(),
       chloroplast: carriers(),
+      thruster: carriers(),
     },
     depth: {
       none: {count: 0, sum: 0},

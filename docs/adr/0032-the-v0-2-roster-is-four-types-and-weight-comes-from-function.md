@@ -1,5 +1,7 @@
 # The v0.2 roster is four types, and only function or cost gives weight
 
+> **Amended by the M10 grill.** The thruster's orientation keeps the wrapping-angle law but is held as a unit vector `(cos, sin)`, drawn uniformly at insertion and turned by a small rotation renormalised with a square root, as the Body Axis is, so the tick stays free of `sin` and `cos`. `drive_new = 0.1`. `kForce` is anchored on the float, so that a new thruster pushes as hard as a new float lifts at the surface, and `k_thrust` on the overhead, so that a new thruster at full power pays `c_organelle` a second time (`vision.md` § Thrusters).
+
 v0.2 ships four organelle types: the **chloroplast**, the **float**, the **thruster** and the **neuron**. Each one declares only the parameters it uses, so orientation belongs to the thruster alone. A type weighs only when weight is what it does or what it costs, so the neuron and the thruster are weightless like the cytoplasm. Everything else in `vision.md`'s table is deferred with a tentative version. Settled in #49. This amends ADR-0028's common parameters and ADR-0030's default density for "every other type".
 
 ## The roster

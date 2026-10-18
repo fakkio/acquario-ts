@@ -13,6 +13,7 @@ import {
 } from "./ledger";
 import {
   applyMaintenance,
+  applyThrustCost,
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
@@ -124,12 +125,18 @@ export type Generation0 =
 export interface WorldOptions {
   readonly mortality?: MortalityMode;
   readonly fertility?: FertilityMode;
+  /**
+   * `"off"` draws no Brownian step, so the harness can read a body's drift
+   * and spin without the diffusion that swamps them. Not folded into
+   * `hashState`, for the same reason `mortality` is not.
+   */
+  readonly brownian?: "on" | "off";
   readonly generation0?: Generation0;
   /**
    * The organelle types the world's structural mutation draws insertions
-   * from (ADR-0032). Defaults to M9's roster, the neuron, the float and the
-   * chloroplast; an empty roster is M6's world, with no structural event ever
-   * drawn.
+   * from (ADR-0032). Defaults to M10's roster, the neuron, the float, the
+   * chloroplast and the thruster; an empty roster is M6's world, with no
+   * structural event ever drawn.
    */
   readonly roster?: readonly OrganelleType[];
 }
@@ -172,6 +179,8 @@ interface WorldState {
    * a state, not the law that produced it.
    */
   readonly fertility: FertilityMode;
+  /** The world's Brownian mode; see `WorldOptions.brownian`. */
+  readonly brownian: "on" | "off";
   /**
    * The world's roster (ADR-0032). Not folded into `hashState` either: it
    * is the law that produced a state, and a genome's organelles already
@@ -281,6 +290,7 @@ export function createWorld(seed: number, options: WorldOptions = {}): World {
     globalRng: stream,
     mortality: options.mortality ?? "on",
     fertility: options.fertility ?? "on",
+    brownian: options.brownian ?? "on",
     roster,
     population,
     pools,
@@ -399,6 +409,14 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
     applyMaintenance(organism);
     tracer.end("maintenance", organism);
   }
+  //    Then the Thrust Cost, its own flow: k_thrust·|F| per thruster, from the
+  //    signals the motion step reads. Before the immortal floor, so an
+  //    immortal world never ends this step below zero.
+  for (const organism of state.population) {
+    tracer.start(organism);
+    applyThrustCost(organism);
+    tracer.end("thrust", organism);
+  }
   // Immortal floor (ADR-0017), not one of ADR-0006's numbered steps: only
   // in a world constructed with `mortality: "off"` does energy stop here
   // rather than falling below zero — the instrument ADR-0015 measures `α`
@@ -417,7 +435,7 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   );
   // 6. Brownian motion.
   for (const organism of state.population) {
-    applyMotion(organism);
+    applyMotion(organism, {brownian: state.brownian});
   }
   // 7. Evaluate mitosis: per organism, writing only to that organism —
   //    exactly like the steps above — and enqueuing a pending birth

@@ -640,6 +640,53 @@ export const C_ORGANELLE = tunable(
 export const K_CHLORO = tunable("K_CHLORO", 2 * K_PHOTO);
 
 /**
+ * The thruster's `drive` at birth (ADR-0032): an inserted thruster already
+ * pushes, at a tenth of its `F_max`. The anchor `kForce` is derived from.
+ */
+export const DRIVE_NEW = tunable("DRIVE_NEW", 0.1);
+
+/** `drive`'s additive clamped step: the same as the other ratio genes. */
+export const DELTA_DRIVE = tunable("DELTA_DRIVE", 0.05);
+
+/**
+ * The wrapping-angle law's largest step `ε`: an orientation is turned by
+ * `(c, s) += ε·(−s, c)` and renormalised, so a step is at most `atan(ε)`,
+ * about 14°.
+ */
+export const EPSILON_ORIENTATION = tunable("EPSILON_ORIENTATION", 0.25);
+
+/**
+ * `kForce`, the thruster's force coefficient: it pushes with `drive × kForce
+ * × 2·r`. Derived so a new thruster pushes as hard as a new float lifts at
+ * the surface, `g·π·r_new²`:
+ *
+ *     kForce = g·π·r_new / (2·drive_new)  ≈ 1.32.
+ *
+ * Tunable, but its committed value stays the derivation, as `g`'s does.
+ */
+export const K_FORCE = tunable(
+  "K_FORCE",
+  (G * Math.PI * R_NEW) / (2 * DRIVE_NEW),
+);
+
+/**
+ * `k_thrust`, the Thrust Cost coefficient: a thruster pays `k_thrust × |F|`
+ * per tick for the force it pushes with. Derived from the thruster's own
+ * price:
+ *
+ *     k_thrust = c_organelle / (kForce·2·r_new)  ≈ 11.8,
+ *
+ * so a new thruster at full power pays its overhead a second time, and at
+ * `drive_new` a tenth of it.
+ *
+ * Tunable, but its committed value stays the derivation.
+ */
+export const K_THRUST = tunable(
+  "K_THRUST",
+  C_ORGANELLE / (K_FORCE * 2 * R_NEW),
+);
+
+/**
  * Last, once every `tunable` above has registered its name: an
  * `ACQUARIO_`-prefixed variable that matched nothing is a typo, or a
  * constant somebody expected to be reachable and is not, and either way

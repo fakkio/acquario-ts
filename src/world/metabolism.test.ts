@@ -7,6 +7,8 @@ import {
   K_CAP_ENERGY,
   K_CHLORO,
   K_DIFFUSION,
+  K_FORCE,
+  K_THRUST,
   K_PHOTO,
   K_RESP,
   RESPIRATION_ENERGY_YIELD,
@@ -14,6 +16,7 @@ import {
 import type {Environment, Vec2} from "./environment";
 import {
   applyMaintenance,
+  applyThrustCost,
   maintenanceBreakdown,
   applyPassiveExchange,
   applyPhotosynthesis,
@@ -24,7 +27,7 @@ import {BASELINE_GENOME} from "./genome";
 import {ORGANELLE_TYPES} from "./organelles";
 import {Organism, bodyArea, energyCap, type Diffusible} from "./organism";
 import {createRngStream} from "./rng";
-import {carrierAt, organismAt} from "./testing";
+import {bearerAt, carrierAt, organismAt} from "./testing";
 
 /**
  * Level 1 of the milestone's three testing levels: one reaction, one
@@ -943,5 +946,47 @@ describe("applyPhotosynthesis on a chloroplast's disc", () => {
     expect(chloroplast.photosynthesis).toBe(K_CHLORO);
     expect(chloroplast.overhead).toBe(ORGANELLE_TYPES.float.overhead);
     expect(chloroplast.tissueCost).toBe(neuron.tissueCost);
+  });
+});
+
+describe("applyThrustCost", () => {
+  const RADIUS = 0.1;
+  const DRIVE = 0.5;
+  const thruster = (cos: number, sin: number) => ({
+    type: "thruster" as const,
+    radius: RADIUS,
+    x: 0,
+    y: 0,
+    orientation: {cos, sin},
+    drive: DRIVE,
+  });
+  /** `k_thrust × drive × kForce × 2·r`, one thruster's charge. */
+  const COST = K_THRUST * DRIVE * K_FORCE * 2 * RADIUS;
+
+  it("charges a thruster k_thrust × drive × kForce × 2·r", () => {
+    const carrier = bearerAt(10, 10, [thruster(1, 0)]);
+    carrier.energy = 1;
+
+    applyThrustCost(carrier);
+
+    expect(carrier.energy).toBeCloseTo(1 - COST, 12);
+  });
+
+  it("charges an opposed pair twice one thruster's cost", () => {
+    const pair = bearerAt(10, 10, [thruster(1, 0), thruster(-1, 0)]);
+    pair.energy = 1;
+
+    applyThrustCost(pair);
+
+    expect(pair.energy).toBeCloseTo(1 - 2 * COST, 12);
+  });
+
+  it("charges a body with no thruster nothing", () => {
+    const plain = organismAt(10, 10, 0.1);
+    plain.energy = 1;
+
+    applyThrustCost(plain);
+
+    expect(plain.energy).toBe(1);
   });
 });

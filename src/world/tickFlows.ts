@@ -7,7 +7,7 @@ export type StoreDeltas = Readonly<Record<Resource, number>>;
 /**
  * What each step of one tick did to one organism's four stores: the
  * inspector's answer to "where did it go". Every field is a signed change,
- * so the six of them add up to the tick's whole change in the stores.
+ * so they add up to the tick's whole change in the stores.
  */
 export interface TickFlows {
   /** Passive exchange with the water, both sub-passes (step 2). */
@@ -23,6 +23,8 @@ export interface TickFlows {
   readonly respiration: StoreDeltas;
   /** Maintenance, an energy charge (step 5). */
   readonly maintenance: StoreDeltas;
+  /** The Thrust Cost, an energy charge (end of step 5). */
+  readonly thrust: StoreDeltas;
   /** What breeding took from the parent this tick (step 7). */
   readonly mitosis: StoreDeltas;
 }
@@ -135,6 +137,7 @@ export class FlowTracer {
       discs: this.discs,
       respiration: at("respiration"),
       maintenance: at("maintenance"),
+      thrust: at("thrust"),
       mitosis: at("mitosis"),
     };
   }

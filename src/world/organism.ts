@@ -10,6 +10,7 @@ import {
   mintInnovationIds,
   mutateGenome,
   type Body,
+  type Thruster,
   type Genome,
   type MutationOptions,
   type OrganelleGene,
@@ -82,6 +83,9 @@ export interface OrganismView {
   /** The layout moments over weighing organelles (`gravity.ts`), what the
    * inspector reads the Buoyant Weight and Resting Depth from. */
   readonly moments: LayoutMoments;
+  /** The body's thrusters in genome order (`Body.thrusters`), what the
+   * inspector reads the thrust from. */
+  readonly thrusters: readonly Thruster[];
   /** The Body Axis (`gravity.ts`): the cosine and sine of the body frame's
    * angle in the world. Read-only here; the motion step turns it. */
   readonly axis: Readonly<BodyAxis>;
@@ -242,6 +246,10 @@ export class Organism {
 
   get organelles(): readonly OrganelleGene[] {
     return this.body.organelles;
+  }
+
+  get thrusters(): readonly Thruster[] {
+    return this.body.thrusters;
   }
 
   get moments(): LayoutMoments {
@@ -472,11 +480,8 @@ export function placeFounders(
     const minted: Genome = {
       ...founder.genome,
       genes: founder.genome.genes.map((draft) => ({
-        type: draft.type,
+        ...draft,
         innovationId: nextInnovationId++,
-        radius: draft.radius,
-        x: draft.x,
-        y: draft.y,
       })),
     };
     // The body's organelles are the layout relaxed, which is
@@ -528,6 +533,12 @@ export function foldPopulation(
     let genes = "";
     for (const gene of genome.genes) {
       genes += `|${gene.type}|${String(gene.innovationId)}|${String(gene.radius)}|${String(gene.x)}|${String(gene.y)}`;
+      if (gene.orientation !== undefined) {
+        genes += `|${String(gene.orientation.cos)}|${String(gene.orientation.sin)}`;
+      }
+      if (gene.drive !== undefined) {
+        genes += `|${String(gene.drive)}`;
+      }
     }
     folded = foldString(
       folded,

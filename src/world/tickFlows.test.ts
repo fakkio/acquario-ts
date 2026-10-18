@@ -43,6 +43,7 @@ describe("advance's flows for a traced organism", () => {
           (flows?.photosynthesisChloroplasts[resource] ?? 0) +
           (flows?.respiration[resource] ?? 0) +
           (flows?.maintenance[resource] ?? 0) +
+          (flows?.thrust[resource] ?? 0) +
           (flows?.mitosis[resource] ?? 0);
         expect(before[resource] + total).toBeCloseTo(organism[resource], 9);
       }
@@ -169,5 +170,60 @@ describe("photosynthesis flows split between body and chloroplasts (#84)", () =>
     expect(discs).toHaveLength(2);
     expect(discs[1].light).toBeLessThan(discs[0].light);
     expect(discs[1].fixation).toBeLessThan(discs[0].fixation);
+  });
+});
+
+describe("the Thrust Cost is its own flow (#91)", () => {
+  const pusher = (drive: number) => ({
+    x: 20,
+    y: 3,
+    genome: {
+      ...BASELINE_GENOME,
+      genes: [
+        {
+          type: "thruster" as const,
+          x: 0,
+          y: 0,
+          radius: 0.15,
+          orientation: {cos: 1, sin: 0},
+          drive,
+        },
+      ],
+    },
+  });
+
+  const worldOf = (founder: ReturnType<typeof pusher>, mortality?: "off") =>
+    createWorld(7, {
+      generation0: {founders: [founder]},
+      roster: [],
+      fertility: "off",
+      mortality,
+    });
+
+  it("records thrust apart from maintenance, and nothing for a body without a thruster", () => {
+    const world = worldOf(pusher(0.5));
+    const organism = getPopulation(world)[0];
+    const flows = advance(world, TICK, {trace: organism}).flows;
+
+    expect(flows?.thrust.energy).toBeLessThan(0);
+    expect(flows?.thrust.food).toBe(0);
+    expect(flows?.maintenance.energy).toBeLessThan(0);
+
+    const bare = createWorld(7);
+    const bareFlows = advance(bare, TICK, {
+      trace: getPopulation(bare)[0],
+    }).flows;
+    expect(bareFlows?.thrust.energy).toBe(0);
+  });
+
+  it("never lets an immortal world's energy end the tick below zero while a thruster charges", () => {
+    let world = worldOf(pusher(1), "off");
+
+    for (let t = 0; t < 200; t++) {
+      ({world} = advance(world, TICK));
+      for (const organism of getPopulation(world)) {
+        expect(organism.energy).toBeGreaterThanOrEqual(0);
+      }
+    }
   });
 });

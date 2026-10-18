@@ -1,5 +1,7 @@
 export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
-export {BASELINE_GENOME, type Genome} from "./genome";
+export {BASELINE_GENOME, type Genome, type Thruster} from "./genome";
+export {DRAG_PER_RADIUS} from "./constants";
+export {ROTATIONAL_DRAG_PER_CUBE} from "./motion";
 export {
   buoyantTorque,
   buoyantWeight,

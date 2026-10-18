@@ -46,6 +46,17 @@ const CHLOROPLAST_HUE = 130;
 const CHLOROPLAST_SATURATION = 60;
 const CHLOROPLAST_LIGHTNESS = 42;
 
+/** A thruster at full energy: an opaque red wedge with the same dark
+ * outline, pointing along its thrust. */
+const THRUSTER_HUE = 0;
+const THRUSTER_SATURATION = 75;
+const THRUSTER_LIGHTNESS = 50;
+
+/** A thruster's trail is `signal × radius × this` long, behind the wedge: how
+ * hard it pushes, at the thruster's own scale, so it reads at any zoom. */
+const THRUSTER_TRAIL_FACTOR = 12;
+const THRUSTER_TRAIL_ALPHA = 0.6;
+
 /** The outline's screen width, and the share of an organelle's radius it may
  * take at most, so a neuron a pixel wide stays grey rather than all outline. */
 const ORGANELLE_OUTLINE_PX = 1;
@@ -90,7 +101,9 @@ export function drawBody(
         ? `hsla(${String(FLOAT_HUE)}, ${String(FLOAT_SATURATION)}%, ${String(FLOAT_LIGHTNESS * brightness)}%, ${String(FLOAT_ALPHA)})`
         : organelle.type === "chloroplast"
           ? `hsl(${String(CHLOROPLAST_HUE)}, ${String(CHLOROPLAST_SATURATION)}%, ${String(CHLOROPLAST_LIGHTNESS * brightness)}%)`
-          : `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
+          : organelle.type === "thruster"
+            ? `hsl(${String(THRUSTER_HUE)}, ${String(THRUSTER_SATURATION)}%, ${String(THRUSTER_LIGHTNESS * brightness)}%)`
+            : `hsl(0, 0%, ${String(NEURON_LIGHTNESS * brightness)}%)`;
     const turned = turn(body.axis, organelle.x, organelle.y);
     const x = body.x + turned.x;
     const y = body.y + turned.y;
@@ -98,9 +111,58 @@ export function drawBody(
       ORGANELLE_OUTLINE_PX / worldScale,
       organelle.radius * ORGANELLE_OUTLINE_MAX_SHARE,
     );
+    if (organelle.type === "thruster") {
+      drawThruster(ctx, body, organelle, x, y, brightness);
+      continue;
+    }
     ctx.beginPath();
     ctx.arc(x, y, organelle.radius - ctx.lineWidth / 2, 0, 2 * Math.PI);
     ctx.fill();
     ctx.stroke();
   }
+}
+
+/**
+ * A thruster: a wedge whose tip points along its world-frame thrust, with a
+ * trail behind it of `signal × radius × THRUSTER_TRAIL_FACTOR`. The signal is
+ * its `drive` until M11 wires `power`. Turns with the body through the axis.
+ */
+function drawThruster(
+  ctx: CanvasRenderingContext2D,
+  body: BodyShape,
+  organelle: BodyShape["organelles"][number],
+  x: number,
+  y: number,
+  brightness: number,
+): void {
+  const direction = turn(
+    body.axis,
+    organelle.orientation?.cos ?? 1,
+    organelle.orientation?.sin ?? 0,
+  );
+  const r = organelle.radius;
+  // Perpendicular to the thrust, for the wedge's base.
+  const px = -direction.y;
+  const py = direction.x;
+
+  const trail = (organelle.drive ?? 0) * r * THRUSTER_TRAIL_FACTOR;
+  if (trail > 0) {
+    const fill = ctx.fillStyle;
+    ctx.fillStyle = `hsla(${String(THRUSTER_HUE)}, ${String(THRUSTER_SATURATION)}%, ${String(THRUSTER_LIGHTNESS * brightness)}%, ${String(THRUSTER_TRAIL_ALPHA)})`;
+    ctx.beginPath();
+    ctx.moveTo(x - direction.x * r + px * r, y - direction.y * r + py * r);
+    ctx.lineTo(x - direction.x * (r + trail), y - direction.y * (r + trail));
+    ctx.lineTo(x - direction.x * r - px * r, y - direction.y * r - py * r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = fill;
+  }
+
+  ctx.beginPath();
+  ctx.moveTo(x + direction.x * r, y + direction.y * r);
+  ctx.lineTo(x - direction.x * r + px * r, y - direction.y * r + py * r);
+  ctx.lineTo(x - direction.x * r - px * r, y - direction.y * r - py * r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 }
