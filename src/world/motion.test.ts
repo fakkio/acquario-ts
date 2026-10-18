@@ -5,7 +5,12 @@ import {
   AQUARIUM_WIDTH,
   BASELINE_BODY_RADIUS,
 } from "./aquarium";
-import {CARBON_BUDGET_BASELINE_ORGANISMS, R_NEW} from "./constants";
+import {
+  CARBON_BUDGET_BASELINE_ORGANISMS,
+  DRAG_PER_RADIUS,
+  K_FORCE,
+  R_NEW,
+} from "./constants";
 import {applyMotion, constrainToAquarium} from "./motion";
 import {ORGANELLE_TYPES, type OrganelleType} from "./organelles";
 import type {Organism} from "./organism";
@@ -551,5 +556,87 @@ describe("applyMotion under gravity", () => {
 
       expect(Math.hypot(carrier.axis.cos, carrier.axis.sin)).toBeCloseTo(1, 12);
     });
+  });
+});
+
+describe("applyMotion under thrust", () => {
+  const OFF = {brownian: "off"} as const;
+  const RADIUS = 0.1;
+  const DRIVE = 0.5;
+  /** `drive × kForce × 2·r`, the thruster's push. */
+  const FORCE = DRIVE * K_FORCE * 2 * RADIUS;
+
+  const thruster = (x: number, y: number, cos: number, sin: number) => ({
+    type: "thruster" as const,
+    radius: RADIUS,
+    x,
+    y,
+    orientation: {cos, sin},
+    drive: DRIVE,
+  });
+
+  it("moves a body by F/(6π·R) along a radial thruster's orientation, leaving the axis alone", () => {
+    const carrier = bearerAt(CENTRE_X, CENTRE_Y, [thruster(0, 0, 0, -1)]);
+    const step = FORCE / (DRAG_PER_RADIUS * carrier.bodyRadius);
+
+    applyMotion(carrier, OFF);
+
+    expect(carrier.x).toBe(CENTRE_X);
+    expect(carrier.y).toBeCloseTo(CENTRE_Y - step, 12);
+    expect(carrier.axis).toEqual({cos: 1, sin: 0});
+  });
+
+  it("moves along the turned direction when the axis is turned", () => {
+    const carrier = bearerAt(CENTRE_X, CENTRE_Y, [thruster(0, 0, 0, -1)]);
+    const step = FORCE / (DRAG_PER_RADIUS * carrier.bodyRadius);
+    // A quarter turn: the body's up is the world's +x.
+    carrier.axis.cos = 0;
+    carrier.axis.sin = 1;
+
+    applyMotion(carrier, OFF);
+
+    expect(carrier.x).toBeCloseTo(CENTRE_X + step, 12);
+    expect(carrier.y).toBeCloseTo(CENTRE_Y, 12);
+  });
+
+  it("turns the axis by (p × F)/(8π·R³) for a tangential thruster at the rim, with gravity's sign", () => {
+    const carrier = bearerAt(CENTRE_X, CENTRE_Y, [thruster(0.5, 0, 0, 1)]);
+    const omega = (0.5 * FORCE) / (8 * Math.PI * carrier.bodyRadius ** 3);
+
+    applyMotion(carrier, OFF);
+
+    expect(carrier.axis.sin).toBeCloseTo(omega / Math.sqrt(1 + omega ** 2), 12);
+    expect(carrier.axis.sin).toBeGreaterThan(0);
+  });
+
+  it("does not translate an opposed pair at mirrored positions, and turns it at twice one thruster's rate", () => {
+    const lone = bearerAt(CENTRE_X, CENTRE_Y, [thruster(0.5, 0, 0, 1)]);
+    const pair = bearerAt(CENTRE_X, CENTRE_Y, [
+      thruster(0.5, 0, 0, 1),
+      thruster(-0.5, 0, 0, -1),
+    ]);
+
+    applyMotion(lone, OFF);
+    applyMotion(pair, OFF);
+
+    expect(pair.x).toBeCloseTo(CENTRE_X, 12);
+    expect(pair.y).toBeCloseTo(CENTRE_Y, 12);
+    // Twice one thruster's torque `0.5·F`, over the pair's own drag.
+    const omega = (2 * 0.5 * FORCE) / (8 * Math.PI * pair.bodyRadius ** 3);
+    expect(pair.axis.sin).toBeCloseTo(omega / Math.sqrt(1 + omega ** 2), 12);
+    expect(pair.axis.sin).toBeGreaterThan(lone.axis.sin);
+  });
+
+  it("moves a body whose only organelle is a thruster, and a body with none exactly as before", () => {
+    const pusher = bearerAt(CENTRE_X, CENTRE_Y, [thruster(0, 0, 1, 0)]);
+    const bare = bearerAt(CENTRE_X, CENTRE_Y, []);
+
+    applyMotion(pusher, OFF);
+    applyMotion(bare, OFF);
+
+    expect(pusher.x).toBeGreaterThan(CENTRE_X);
+    expect(bare.x).toBe(CENTRE_X);
+    expect(bare.y).toBe(CENTRE_Y);
+    expect(bare.axis).toEqual({cos: 1, sin: 0});
   });
 });

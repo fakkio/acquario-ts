@@ -313,6 +313,22 @@ export function applyMaintenance(organism: Organism): void {
 }
 
 /**
+ * The Thrust Cost, charged at the end of step 5 after maintenance: each
+ * thruster pays `k_thrust × |F|` for the force the motion step will push
+ * with, thruster by thruster, so an opposed pair that moves nothing still
+ * pays for both. Unconditional like maintenance; a body with no thruster
+ * pays nothing and is untouched, to the last bit.
+ */
+export function applyThrustCost(
+  organism: Pick<Organism, "thrusters" | "energy">,
+): void {
+  for (const thruster of organism.thrusters) {
+    organism.energy -=
+      thruster.thrustCost * Math.abs(thruster.signal * thruster.maxForce);
+  }
+}
+
+/**
  * What maintenance charges, split the way the inspector shows it: `c₀`, the
  * cytoplasm's body cost, and the organelles' summed overheads and tissue.
  * `total` is accumulated in the order the tick has always charged it, so the

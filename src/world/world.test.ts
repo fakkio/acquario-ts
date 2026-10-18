@@ -16,6 +16,7 @@ import {
   applyPassiveExchange,
   applyPhotosynthesis,
   applyRespiration,
+  applyThrustCost,
 } from "./metabolism";
 import {appendBirths, evaluateMitosis, type PendingBirth} from "./mitosis";
 import {applyMotion} from "./motion";
@@ -199,6 +200,20 @@ describe("motion", () => {
     }
 
     expect(worstSoFar).toBeLessThanOrEqual(0);
+  });
+
+  it("draws no Brownian step when the world's brownian mode is off", () => {
+    const founders = [{x: 30, y: 20, genome: BASELINE_GENOME}];
+    const run = (brownian: "on" | "off") =>
+      positionsOf(
+        advance(
+          createWorld(5, {generation0: {founders}, fertility: "off", brownian}),
+          TICKS * FIXED_DT_MS,
+        ).world,
+      );
+
+    expect(run("off")).toEqual([{x: 30, y: 20}]);
+    expect(run("on")).not.toEqual([{x: 30, y: 20}]);
   });
 
   // M0's determinism invariant, now that the hash covers something that
@@ -398,6 +413,11 @@ describe("collisions", () => {
 
     for (let tick = 0; tick < PIPELINE_TICKS; tick++) {
       pools = runMetabolism(byHand, pools);
+      // The Thrust Cost is its own flow after maintenance, not one of
+      // `runMetabolism`'s steps.
+      for (const organism of byHand) {
+        applyThrustCost(organism);
+      }
       // The immortal floor (ADR-0017): a world constructed with
       // `mortality: "off"` clamps energy at zero inside `runTick`, outside
       // `runMetabolism`'s own steps, so it has to be replicated here too —
@@ -1458,10 +1478,10 @@ describe("a body with neurons (M7)", () => {
 });
 
 describe("the roster and the Innovation Id counter (M7)", () => {
-  it("defaults to the neuron, the float and the chloroplast, and an empty roster is M6's world", () => {
+  it("defaults to the neuron, the float, the chloroplast and the thruster, and an empty roster is M6's world", () => {
     const reference = createWorld(1234);
     const explicit = createWorld(1234, {
-      roster: ["neuron", "float", "chloroplast"],
+      roster: ["neuron", "float", "chloroplast", "thruster"],
     });
     const m6 = createWorld(1234, {roster: []});
 
@@ -1472,7 +1492,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
     ).toBe(true);
   });
 
-  it("draws every type of the default roster, the chloroplast among them", () => {
+  it("draws every type of the default roster, the thruster among them", () => {
     // A world's insertions are rare in the first thousands of ticks (a few
     // carriers by tick 8000), so the roster is read where it is drawn from:
     // the structural law, with every trial forced to an event.
@@ -1485,7 +1505,9 @@ describe("the roster and the Innovation Id counter (M7)", () => {
       child.genome.genes.forEach((gene) => types.add(gene.type));
     }
 
-    expect(types).toEqual(new Set(["neuron", "float", "chloroplast"]));
+    expect(types).toEqual(
+      new Set(["neuron", "float", "chloroplast", "thruster"]),
+    );
   });
 
   it("never inserts a neuron into an unprimed world with an empty roster", () => {
@@ -1561,5 +1583,39 @@ describe("placeFounders (M7)", () => {
     }
     // And the stored layout is no longer the one the caller wrote down.
     expect(founder.genome.genes[0]?.x).not.toBe(3);
+  });
+});
+
+describe("the thruster in the world (M10)", () => {
+  const founderWith = (drive: number): Founder[] => [
+    {
+      x: 10,
+      y: 10,
+      genome: {
+        ...BASELINE_GENOME,
+        genes: [
+          {
+            type: "thruster",
+            x: 0,
+            y: 0,
+            radius: 0.05,
+            orientation: {cos: 0, sin: -1},
+            drive,
+          },
+        ],
+      },
+    },
+  ];
+  const hashFor = (drive: number) =>
+    hashState(
+      createWorld(1234, {
+        generation0: {founders: founderWith(drive)},
+        roster: [],
+      }),
+    );
+
+  it("hashes two worlds differing only in a thruster's drive differently", () => {
+    expect(hashFor(0.1)).not.toBe(hashFor(0.2));
+    expect(hashFor(0.1)).toBe(hashFor(0.1));
   });
 });
