@@ -9,6 +9,8 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "isolatedModules": true,
+    // `src/main.ts` reads the release number from `package.json`.
+    "resolveJsonModule": true,
     // Keeps every source file strippable by deleting types alone — no
     // enums, no namespaces, no constructor parameter properties. That is
     // what lets `npm run calibrate` run the simulation under plain `node`

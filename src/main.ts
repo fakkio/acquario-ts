@@ -1,3 +1,4 @@
+import {version} from "../package.json";
 import {mountCamera} from "./app/camera";
 import {mountCanvas} from "./app/canvas";
 import {mountControls} from "./app/controls";
@@ -19,6 +20,7 @@ import {
   type Selection,
 } from "./app/selection";
 import {createSession, isRestartDue} from "./app/session";
+import {mountVersionBadge} from "./app/versionBadge";
 import {
   AQUARIUM_AREA,
   createWorld,
@@ -99,6 +101,7 @@ let restarts = 0;
 let ticksInDeadWorlds = 0;
 
 const hud = mountHud();
+mountVersionBadge(version);
 const updateHud = (currentWorld: World, fps: number): void => {
   hud.setField("fps", "FPS", fps.toFixed(0));
   hud.setField("tick", "Tick", String(getTick(currentWorld)));
