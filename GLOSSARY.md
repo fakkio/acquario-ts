@@ -350,6 +350,10 @@ _Avoid_: sensor (reserved for sensor organelles, v0.3+), input neuron, perceptio
 An organelle whose input **Port** turns a **Signal** into an effect on the world. In v0.2 only the thruster.
 _Avoid_: motor, effector, output neuron
 
+**Reflex**:
+A **Synapse** from an **Innate Sense** straight to an **Actuator**, with no neuron between: the shortest path from the world to an effect on it.
+_Avoid_: reflex arc, shortcut, direct link
+
 **Drive**:
 The signal an **Actuator** acts on when nothing is wired to it, and the offset its wired inputs add to. A thruster with no synapses pushes at its drive.
 _Avoid_: bias (that is the neuron's), baseline, idle level
