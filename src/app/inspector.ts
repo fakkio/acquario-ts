@@ -65,8 +65,8 @@ const fromVertical = (x: number, y: number): number =>
 
 /** One thruster's push: `|F| = signal × maxForce` along its body-frame
  * direction, and the torque `p × F` it puts on the body, signed as gravity's. */
-const thrustOf = (thruster: Thruster) => {
-  const magnitude = thruster.signal * thruster.maxForce;
+const thrustOf = (thruster: Thruster, signal: number) => {
+  const magnitude = signal * thruster.maxForce;
   const fx = thruster.dx * magnitude;
   const fy = thruster.dy * magnitude;
 
@@ -88,8 +88,8 @@ const thrustLines = (organism: OrganismView): string[] => {
   let fx = 0;
   let fy = 0;
   let torque = 0;
-  for (const thruster of organism.thrusters) {
-    const push = thrustOf(thruster);
+  for (const [i, thruster] of organism.thrusters.entries()) {
+    const push = thrustOf(thruster, organism.thrusterSignals[i]);
     const world = turn(organism.axis, push.fx, push.fy);
     fx += world.x;
     fy += world.y;
@@ -318,14 +318,16 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         cell.style.textAlign = "right";
         cell.style.padding = "0 6px";
       }
-      const thruster =
+      const thrusterAt =
         ORGANELLE_TYPES[organelle.type].thrust !== undefined
-          ? organism.thrusters[thrusterIndex++]
+          ? thrusterIndex++
           : undefined;
-      if (thruster) {
-        const push = thrustOf(thruster);
+      if (thrusterAt !== undefined) {
+        const thruster = organism.thrusters[thrusterAt];
+        const signal = organism.thrusterSignals[thrusterAt];
+        const push = thrustOf(thruster, signal);
         thrustCells[0].textContent = `${fixed(fromVertical(thruster.dx, thruster.dy), 1)}°`;
-        thrustCells[2].textContent = fixed(thruster.signal);
+        thrustCells[2].textContent = fixed(signal);
         thrustCells[3].textContent = fixed(push.magnitude, 5);
         thrustCells[4].textContent = signed(push.torque);
         worldCells.push({cell: thrustCells[1], thruster});

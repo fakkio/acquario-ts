@@ -17,13 +17,17 @@ import {
   BASELINE_GENOME,
   birthCostCeiling,
   deriveBody,
+  mintInnovationIds,
   mutateGenome,
+  organelleGenes,
   type Genome,
   type MutationOptions,
   type OperatorWeights,
   type OrganelleGene,
+  type SynapseGene,
 } from "./genome";
-import {bodyAreaOfRadius} from "./organism";
+import {BODY_ID, DEFAULT_ROSTER, INNATE_SENSES} from "./organelles";
+import {FIRST_INNOVATION_ID, bodyAreaOfRadius} from "./organism";
 import {createRngStream, nextRng} from "./rng";
 
 const SAMPLE_SEEDS = 500;
@@ -371,8 +375,14 @@ describe("mutateGenome's structural events", () => {
                 Math.PI,
             ) - R_NEW;
 
-          expect(genome.genes[0].x).toBeCloseTo(px * within, 12);
-          expect(genome.genes[0].y).toBeCloseTo(py * within, 12);
+          expect(organelleGenes(genome.genes)[0].x).toBeCloseTo(
+            px * within,
+            12,
+          );
+          expect(organelleGenes(genome.genes)[0].y).toBeCloseTo(
+            py * within,
+            12,
+          );
         }
       },
     );
@@ -386,7 +396,7 @@ describe("mutateGenome's structural events", () => {
         });
 
         expect(genome.genes).toHaveLength(MAX_STRUCTURAL_EVENTS);
-        for (const gene of genome.genes) {
+        for (const gene of organelleGenes(genome.genes)) {
           expect(gene.type).toBe("neuron");
           expect(gene.radius).toBe(R_NEW);
           expect(gene.innovationId).toBeLessThan(0);
@@ -408,7 +418,7 @@ describe("mutateGenome's structural events", () => {
         });
         if (genome.genes.length === 1) {
           seen++;
-          const [gene] = genome.genes;
+          const [gene] = organelleGenes(genome.genes);
           const body = deriveBody(genome);
           expect(body.radius).toBeCloseTo(
             Math.sqrt(
@@ -447,7 +457,7 @@ describe("mutateGenome's structural events", () => {
           eventProbability: 1,
           operatorWeights: only("insertion"),
         });
-        for (const gene of genome.genes.slice(2)) {
+        for (const gene of organelleGenes(genome.genes).slice(2)) {
           const edge = Math.hypot(gene.x, gene.y) + gene.radius;
           // Relaxation may slide an organelle that landed on another out
           // past the old reach, by no more than its own diameter.
@@ -493,8 +503,8 @@ describe("mutateGenome's structural events", () => {
         expect(genome.genes).toHaveLength(
           parent.genes.length - MAX_STRUCTURAL_EVENTS,
         );
-        for (const gene of genome.genes) {
-          const original = parent.genes.find(
+        for (const gene of organelleGenes(genome.genes)) {
+          const original = organelleGenes(parent.genes).find(
             (candidate) => candidate.innovationId === gene.innovationId,
           );
           expect(gene.radius).toBe(original?.radius);
@@ -525,7 +535,7 @@ describe("mutateGenome's structural events", () => {
           eventProbability: 1,
           operatorWeights: only("split"),
         });
-        const [first, second] = genome.genes;
+        const [first, second] = organelleGenes(genome.genes);
         const f = (first.radius * first.radius) / area;
 
         expect(genome.genes).toHaveLength(2);
@@ -553,7 +563,7 @@ describe("mutateGenome's structural events", () => {
           eventProbability: 1,
           operatorWeights: only("split"),
         });
-        const [first, second, third] = genome.genes;
+        const [first, second, third] = organelleGenes(genome.genes);
 
         expect(genome.genes).toHaveLength(3);
         expect(first.innovationId).toBe(7);
@@ -594,7 +604,7 @@ describe("mutateGenome's structural events", () => {
           eventProbability: 1,
           operatorWeights: only("parameterChange"),
         });
-        const [floor, large] = genome.genes;
+        const [floor, large] = organelleGenes(genome.genes);
         const ratio = large.radius / 0.2;
 
         expect(floor.radius).toBeGreaterThanOrEqual(R_MIN);
@@ -626,7 +636,7 @@ describe("mutateGenome's structural events", () => {
           eventProbability: 1,
           operatorWeights: only("parameterChange"),
         });
-        const [left, right] = genome.genes;
+        const [left, right] = organelleGenes(genome.genes);
         const change = Math.abs(
           Math.hypot(left.x - right.x, left.y - right.y) - 2,
         );
@@ -687,10 +697,11 @@ describe("the structural mutation law's invariant (ADR-0028, ADR-0034)", () => {
               bodyAreaOfRadius(deriveBody(child).radius),
               where,
             ).toBeLessThanOrEqual(ceiling);
-            expect(deepestOverlap(child.genes), where).toBeLessThanOrEqual(
-              1e-9,
-            );
-            for (const gene of child.genes) {
+            expect(
+              deepestOverlap(organelleGenes(child.genes)),
+              where,
+            ).toBeLessThanOrEqual(1e-9);
+            for (const gene of organelleGenes(child.genes)) {
               expect(gene.radius, where).toBeGreaterThanOrEqual(R_MIN);
             }
             expect(deriveBody(child).radius, where).toBeGreaterThanOrEqual(
@@ -931,7 +942,7 @@ function deepestOverlap(genes: readonly OrganelleGene[]): number {
 
 function organelleArea(genome: Genome): number {
   let area = 0;
-  for (const gene of genome.genes) {
+  for (const gene of organelleGenes(genome.genes)) {
     area += bodyAreaOfRadius(gene.radius);
   }
   return area;
@@ -956,7 +967,7 @@ describe("the thruster's laws (M10)", () => {
         eventProbability: 1,
         operatorWeights: only("insertion"),
       });
-      const gene = genome.genes[0];
+      const gene = organelleGenes(genome.genes)[0];
 
       expect(gene.type).toBe("thruster");
       expect(gene.radius).toBe(R_NEW);
@@ -976,7 +987,7 @@ describe("the thruster's laws (M10)", () => {
       });
 
     for (const type of ["neuron", "float", "chloroplast"] as const) {
-      const gene = insertion(type).genome.genes[0];
+      const gene = organelleGenes(insertion(type).genome.genes)[0];
       expect(gene.orientation).toBeUndefined();
       expect(gene.drive).toBeUndefined();
     }
@@ -1003,7 +1014,7 @@ describe("the thruster's laws (M10)", () => {
         eventProbability: 1,
         operatorWeights: only("parameterChange"),
       });
-      const gene = genome.genes[0];
+      const gene = organelleGenes(genome.genes)[0];
       const {cos, sin} = gene.orientation ?? {cos: 0, sin: 0};
       const angle = Math.abs(
         Math.atan2(0.6 * sin - 0.8 * cos, 0.6 * cos + 0.8 * sin),
@@ -1039,7 +1050,7 @@ describe("the thruster's laws (M10)", () => {
     });
 
     expect(genome.genes.length).toBeGreaterThanOrEqual(2);
-    for (const gene of genome.genes) {
+    for (const gene of organelleGenes(genome.genes)) {
       expect(gene.orientation).toEqual({cos: 0, sin: -1});
       expect(gene.drive).toBe(0.4);
     }
@@ -1070,5 +1081,110 @@ describe("the thruster's laws (M10)", () => {
     expect(birthCostCeiling(withThrusters, roster)).toBe(
       birthCostCeiling(withFloats, roster),
     );
+  });
+});
+
+describe("Synapse Genes (M11)", () => {
+  const thruster: OrganelleGene = {
+    type: "thruster",
+    innovationId: 1,
+    radius: 0.1,
+    x: 0,
+    y: 0,
+    orientation: {cos: 1, sin: 0},
+    drive: 0.5,
+  };
+  const synapse: SynapseGene = {
+    innovationId: 2,
+    source: {id: BODY_ID, port: "light"},
+    destination: {id: 1, port: "power"},
+    weight: 1,
+  };
+  const bare: Genome = {...BASELINE_GENOME, genes: [thruster]};
+  const wired: Genome = {...BASELINE_GENOME, genes: [thruster, synapse]};
+
+  it("prices the same Birth Cost Ceiling with a synapse as without", () => {
+    expect(birthCostCeiling(wired, DEFAULT_ROSTER)).toBe(
+      birthCostCeiling(bare, DEFAULT_ROSTER),
+    );
+  });
+
+  it("derives the same body with a synapse as without", () => {
+    expect(deriveBody(wired)).toEqual(deriveBody(bare));
+  });
+
+  it("carries a synapse through a structural event that leaves it alone", () => {
+    const {genome} = mutateGenome(wired, createRngStream(5), {
+      roster: DEFAULT_ROSTER,
+      eventProbability: 1,
+      operatorWeights: {
+        parameterChange: 1,
+        insertion: 0,
+        deletion: 0,
+        split: 0,
+      },
+    });
+
+    expect(genome.genes.filter((gene) => !("type" in gene))).toEqual([synapse]);
+  });
+
+  describe("minting", () => {
+    const provisional: Genome = {
+      ...BASELINE_GENOME,
+      genes: [
+        {...thruster, innovationId: -1},
+        {
+          innovationId: -2,
+          source: {id: BODY_ID, port: "energy"},
+          destination: {id: -1, port: "power"},
+          weight: -0.5,
+        },
+      ],
+    };
+
+    it("rewrites an endpoint naming a provisional organelle id to its minted id", () => {
+      const {genome} = mintInnovationIds(provisional, 7);
+      const [organelle, wire] = genome.genes as [OrganelleGene, SynapseGene];
+
+      expect(organelle.innovationId).toBe(7);
+      expect(wire.innovationId).toBe(8);
+      expect(wire.destination).toEqual({id: 7, port: "power"});
+    });
+
+    it("leaves an endpoint naming the body's reserved id untouched", () => {
+      const {genome} = mintInnovationIds(provisional, 7);
+
+      expect((genome.genes[1] as SynapseGene).source).toEqual({
+        id: BODY_ID,
+        port: "energy",
+      });
+    });
+
+    it("rewrites an endpoint that names an organelle later in the genome", () => {
+      const reversed: Genome = {
+        ...provisional,
+        genes: [provisional.genes[1], provisional.genes[0]],
+      };
+      const {genome} = mintInnovationIds(reversed, 7);
+      const wire = genome.genes[0] as SynapseGene;
+
+      expect(wire.destination.id).toBe(
+        (genome.genes[1] as OrganelleGene).innovationId,
+      );
+    });
+  });
+
+  it("reserves the body's id outside the counter and lists the seven senses", () => {
+    expect(BODY_ID).toBeLessThan(FIRST_INNOVATION_ID);
+    expect(BODY_ID).toBeGreaterThanOrEqual(0);
+    expect(INNATE_SENSES).toEqual([
+      "energy",
+      "food",
+      "O₂",
+      "CO₂",
+      "light",
+      "up",
+      "tilt",
+    ]);
   });
 });

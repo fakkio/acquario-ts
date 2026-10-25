@@ -125,7 +125,7 @@ export function drawBody(
 /**
  * A thruster: a wedge whose tip points along its world-frame thrust, with a
  * trail behind it of `signal × radius × THRUSTER_TRAIL_FACTOR`. The signal is
- * its `drive` until M11 wires `power`. Turns with the body through the axis.
+ * its `drive`, until a synapse wires `power`. Turns with the body through the axis.
  */
 function drawThruster(
   ctx: CanvasRenderingContext2D,

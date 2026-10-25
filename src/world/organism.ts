@@ -15,6 +15,9 @@ import {
   type MutationOptions,
   type OrganelleGene,
   type OrganelleGeneDraft,
+  type SynapseGeneDraft,
+  isOrganelleGene,
+  withOrganelleGenes,
 } from "./genome";
 import {worldAxis, type BodyAxis, type LayoutMoments} from "./gravity";
 import {foldString} from "./hash";
@@ -86,6 +89,8 @@ export interface OrganismView {
   /** The body's thrusters in genome order (`Body.thrusters`), what the
    * inspector reads the thrust from. */
   readonly thrusters: readonly Thruster[];
+  /** Each thruster's signal, in the order of `thrusters` (`Organism.thrusterSignals`). */
+  readonly thrusterSignals: readonly number[];
   /** The Body Axis (`gravity.ts`): the cosine and sine of the body frame's
    * angle in the world. Read-only here; the motion step turns it. */
   readonly axis: Readonly<BodyAxis>;
@@ -214,6 +219,14 @@ export class Organism {
   readonly generation: number;
   /** Mutable like `x`/`y`: a unit vector the motion step turns. */
   readonly axis: BodyAxis;
+  /**
+   * Each thruster's signal in `[0, 1]`, in the order of `body.thrusters`:
+   * the state the Thrust Cost and the motion step read, born at the
+   * thruster's `drive`. Mutable like `x`/`y`, since the tick will set it.
+   * It folds into the state hash in the ticket that makes the tick write it
+   * (ADR-0037): until then it is a function of the genome.
+   */
+  readonly thrusterSignals: number[];
   private readonly body: Body;
 
   constructor(init: OrganismInit) {
@@ -224,6 +237,7 @@ export class Organism {
       ? {cos: init.axis.cos, sin: init.axis.sin}
       : worldAxis();
     this.body = deriveBody(init.genome, init.declarations);
+    this.thrusterSignals = this.body.thrusters.map(({drive}) => drive);
     this.rng = init.rng;
     this.generation = init.generation ?? 0;
     this.energy = init.energy ?? 0;
@@ -419,7 +433,7 @@ export function createPopulation(
 /** A founder's genome as a caller describes it: the header, and organelles
  * whose Innovation Ids the world has not minted yet. */
 export type FounderGenome = Omit<Genome, "genes"> & {
-  readonly genes: readonly OrganelleGeneDraft[];
+  readonly genes: readonly (OrganelleGeneDraft | SynapseGeneDraft)[];
 };
 
 /**
@@ -487,7 +501,10 @@ export function placeFounders(
     // The body's organelles are the layout relaxed, which is
     // what a genome holds (ADR-0034): stored as the genes, nothing is left
     // for construction to fix.
-    const genes = deriveBody(minted).organelles;
+    const genes = withOrganelleGenes(
+      minted.genes,
+      deriveBody(minted).organelles,
+    );
 
     return new Organism({
       x: founder.x,
@@ -510,8 +527,10 @@ export function placeFounders(
  * held, and with no organelles it is the same number, so a world of
  * Minimal Organisms hashes as it did in M6 (#59).
  *
- * Every Organelle Gene folds in after those fields, as the genome holds it:
- * type, Innovation Id, radius, position. An empty `genes` adds nothing to
+ * Every structural gene folds in after those fields, as the genome holds
+ * it: an Organelle Gene's type, Innovation Id, radius and position, then
+ * what its type adds; a Synapse Gene's Innovation Id, source, destination and
+ * weight. An empty `genes` adds nothing to
  * the string, which is what keeps M6's hash reproducible. The id folds
  * through the gene that holds it, so the world's counter itself stays out
  * (`hashState`).
@@ -532,6 +551,10 @@ export function foldPopulation(
     const {genome} = organism;
     let genes = "";
     for (const gene of genome.genes) {
+      if (!isOrganelleGene(gene)) {
+        genes += `|${String(gene.innovationId)}|${String(gene.source.id)}|${gene.source.port}|${String(gene.destination.id)}|${gene.destination.port}|${String(gene.weight)}`;
+        continue;
+      }
       genes += `|${gene.type}|${String(gene.innovationId)}|${String(gene.radius)}|${String(gene.x)}|${String(gene.y)}`;
       if (gene.orientation !== undefined) {
         genes += `|${String(gene.orientation.cos)}|${String(gene.orientation.sin)}`;

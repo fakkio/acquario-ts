@@ -89,8 +89,8 @@ export function applyMotion(
   // product is the same in either frame), signed as gravity's is.
   let thrustX = 0;
   let thrustY = 0;
-  for (const thruster of thrusters) {
-    const magnitude = thruster.signal * thruster.maxForce;
+  for (const [i, thruster] of thrusters.entries()) {
+    const magnitude = organism.thrusterSignals[i] * thruster.maxForce;
     const fx = thruster.dx * magnitude;
     const fy = thruster.dy * magnitude;
     const world = turn(axis, fx, fy);

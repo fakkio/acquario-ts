@@ -177,8 +177,9 @@ function runWorld(seed: number): Run {
       let fy = 0;
       let torque = 0;
       let cost = 0;
-      for (const thruster of organism.thrusters) {
-        const magnitude = thruster.signal * thruster.maxForce;
+      for (const [i, thruster] of organism.thrusters.entries()) {
+        const signal = organism.thrusterSignals[i];
+        const magnitude = signal * thruster.maxForce;
         const bodyX = thruster.dx * magnitude;
         const bodyY = thruster.dy * magnitude;
         const world = turn(organism.axis, bodyX, bodyY);
@@ -187,7 +188,7 @@ function runWorld(seed: number): Run {
         torque += thruster.x * bodyY - thruster.y * bodyX;
         cost += thruster.thrustCost * Math.abs(magnitude);
         pool.thrust.thrusters++;
-        pool.thrust.driveSum += thruster.signal;
+        pool.thrust.driveSum += signal;
       }
       const omega =
         torque / (ROTATIONAL_DRAG_PER_CUBE * organism.bodyRadius ** 3);

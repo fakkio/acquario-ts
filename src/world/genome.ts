@@ -63,11 +63,60 @@ export interface OrganelleGene {
  */
 export type OrganelleGeneDraft = Omit<OrganelleGene, "innovationId">;
 
+/** One end of a synapse: an endpoint's id (an organelle's Innovation Id, or
+ * `BODY_ID`) and the name of one of its ports. */
+export interface SynapseEndpoint {
+  readonly id: number;
+  readonly port: string;
+}
+
+/**
+ * The structural gene describing one synapse (glossary: Synapse Gene): a
+ * wire from an output port to an input port, with a weight. Adds no area and
+ * no reach, so nothing that lays the body out reads it. Its Innovation Id
+ * follows the rules of an Organelle Gene's.
+ */
+export interface SynapseGene {
+  readonly innovationId: number;
+  readonly source: SynapseEndpoint;
+  readonly destination: SynapseEndpoint;
+  readonly weight: number;
+}
+
+/** A Synapse Gene before the world has minted its Innovation Id. */
+export type SynapseGeneDraft = Omit<SynapseGene, "innovationId">;
+
 /**
  * A structural gene (glossary: Structural Gene), one entry of a genome's
- * `genes`. Only the Organelle Gene until synapses arrive (M11).
+ * `genes`: an Organelle Gene or a Synapse Gene.
  */
-export type Gene = OrganelleGene;
+export type Gene = OrganelleGene | SynapseGene;
+
+export function isOrganelleGene(gene: Gene): gene is OrganelleGene {
+  return "type" in gene;
+}
+
+export function isSynapseGene(gene: Gene): gene is SynapseGene {
+  return !isOrganelleGene(gene);
+}
+
+/** The Organelle Genes of `genes`, in genome order: what everything that
+ * lays out, prices or derives a body reads. */
+export function organelleGenes(genes: readonly Gene[]): OrganelleGene[] {
+  return genes.filter(isOrganelleGene);
+}
+
+/** `genes` with its Organelle Genes replaced, one for one and in order, by
+ * `organelles`, and every Synapse Gene where it was. */
+export function withOrganelleGenes(
+  genes: readonly Gene[],
+  organelles: readonly OrganelleGene[],
+): Gene[] {
+  let next = 0;
+  return genes.map((gene) =>
+    isOrganelleGene(gene) ? organelles[next++] : gene,
+  );
+}
 
 /**
  * The complete heritable description of an organism (glossary: Genome),
@@ -205,22 +254,34 @@ export function mintInnovationIds(
 ): {readonly genome: Genome; readonly nextInnovationId: number} {
   let next = nextInnovationId;
   const minted = new Map<number, number>();
-  const genes = genome.genes.map((gene) => {
-    if (!isProvisional(gene.innovationId)) {
-      return gene;
+  for (const {innovationId} of genome.genes) {
+    if (isProvisional(innovationId) && !minted.has(innovationId)) {
+      minted.set(innovationId, next++);
     }
-    let id = minted.get(gene.innovationId);
-    if (id === undefined) {
-      id = next++;
-      minted.set(gene.innovationId, id);
-    }
-    return {...gene, innovationId: id};
+  }
+  if (next === nextInnovationId) {
+    return {genome, nextInnovationId};
+  }
+
+  // Every id is minted before any endpoint is rewritten, so a synapse that
+  // precedes the organelle it names still finds it.
+  const mintedId = (id: number): number => minted.get(id) ?? id;
+  const genes = genome.genes.map((gene): Gene => {
+    const innovationId = mintedId(gene.innovationId);
+    return isOrganelleGene(gene)
+      ? {...gene, innovationId}
+      : {
+          ...gene,
+          innovationId,
+          source: {...gene.source, id: mintedId(gene.source.id)},
+          destination: {
+            ...gene.destination,
+            id: mintedId(gene.destination.id),
+          },
+        };
   });
 
-  return {
-    genome: next === nextInnovationId ? genome : {...genome, genes},
-    nextInnovationId: next,
-  };
+  return {genome: {...genome, genes}, nextInnovationId: next};
 }
 
 export interface GenomeMutation {
@@ -346,7 +407,7 @@ export function birthCostCeilingTerms(
   const cytoplasm = bodyAreaOfRadius(
     genome.cytoplasmRadius * (1 + DELTA_CYTOPLASM_RADIUS),
   );
-  const parent = relax(genome.genes);
+  const parent = relax(organelleGenes(genome.genes));
   const worst = worstCaseBody(
     {
       organelleArea: sumOrganelleArea(parent),
@@ -393,10 +454,10 @@ export interface Body {
   readonly moments: LayoutMoments;
   /**
    * The body's thrusters in genome order, each with its position and
-   * direction in the body frame and the signal and maximum force they are
+   * direction in the body frame and the maximum force and cost they are
    * read with, fixed at birth with the body. The force is `signal × maxForce`
-   * along `(dx, dy)`; the signal is the thruster's `drive` until M11 wires
-   * `power`.
+   * along `(dx, dy)`, the signal being the organism's state
+   * (`Organism.thrusterSignals`), not the body's.
    */
   readonly thrusters: readonly Thruster[];
 }
@@ -407,7 +468,9 @@ export interface Thruster {
   readonly y: number;
   readonly dx: number;
   readonly dy: number;
-  readonly signal: number;
+  /** The thruster's `drive`: what its signal on the organism is born at.
+   * The signal itself is the organism's state (`thrusterSignals`). */
+  readonly drive: number;
   /** `kForce × 2·r`. */
   readonly maxForce: number;
   /** `k_thrust`: the energy a unit of force costs this thruster per tick. */
@@ -431,7 +494,7 @@ export function deriveBody(
     Record<string, OrganelleTypeDeclaration>
   > = ORGANELLE_TYPES,
 ): Body {
-  const relaxed = relax(genome.genes);
+  const relaxed = relax(organelleGenes(genome.genes));
   const organelleArea = sumOrganelleArea(relaxed);
   const organelleReach = reach(relaxed);
   const radius = Math.max(
@@ -464,7 +527,7 @@ function thrustersOf(
       y,
       dx: orientation.cos,
       dy: orientation.sin,
-      signal: drive ?? 0,
+      drive: drive ?? 0,
       maxForce: thrust.force * 2 * radius,
       thrustCost: thrust.cost,
     });
@@ -519,7 +582,11 @@ function mutateStructure(
   draws: MutationDraws,
   law: StructuralLaw,
 ): readonly Gene[] {
-  if (law.roster.length === 0 && genes.length === 0) {
+  // The events act on Organelle Genes alone: a Synapse Gene is no target of
+  // any operator yet, and is carried through after the organelles: a child an
+  // event touched holds its organelles first, then its synapses.
+  const organelles = organelleGenes(genes);
+  if (law.roster.length === 0 && organelles.length === 0) {
     return genes;
   }
 
@@ -532,7 +599,7 @@ function mutateStructure(
 
   let nextProvisionalId = -1;
   const provisionalId = (): number => nextProvisionalId--;
-  let layout = genes;
+  let layout = organelles;
   let touched = false;
   for (let event = 0; event < events; event++) {
     const operator = pickOperator(draws.unit(), law.weights);
@@ -550,7 +617,7 @@ function mutateStructure(
     }
   }
 
-  return touched ? layout : genes;
+  return touched ? [...layout, ...genes.filter(isSynapseGene)] : genes;
 }
 
 /** The operator a draw `u` picks, walking the weights in `OPERATORS`'
@@ -582,12 +649,12 @@ function pickOperator(u: number, weights: OperatorWeights): StructuralOperator {
  */
 function applyEvent(
   operator: StructuralOperator,
-  layout: readonly Gene[],
+  layout: readonly OrganelleGene[],
   roster: readonly OrganelleType[],
   draws: MutationDraws,
   provisionalId: () => number,
   cytoplasmRadius: number,
-): Gene[] | null {
+): OrganelleGene[] | null {
   switch (operator) {
     case "parameterChange": {
       const targets = indicesWhere(
@@ -677,10 +744,10 @@ function applyEvent(
  * `orientation`.
  */
 function changeParameter(
-  gene: Gene,
+  gene: OrganelleGene,
   law: ParameterLaw,
   draws: MutationDraws,
-): Gene {
+): OrganelleGene {
   switch (law.kind) {
     case "symmetricMultiplicative":
       return {
@@ -733,11 +800,11 @@ function changeParameter(
  * second gets a new id and the place right after it.
  */
 function split(
-  layout: readonly Gene[],
+  layout: readonly OrganelleGene[],
   index: number,
   draws: MutationDraws,
   provisionalId: () => number,
-): Gene[] {
+): OrganelleGene[] {
   const gene = layout[index];
   const f = 0.5 + (draws.unit() + draws.unit() - 1) * SPLIT_HALF_WIDTH;
   const direction = draws.unitVector();
@@ -746,13 +813,13 @@ function split(
   const room = {x: gene.x, y: gene.y, radius: firstRadius + secondRadius};
   const others = makeRoom(replaceAt(layout, index, []), room);
 
-  const first: Gene = {
+  const first: OrganelleGene = {
     ...gene,
     radius: firstRadius,
     x: gene.x - direction.x * secondRadius,
     y: gene.y - direction.y * secondRadius,
   };
-  const second: Gene = {
+  const second: OrganelleGene = {
     ...gene,
     innovationId: provisionalId(),
     radius: secondRadius,
@@ -916,8 +983,8 @@ function successors(
 }
 
 function indicesWhere(
-  genes: readonly Gene[],
-  valid: (gene: Gene) => boolean,
+  genes: readonly OrganelleGene[],
+  valid: (gene: OrganelleGene) => boolean,
 ): number[] {
   const indices: number[] = [];
   for (let i = 0; i < genes.length; i++) {

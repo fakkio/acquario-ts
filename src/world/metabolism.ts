@@ -320,12 +320,13 @@ export function applyMaintenance(organism: Organism): void {
  * pays nothing and is untouched, to the last bit.
  */
 export function applyThrustCost(
-  organism: Pick<Organism, "thrusters" | "energy">,
+  organism: Pick<Organism, "thrusters" | "thrusterSignals" | "energy">,
 ): void {
-  for (const thruster of organism.thrusters) {
+  organism.thrusters.forEach((thruster, i) => {
     organism.energy -=
-      thruster.thrustCost * Math.abs(thruster.signal * thruster.maxForce);
-  }
+      thruster.thrustCost *
+      Math.abs(organism.thrusterSignals[i] * thruster.maxForce);
+  });
 }
 
 /**

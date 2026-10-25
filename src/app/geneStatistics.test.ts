@@ -15,6 +15,7 @@ function organismView(overrides: Partial<OrganismView>): OrganismView {
     organelles: [],
     moments: NO_MOMENTS,
     thrusters: [],
+    thrusterSignals: [],
     axis: {cos: 1, sin: 0},
     lineageHue: 0,
     generation: 0,

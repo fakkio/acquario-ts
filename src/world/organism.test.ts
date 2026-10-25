@@ -23,7 +23,9 @@ import {
   placeFounders,
   type Founder,
 } from "./organism";
+import {BODY_ID} from "./organelles";
 import {createRngStream} from "./rng";
+import {bearerAt} from "./testing";
 
 const populationFor = (seed: number) =>
   createPopulation(createRngStream(seed)).population;
@@ -459,5 +461,52 @@ describe("internal resource stores", () => {
     const large = organismWith({cytoplasmRadius: 2});
 
     expect(energyCap(large)).toBeGreaterThan(energyCap(small));
+  });
+});
+
+describe("thruster signals on the organism (M11)", () => {
+  const thruster = {
+    type: "thruster" as const,
+    radius: 0.1,
+    x: 0,
+    y: 0,
+    orientation: {cos: 1, sin: 0},
+  };
+
+  it("holds each thruster's signal at its drive, in genome order", () => {
+    const carrier = bearerAt(10, 10, [
+      {...thruster, drive: 0.25},
+      {...thruster, x: 0.5, drive: 0.75},
+    ]);
+
+    expect(carrier.thrusterSignals).toEqual([0.25, 0.75]);
+  });
+
+  it("holds no signal for a body with no thruster", () => {
+    expect(bearerAt(10, 10, []).thrusterSignals).toEqual([]);
+  });
+
+  it("changes the fold when a synapse's weight changes", () => {
+    const wired = (weight: number) =>
+      new Organism({
+        x: 3,
+        y: 4,
+        genome: {
+          ...BASELINE_GENOME,
+          genes: [
+            {
+              innovationId: 1,
+              source: {id: BODY_ID, port: "light"},
+              destination: {id: 2, port: "power"},
+              weight,
+            },
+          ],
+        },
+        rng: createRngStream(11),
+      });
+
+    expect(foldPopulation(EMPTY_HASH, [wired(1)])).not.toBe(
+      foldPopulation(EMPTY_HASH, [wired(1.25)]),
+    );
   });
 });

@@ -88,10 +88,38 @@ export interface OrganelleTypeDeclaration {
    * a type that does not push, so a knockout is a different declaration.
    */
   readonly thrust?: {readonly force: number; readonly cost: number};
-  /** The names of the input ports the type declares. Nothing can wire one
-   * before M11's synapses. */
+  /** The names of the input ports the type declares: what a synapse's
+   * destination names. */
   readonly inputPorts?: readonly string[];
+  /** The names of the output ports the type declares: what a synapse's
+   * source names. Absent for a type that has none. */
+  readonly outputPorts?: readonly string[];
 }
+
+/**
+ * The body's reserved id (ADR-0031): the endpoint the Innate Senses are
+ * wired from. Outside the innovation counter's range, which starts at
+ * `FIRST_INNOVATION_ID`, and outside the provisional negatives, so a
+ * synapse names the body exactly as it names an organelle and minting never
+ * touches it.
+ */
+export const BODY_ID = 0;
+
+/**
+ * The body's output ports, the seven Innate Senses (ADR-0037), in the fixed
+ * order a report or an inspector lists them in. The body has no input port.
+ */
+export const INNATE_SENSES = [
+  "energy",
+  "food",
+  "O₂",
+  "CO₂",
+  "light",
+  "up",
+  "tilt",
+] as const;
+
+export type InnateSense = (typeof INNATE_SENSES)[number];
 
 /**
  * M7's one type. A neuron without synapses does nothing: it takes space and
@@ -152,7 +180,7 @@ const CHLOROPLAST: OrganelleTypeDeclaration = {
  * M10's thruster: the only actuator of v0.2 and the second weightless type.
  * It has the neuron's radius and position laws, plus `orientation` and
  * `drive`, pays the shared `c_organelle` and `β`, and declares the `power`
- * port nothing can wire until M11: unwired, it pushes at its `drive`.
+ * port, which a synapse can wire from M11.
  */
 const THRUSTER: OrganelleTypeDeclaration = {
   parameters: [

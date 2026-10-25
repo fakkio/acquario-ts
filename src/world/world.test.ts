@@ -2,8 +2,8 @@ import {describe, expect, it} from "vitest";
 
 import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
-import {BASELINE_GENOME, mutateGenome} from "./genome";
-import {DEFAULT_ROSTER} from "./organelles";
+import {BASELINE_GENOME, mutateGenome, organelleGenes} from "./genome";
+import {BODY_ID, DEFAULT_ROSTER} from "./organelles";
 import {
   initializeMetabolism,
   totalCarbon,
@@ -107,6 +107,40 @@ describe("createWorld + advance + hashState determinism", () => {
     ({world: worldB} = advance(worldB, 5 * FIXED_DT_MS));
 
     expect(hashState(worldA)).not.toBe(hashState(worldB));
+  });
+
+  it("hashes two worlds differently when their founders differ only in a synapse's weight", () => {
+    const worldWith = (weight: number) =>
+      createWorld(1234, {
+        generation0: {
+          founders: [
+            {
+              x: 10,
+              y: 10,
+              genome: {
+                ...BASELINE_GENOME,
+                genes: [
+                  {
+                    type: "thruster",
+                    radius: 0.1,
+                    x: 0,
+                    y: 0,
+                    orientation: {cos: 1, sin: 0},
+                    drive: 0.5,
+                  },
+                  {
+                    source: {id: BODY_ID, port: "light"},
+                    destination: {id: 1, port: "power"},
+                    weight,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+    expect(hashState(worldWith(1))).not.toBe(hashState(worldWith(1.25)));
   });
 
   it("changes the hash tick-over-tick", () => {
@@ -1502,7 +1536,9 @@ describe("the roster and the Innovation Id counter (M7)", () => {
         roster: DEFAULT_ROSTER,
         eventProbability: 1,
       });
-      child.genome.genes.forEach((gene) => types.add(gene.type));
+      organelleGenes(child.genome.genes).forEach((gene) =>
+        types.add(gene.type),
+      );
     }
 
     expect(types).toEqual(
@@ -1574,7 +1610,7 @@ describe("placeFounders (M7)", () => {
     const founder = population[0];
 
     expect(founder.genome.genes).toHaveLength(founder.organelles.length);
-    for (const [i, gene] of founder.genome.genes.entries()) {
+    for (const [i, gene] of organelleGenes(founder.genome.genes).entries()) {
       const organelle = founder.organelles[i];
       expect(gene.innovationId).toBe(organelle.innovationId);
       expect(gene.radius).toBe(organelle.radius);
@@ -1582,7 +1618,7 @@ describe("placeFounders (M7)", () => {
       expect(gene.y).toBeCloseTo(organelle.y, 12);
     }
     // And the stored layout is no longer the one the caller wrote down.
-    expect(founder.genome.genes[0]?.x).not.toBe(3);
+    expect(organelleGenes(founder.genome.genes)[0]?.x).not.toBe(3);
   });
 });
 
