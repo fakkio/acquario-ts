@@ -630,7 +630,7 @@ describe("mutateGenome's structural events", () => {
       };
       let moved = 0;
 
-      for (let seed = 0; seed < 400; seed++) {
+      for (let seed = 0; seed < 1000; seed++) {
         const {genome} = mutateGenome(parent, createRngStream(seed), {
           roster: [],
           eventProbability: 1,
@@ -1260,5 +1260,90 @@ describe("Synapse Genes (M11)", () => {
       "up",
       "tilt",
     ]);
+  });
+});
+
+describe("the neuron's CTRNN parameters (M11)", () => {
+  const neuronGene = (
+    parameters: Partial<
+      Pick<OrganelleGene, "tau" | "bias" | "threshold" | "dischargeFactor">
+    >,
+  ): OrganelleGene => ({
+    type: "neuron",
+    innovationId: 1,
+    x: 0,
+    y: 0,
+    radius: 0.2,
+    tau: 1,
+    bias: 0,
+    threshold: 1,
+    dischargeFactor: 1,
+    ...parameters,
+  });
+
+  it("inserts a neuron at the inert values and draws what a float's insertion draws", () => {
+    const insertion = (type: "neuron" | "float") =>
+      mutateGenome(BASELINE_GENOME, createRngStream(3), {
+        roster: [type],
+        eventProbability: 1,
+        operatorWeights: only("insertion"),
+      });
+
+    const gene = organelleGenes(insertion("neuron").genome.genes)[0];
+
+    expect([gene.tau, gene.bias, gene.threshold, gene.dischargeFactor]).toEqual(
+      [1, 0, 1, 1],
+    );
+    expect(insertion("neuron").stream).toEqual(insertion("float").stream);
+    expect(
+      organelleGenes(insertion("float").genome.genes)[0].tau,
+    ).toBeUndefined();
+  });
+
+  it("moves each parameter by at most its step, inside its range", () => {
+    const parent: Genome = {
+      ...BASELINE_GENOME,
+      genes: [
+        neuronGene({tau: 1, bias: 3.9, threshold: 0.1, dischargeFactor: 0.98}),
+      ],
+    };
+    const moved = {tau: 0, bias: 0, threshold: 0, dischargeFactor: 0};
+
+    for (let seed = 0; seed < 600; seed++) {
+      const {genome} = mutateGenome(parent, createRngStream(seed), {
+        roster: [],
+        eventProbability: 1,
+        operatorWeights: only("parameterChange"),
+      });
+      const gene = organelleGenes(genome.genes)[0];
+
+      expect(gene.tau).toBeGreaterThanOrEqual(1);
+      expect(gene.tau).toBeLessThanOrEqual(1.25 + 1e-12);
+      expect(Math.abs((gene.bias ?? 0) - 3.9)).toBeLessThanOrEqual(
+        0.25 + 1e-12,
+      );
+      expect(gene.bias).toBeLessThanOrEqual(4);
+      expect(gene.threshold).toBeGreaterThanOrEqual(0);
+      expect(Math.abs((gene.threshold ?? 0) - 0.1)).toBeLessThanOrEqual(
+        0.25 + 1e-12,
+      );
+      expect(gene.dischargeFactor).toBeGreaterThanOrEqual(0);
+      expect(gene.dischargeFactor).toBeLessThanOrEqual(1);
+      if (gene.tau !== 1) {
+        moved.tau++;
+      }
+      if (gene.bias !== 3.9) {
+        moved.bias++;
+      }
+      if (gene.threshold !== 0.1) {
+        moved.threshold++;
+      }
+      if (gene.dischargeFactor !== 0.98) {
+        moved.dischargeFactor++;
+      }
+    }
+    for (const count of Object.values(moved)) {
+      expect(count).toBeGreaterThan(20);
+    }
   });
 });

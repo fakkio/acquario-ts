@@ -1,10 +1,12 @@
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
+  BIAS_NEW,
   DELETION_WEIGHT,
   DELTA_CHILD_ALLOCATION_RATIO,
   DELTA_CYTOPLASM_RADIUS,
   DELTA_LINEAGE_HUE,
   DELTA_MITOSIS_ENERGY_THRESHOLD,
+  DISCHARGE_FACTOR_NEW,
   DRIVE_NEW,
   INSERTION_WEIGHT,
   MAX_STRUCTURAL_EVENTS,
@@ -14,6 +16,8 @@ import {
   SPLIT_HALF_WIDTH,
   SPLIT_WEIGHT,
   STRUCTURAL_EVENT_PROBABILITY,
+  TAU_NEW,
+  THRESHOLD_NEW,
 } from "./constants";
 import {layoutMoments, type LayoutMoments} from "./gravity";
 import {makeRoom, reach, relax} from "./layout";
@@ -21,7 +25,7 @@ import {
   ORGANELLE_TYPES,
   type OrganelleType,
   type OrganelleTypeDeclaration,
-  type ParameterLaw,
+  type ParameterDeclaration,
 } from "./organelles";
 import {bodyAreaOfRadius} from "./organism";
 import {drawUnitVector, nextRng, type RngStream} from "./rng";
@@ -30,8 +34,9 @@ import {drawUnitVector, nextRng, type RngStream} from "./rng";
  * The structural gene describing one organelle (glossary: Organelle Gene):
  * its type, its Innovation Id, its radius and its position in the genome's
  * frame. A type's further parameters join it when a type declares one: the
- * thruster's `orientation` and `drive` (M10); the neuron, the float and the
- * chloroplast declare only radius and position (`organelles.ts`).
+ * thruster's `orientation` and `drive` (M10) and the neuron's four CTRNN
+ * parameters (M11); the float and the chloroplast declare only radius and
+ * position (`organelles.ts`).
  */
 export interface OrganelleGene {
   readonly type: OrganelleType;
@@ -55,6 +60,17 @@ export interface OrganelleGene {
   readonly orientation?: {readonly cos: number; readonly sin: number};
   /** How hard it acts, in `[0, 1]`. Only on a type that declares a `drive`. */
   readonly drive?: number;
+  /** The neuron's time constant, `≥ 1`: `1` has no memory. Only on a type
+   * that declares a `tau`. */
+  readonly tau?: number;
+  /** The neuron's bias, in `[−4, 4]`. Only on a type that declares a `bias`. */
+  readonly bias?: number;
+  /** The memory at which the neuron discharges, in `[0, 4]`. Only on a type
+   * that declares a `threshold`. */
+  readonly threshold?: number;
+  /** What a discharge multiplies the memory by, in `[0, 1]`; `1` never
+   * resets. Only on a type that declares a `dischargeFactor`. */
+  readonly dischargeFactor?: number;
 }
 
 /**
@@ -679,9 +695,11 @@ function applyEvent(
       const index = targets[draws.index(targets.length)];
       const gene = layout[index];
       const {parameters} = ORGANELLE_TYPES[gene.type];
-      const {law} = parameters[draws.index(parameters.length)];
+      const parameter = parameters[draws.index(parameters.length)];
       return {
-        layout: replaceAt(layout, index, [changeParameter(gene, law, draws)]),
+        layout: replaceAt(layout, index, [
+          changeParameter(gene, parameter, draws),
+        ]),
         synapses,
       };
     }
@@ -712,6 +730,14 @@ function applyEvent(
       const drive = parameters.some(({name}) => name === "drive")
         ? DRIVE_NEW
         : undefined;
+      // The CTRNN parameters are born at their inert values, with no draw.
+      const born = Object.fromEntries(
+        parameters.flatMap(({name}) =>
+          name in BORN_AT
+            ? [[name, BORN_AT[name as keyof typeof BORN_AT]]]
+            : [],
+        ),
+      );
       return {
         layout: [
           ...layout,
@@ -725,6 +751,7 @@ function applyEvent(
               orientation: {cos: orientation.x, sin: orientation.y},
             }),
             ...(drive !== undefined && {drive}),
+            ...born,
           },
         ],
         synapses,
@@ -763,28 +790,43 @@ function applyEvent(
   }
 }
 
+/** The neuron's CTRNN parameters at birth (ADR-0037), by the gene field. */
+const BORN_AT = {
+  tau: TAU_NEW,
+  bias: BIAS_NEW,
+  threshold: THRESHOLD_NEW,
+  dischargeFactor: DISCHARGE_FACTOR_NEW,
+} as const;
+
+/** The fields the additive clamped law writes. */
+type AdditiveField = "drive" | "bias" | "threshold" | "dischargeFactor";
+
 /**
  * One parameter of one organelle, moved by the law its type declares
  * (ADR-0028's closed menu): the symmetric multiplicative law is the
  * radius's, clamped up to its floor (ADR-0034), and the Cartesian step is
  * the position's, uniform over a disc of `δ` of the organelle's own radius.
- * The additive clamped law moves `drive`, and the unit-vector rotation turns
+ * The additive clamped law moves `drive` and the neuron's `bias`, `threshold`
+ * and `dischargeFactor`, the symmetric multiplicative law also moves `tau`, and the unit-vector rotation turns
  * `orientation`.
  */
 function changeParameter(
   gene: OrganelleGene,
-  law: ParameterLaw,
+  {name, law}: ParameterDeclaration,
   draws: MutationDraws,
 ): OrganelleGene {
   switch (law.kind) {
-    case "symmetricMultiplicative":
+    case "symmetricMultiplicative": {
+      const field = name === "tau" ? "tau" : "radius";
+      const current = field === "tau" ? (gene.tau ?? BORN_AT.tau) : gene.radius;
       return {
         ...gene,
-        radius: Math.max(
+        [field]: Math.max(
           law.floor,
-          mutateMultiplicatively(gene.radius, draws, law.delta),
+          mutateMultiplicatively(current, draws, law.delta),
         ),
       };
+    }
     case "cartesianStep": {
       const step = draws.pointInUnitDisc();
       const reach = law.delta * gene.radius;
@@ -794,14 +836,20 @@ function changeParameter(
         y: gene.y + step.y * reach,
       };
     }
-    case "additiveClamped":
+    case "additiveClamped": {
+      const field = name as AdditiveField;
       return {
         ...gene,
-        drive: Math.min(
+        [field]: Math.min(
           law.max,
-          Math.max(law.min, (gene.drive ?? 0) + draws.signed() * law.delta),
+          Math.max(
+            law.min,
+            (gene[field] ?? (field === "drive" ? 0 : BORN_AT[field])) +
+              draws.signed() * law.delta,
+          ),
         ),
       };
+    }
     case "unitVectorRotation": {
       // The Body Axis's own update: a small rotation and a renormalising
       // square root, so no `sin` or `cos`.
@@ -978,9 +1026,13 @@ function successors(
   }
 
   body.organelles.forEach((organelle, index) => {
-    for (const {law} of ORGANELLE_TYPES[organelle.type].parameters) {
+    for (const {name, law} of ORGANELLE_TYPES[organelle.type].parameters) {
       switch (law.kind) {
         case "symmetricMultiplicative": {
+          if (name !== "radius") {
+            // `τ` adds no area and no reach.
+            break;
+          }
           const grown = Math.max(organelle.radius * (1 + law.delta), law.floor);
           result.push({
             organelleArea:

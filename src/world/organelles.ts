@@ -2,9 +2,13 @@ import {
   BODY_COST_COEFFICIENT,
   C_NEURON,
   C_ORGANELLE,
+  DELTA_BIAS,
+  DELTA_DISCHARGE_FACTOR,
   DELTA_DRIVE,
   DELTA_ORGANELLE_POSITION,
   DELTA_ORGANELLE_RADIUS,
+  DELTA_TAU,
+  DELTA_THRESHOLD,
   EPSILON_ORIENTATION,
   K_CHLORO,
   K_FORCE,
@@ -52,9 +56,18 @@ export type ParameterLaw =
 
 export interface ParameterDeclaration {
   /** The Organelle Gene field it mutates: `radius`, `position` for the
-   * `x`/`y` pair, `orientation` or `drive`. The field a law writes follows
+   * `x`/`y` pair, `orientation`, `drive` or one of the neuron's four CTRNN
+   * parameters. The field a law writes follows
    * this name, not the law's kind. */
-  readonly name: "radius" | "position" | "orientation" | "drive";
+  readonly name:
+    | "radius"
+    | "position"
+    | "orientation"
+    | "drive"
+    | "tau"
+    | "bias"
+    | "threshold"
+    | "dischargeFactor";
   readonly law: ParameterLaw;
 }
 
@@ -121,41 +134,69 @@ export const INNATE_SENSES = [
 
 export type InnateSense = (typeof INNATE_SENSES)[number];
 
+/** The radius and position laws every type shares. */
+const SHAPE_PARAMETERS: readonly ParameterDeclaration[] = [
+  {
+    name: "radius",
+    law: {
+      kind: "symmetricMultiplicative",
+      delta: DELTA_ORGANELLE_RADIUS,
+      floor: R_MIN,
+    },
+  },
+  {
+    name: "position",
+    law: {kind: "cartesianStep", delta: DELTA_ORGANELLE_POSITION},
+  },
+];
+
 /**
- * M7's one type. A neuron without synapses does nothing: it takes space and
- * pays its overhead, and its tissue costs what cytoplasm costs (`β_type =
- * β`), so its whole price is the overhead, the storage it displaces and its
- * packing. Weightless and without ports: the CTRNN parameters and the ports
- * that give them meaning are M11's (ADR-0031).
+ * M7's one type, which M11 gives a mind. It takes space and pays its
+ * overhead, and its tissue costs what cytoplasm costs (`β_type = β`), so its
+ * price is the overhead, the storage it displaces and its packing. Weightless.
+ * Beside radius and position it declares the four CTRNN parameters (ADR-0037)
+ * and one input port `in` and one output port `out` (ADR-0031).
  */
 const NEURON: OrganelleTypeDeclaration = {
   parameters: [
+    ...SHAPE_PARAMETERS,
     {
-      name: "radius",
-      law: {
-        kind: "symmetricMultiplicative",
-        delta: DELTA_ORGANELLE_RADIUS,
-        floor: R_MIN,
-      },
+      name: "tau",
+      law: {kind: "symmetricMultiplicative", delta: DELTA_TAU, floor: 1},
     },
     {
-      name: "position",
-      law: {kind: "cartesianStep", delta: DELTA_ORGANELLE_POSITION},
+      name: "bias",
+      law: {kind: "additiveClamped", delta: DELTA_BIAS, min: -4, max: 4},
+    },
+    {
+      name: "threshold",
+      law: {kind: "additiveClamped", delta: DELTA_THRESHOLD, min: 0, max: 4},
+    },
+    {
+      name: "dischargeFactor",
+      law: {
+        kind: "additiveClamped",
+        delta: DELTA_DISCHARGE_FACTOR,
+        min: 0,
+        max: 1,
+      },
     },
   ],
   overhead: C_NEURON,
   tissueCost: BODY_COST_COEFFICIENT,
   density: "weightless",
+  inputPorts: ["in"],
+  outputPorts: ["out"],
 };
 
 /**
  * M8's float: the first type that weighs. Its density is `ρ_w(0) − Δ`, one
  * span lighter than the surface's water, so it lifts at every depth and
- * more the deeper it sits (ADR-0032). It has the neuron's laws, no ports, and
+ * more the deeper it sits (ADR-0032). It has the shape laws, no ports, and
  * pays the shared `c_organelle` as its overhead and `β` on its tissue.
  */
 const FLOAT: OrganelleTypeDeclaration = {
-  parameters: NEURON.parameters,
+  parameters: SHAPE_PARAMETERS,
   overhead: C_ORGANELLE,
   tissueCost: BODY_COST_COEFFICIENT,
   density: -1,
@@ -164,12 +205,12 @@ const FLOAT: OrganelleTypeDeclaration = {
 /**
  * M9's chloroplast: the first organelle that moves carbon, and the second
  * that weighs. Denser than the floor's water (`+3/2`), so alone it sinks its
- * carrier. It has the neuron's laws, no ports, and pays the shared
+ * carrier. It has the shape laws, no ports, and pays the shared
  * `c_organelle` as its overhead and `β` on its tissue. In the default roster
  * since M9.
  */
 const CHLOROPLAST: OrganelleTypeDeclaration = {
-  parameters: NEURON.parameters,
+  parameters: SHAPE_PARAMETERS,
   overhead: C_ORGANELLE,
   tissueCost: BODY_COST_COEFFICIENT,
   density: 1.5,
@@ -178,13 +219,13 @@ const CHLOROPLAST: OrganelleTypeDeclaration = {
 
 /**
  * M10's thruster: the only actuator of v0.2 and the second weightless type.
- * It has the neuron's radius and position laws, plus `orientation` and
+ * It has the shape laws, plus `orientation` and
  * `drive`, pays the shared `c_organelle` and `β`, and declares the `power`
- * port, which a synapse can wire from M11.
+ * port, which a synapse can wire (M11).
  */
 const THRUSTER: OrganelleTypeDeclaration = {
   parameters: [
-    ...NEURON.parameters,
+    ...SHAPE_PARAMETERS,
     {
       name: "orientation",
       law: {kind: "unitVectorRotation", epsilon: EPSILON_ORIENTATION},

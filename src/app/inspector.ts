@@ -1,4 +1,10 @@
 import {
+  BIAS_NEW,
+  DISCHARGE_FACTOR_NEW,
+  TAU_NEW,
+  THRESHOLD_NEW,
+} from "../world/constants";
+import {
   AQUARIUM_AREA,
   BODY_ID,
   birthCosts,
@@ -259,6 +265,13 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
     force: HTMLTableCellElement;
     torque: HTMLTableCellElement;
   }[] = [];
+  // A neuron's memory and signal change every tick, refilled by the neuron's
+  // place in genome order.
+  let neuronCells: {
+    index: number;
+    memory: HTMLTableCellElement;
+    signal: HTMLTableCellElement;
+  }[] = [];
   // The synapse table's last column, the signal each synapse carries this
   // tick, refilled with the rest of the readings.
   let carriedCells: {
@@ -279,6 +292,10 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       signal.textContent = fixed(live);
       force.textContent = fixed(push.magnitude, 5);
       torque.textContent = signed(push.torque);
+    }
+    for (const {index, memory, signal} of neuronCells) {
+      memory.textContent = signed(organism.neuronMemories[index]);
+      signal.textContent = signed(organism.neuronSignals[index]);
     }
     for (const {cell, source, weight} of carriedCells) {
       const sense = senseSlot(source);
@@ -333,6 +350,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
     synapseTable.replaceChildren();
     readingCells = new Map();
     worldCells = [];
+    neuronCells = [];
     carriedCells = [];
     buildSynapseTable(organism);
     if (organism.organelles.length === 0) {
@@ -355,6 +373,12 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       "drive",
       "|F|",
       "torque",
+      "τ",
+      "bias",
+      "threshold",
+      "discharge",
+      "memory",
+      "signal",
     ]) {
       const cell = document.createElement("th");
       cell.textContent = title;
@@ -363,6 +387,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       head.appendChild(cell);
     }
     let thrusterIndex = 0;
+    let neuronIndex = 0;
     for (const organelle of organism.organelles) {
       const row = table.insertRow();
       const values = [
@@ -411,6 +436,29 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
           signal: thrustCells[2],
           force: thrustCells[3],
           torque: thrustCells[4],
+        });
+      }
+
+      // Empty for every type without an output port: the neurons, in genome
+      // order (`CompiledNetwork.neurons`).
+      const neuronCellsOfRow = Array.from({length: 6}, () => row.insertCell());
+      for (const cell of neuronCellsOfRow) {
+        cell.style.textAlign = "right";
+        cell.style.padding = "0 6px";
+      }
+      if (ORGANELLE_TYPES[organelle.type].outputPorts !== undefined) {
+        const {tau, bias, threshold, dischargeFactor} = organelle;
+        neuronCellsOfRow[0].textContent = fixed(tau ?? TAU_NEW);
+        neuronCellsOfRow[1].textContent = signed(bias ?? BIAS_NEW);
+        neuronCellsOfRow[2].textContent = fixed(threshold ?? THRESHOLD_NEW);
+        neuronCellsOfRow[3].textContent = fixed(
+          dischargeFactor ?? DISCHARGE_FACTOR_NEW,
+          2,
+        );
+        neuronCells.push({
+          index: neuronIndex++,
+          memory: neuronCellsOfRow[4],
+          signal: neuronCellsOfRow[5],
         });
       }
     }

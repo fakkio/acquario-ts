@@ -657,6 +657,26 @@ export const DRIVE_NEW = tunable("DRIVE_NEW", 0.1);
 export const DELTA_DRIVE = tunable("DELTA_DRIVE", 0.05);
 
 /**
+ * The neuron's CTRNN parameters (ADR-0037), each born at its inert value, so
+ * an inserted neuron computes nothing a bare one does not until mutation moves
+ * a parameter: `τ = 1` has no memory, `bias = 0` adds nothing, `threshold = 1`
+ * and `dischargeFactor = 1` reset nothing.
+ */
+export const TAU_NEW = tunable("TAU_NEW", 1);
+export const BIAS_NEW = tunable("BIAS_NEW", 0);
+export const THRESHOLD_NEW = tunable("THRESHOLD_NEW", 1);
+export const DISCHARGE_FACTOR_NEW = tunable("DISCHARGE_FACTOR_NEW", 1);
+
+/** `τ`'s symmetric multiplicative step: a factor of at most 1.25 either way,
+ * three times the radius's (ADR-0037). */
+export const DELTA_TAU = tunable("DELTA_TAU", 0.25);
+/** `bias`'s and `threshold`'s additive clamped step. */
+export const DELTA_BIAS = tunable("DELTA_BIAS", 0.25);
+export const DELTA_THRESHOLD = tunable("DELTA_THRESHOLD", 0.25);
+/** `dischargeFactor`'s additive clamped step. */
+export const DELTA_DISCHARGE_FACTOR = tunable("DELTA_DISCHARGE_FACTOR", 0.05);
+
+/**
  * The wrapping-angle law's largest step `ε`: an orientation is turned by
  * `(c, s) += ε·(−s, c)` and renormalised, so a step is at most `atan(ε)`,
  * about 14°.

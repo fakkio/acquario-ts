@@ -186,3 +186,154 @@ describe("applyNetwork", () => {
     expect(organism.thrusterSignals).toEqual([0.5]);
   });
 });
+
+const neuron = (
+  innovationId: number,
+  parameters: Partial<{
+    tau: number;
+    bias: number;
+    threshold: number;
+    dischargeFactor: number;
+  }> = {},
+) => ({
+  type: "neuron" as const,
+  innovationId,
+  radius: 0.2,
+  x: 0.5 * innovationId,
+  y: 0,
+  tau: 1,
+  bias: 0,
+  threshold: 1,
+  dischargeFactor: 1,
+  ...parameters,
+});
+
+const synapse = (
+  innovationId: number,
+  source: {id: number; port: string},
+  destination: {id: number; port: string},
+  weight: number,
+) => ({innovationId, source, destination, weight});
+
+/** Runs `ticks` ticks and lists the first neuron's memory after each. */
+function memoriesOf(organism: Organism, ticks: number): number[] {
+  const memories: number[] = [];
+  for (let t = 0; t < ticks; t++) {
+    applyNetwork(organism, environment);
+    memories.push(organism.neuronMemories[0]);
+  }
+  return memories;
+}
+
+describe("a neuron", () => {
+  it("with τ = 1, a bias b and no input emits tanh(b)", () => {
+    for (const bias of [-2, 0, 0.5, 3]) {
+      const organism = bodyWith([neuron(1, {bias, threshold: 4})]);
+
+      applyNetwork(organism, environment);
+
+      expect(organism.neuronSignals[0]).toBeCloseTo(Math.tanh(bias), 12);
+    }
+  });
+
+  it("settles its memory at a constant input u, for several τ", () => {
+    for (const tau of [1, 2, 5, 20]) {
+      const organism = bodyWith([neuron(1, {tau, bias: 0.75, threshold: 4})]);
+
+      const memories = memoriesOf(organism, 400);
+
+      expect(memories[399]).toBeCloseTo(0.75, 7);
+    }
+  });
+
+  it("with τ = 20, threshold 1, discharge 0 and an input of 1.5 resets about every 22 ticks", () => {
+    const organism = bodyWith([
+      neuron(1, {tau: 20, bias: 1.5, dischargeFactor: 0}),
+    ]);
+
+    const resets = memoriesOf(organism, 100)
+      .map((memory, t) => (memory === 0 ? t : -1))
+      .filter((t) => t >= 0);
+
+    expect(resets.length).toBeGreaterThanOrEqual(4);
+    for (let i = 1; i < resets.length; i++) {
+      expect(resets[i] - resets[i - 1]).toBeGreaterThanOrEqual(21);
+      expect(resets[i] - resets[i - 1]).toBeLessThanOrEqual(23);
+    }
+  });
+
+  it("with discharge 1 never resets", () => {
+    const organism = bodyWith([
+      neuron(1, {tau: 20, bias: 1.5, dischargeFactor: 1}),
+    ]);
+
+    const memories = memoriesOf(organism, 200);
+
+    memories.forEach((memory, t) => {
+      if (t > 0) {
+        expect(memory).toBeGreaterThanOrEqual(memories[t - 1]);
+      }
+    });
+  });
+
+  it("passes a signal across one neuron in one tick, a tick behind a Reflex", () => {
+    const light = {id: BODY_ID, port: "light"};
+    const viaNeuron = bodyWith(
+      [
+        thruster,
+        neuron(2),
+        synapse(3, light, {id: 2, port: "in"}, 0.25),
+        synapse(4, {id: 2, port: "out"}, {id: 1, port: "power"}, 1),
+      ],
+      3,
+    );
+    const direct = bodyWith([thruster, reflex("light", 0.25)], 3);
+
+    applyNetwork(viaNeuron, environment);
+    applyNetwork(direct, environment);
+    const first = viaNeuron.thrusterSignals[0];
+    applyNetwork(viaNeuron, environment);
+
+    expect(first).toBe(0.5);
+    expect(direct.thrusterSignals[0]).toBeCloseTo(0.5 + 0.25 * lightAt(3), 12);
+    expect(viaNeuron.thrusterSignals[0]).toBeCloseTo(
+      0.5 + Math.tanh(0.25 * lightAt(3)),
+      12,
+    );
+  });
+
+  it("holds either sign once pulsed through a self-synapse of weight 2 (a latch)", () => {
+    for (const sign of [1, -1]) {
+      const organism = bodyWith([
+        neuron(1, {threshold: 4}),
+        synapse(2, {id: 1, port: "out"}, {id: 1, port: "in"}, 2),
+      ]);
+      organism.neuronSignals[0] = 0.1 * sign;
+
+      memoriesOf(organism, 60);
+
+      expect(organism.neuronSignals[0] * sign).toBeGreaterThan(0.95);
+    }
+  });
+
+  it("reads every other neuron's previous signal, whatever the genome order", () => {
+    const organism = bodyWith([
+      neuron(1),
+      neuron(2, {bias: 1, threshold: 4}),
+      synapse(3, {id: 2, port: "out"}, {id: 1, port: "in"}, 1),
+    ]);
+
+    applyNetwork(organism, environment);
+    expect(organism.neuronSignals[0]).toBe(0);
+    applyNetwork(organism, environment);
+
+    expect(organism.neuronSignals[0]).toBeCloseTo(Math.tanh(Math.tanh(1)), 12);
+  });
+
+  it("is born with a memory and a signal of 0", () => {
+    const organism = bodyWith([neuron(1, {bias: 2}), neuron(2)]);
+
+    expect(organism.neuronMemories).toEqual([0, 0]);
+    expect(organism.neuronSignals).toEqual([0, 0]);
+  });
+});

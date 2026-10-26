@@ -977,10 +977,10 @@ describe("applyPhotosynthesis on a chloroplast's disc", () => {
     expect(zeroed.food).toBeCloseTo(zeroedPassive, 12);
   });
 
-  it("declares the chloroplast as the neuron's laws at density 3/2 with kChloro", () => {
-    const {chloroplast, neuron} = ORGANELLE_TYPES;
+  it("declares the chloroplast as the shape laws at density 3/2 with kChloro", () => {
+    const {chloroplast, float, neuron} = ORGANELLE_TYPES;
 
-    expect(chloroplast.parameters).toEqual(neuron.parameters);
+    expect(chloroplast.parameters).toEqual(float.parameters);
     expect(chloroplast.density).toBe(1.5);
     expect(chloroplast.photosynthesis).toBe(K_CHLORO);
     expect(chloroplast.overhead).toBe(ORGANELLE_TYPES.float.overhead);

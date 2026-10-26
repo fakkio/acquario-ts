@@ -1720,3 +1720,90 @@ describe("the Reflex in the world (M11)", () => {
     expect(getPopulation(world)[0].thrusterSignals).toEqual([0.5]);
   });
 });
+
+describe("the neuron's state in the hash", () => {
+  it("hashes two worlds differently when their founders differ only in a neuron's bias", () => {
+    const worldWith = (bias: number) =>
+      createWorld(1234, {
+        generation0: {
+          founders: [
+            {
+              x: 10,
+              y: 10,
+              genome: {
+                ...BASELINE_GENOME,
+                genes: [
+                  {
+                    type: "neuron",
+                    radius: 0.1,
+                    x: 0,
+                    y: 0,
+                    tau: 1,
+                    bias,
+                    threshold: 1,
+                    dischargeFactor: 1,
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+
+    expect(hashState(worldWith(0))).not.toBe(hashState(worldWith(0.25)));
+  });
+});
+
+describe("a pulsing neuron in a running world", () => {
+  it("makes its thruster's signal pulse and keeps the neuron's state on the population", () => {
+    const world = createWorld(7, {
+      generation0: {
+        founders: [
+          {
+            x: 10,
+            y: 10,
+            genome: {
+              ...BASELINE_GENOME,
+              genes: [
+                {
+                  type: "neuron",
+                  radius: 0.1,
+                  x: -0.3,
+                  y: 0,
+                  tau: 20,
+                  bias: 1.5,
+                  threshold: 1,
+                  dischargeFactor: 0,
+                },
+                {
+                  type: "thruster",
+                  radius: 0.1,
+                  x: 0.3,
+                  y: 0,
+                  orientation: {cos: 1, sin: 0},
+                  drive: 0,
+                },
+                {
+                  source: {id: 1, port: "out"},
+                  destination: {id: 2, port: "power"},
+                  weight: 1,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    });
+    const signals = new Set<number>();
+    let current = world;
+
+    for (let tick = 0; tick < 60; tick++) {
+      ({world: current} = advance(current, FIXED_DT_MS));
+      const [organism] = getPopulation(current);
+      signals.add(organism.thrusterSignals[0]);
+      expect(organism.neuronSignals).toHaveLength(1);
+    }
+
+    expect(signals.size).toBeGreaterThan(10);
+  });
+});
