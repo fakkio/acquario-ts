@@ -15,7 +15,8 @@ import {turn, type OrganismView} from "../world";
 export type BodyShape = Pick<
   OrganismView,
   "x" | "y" | "bodyRadius" | "lineageHue" | "organelles" | "axis"
->;
+> &
+  Partial<Pick<OrganismView, "thrusterSignals">>;
 
 /** Lightness at zero energy and at a full store, in percent — the range a
  * body's brightness maps its energy fraction into (M2, ADR-0010). A
@@ -92,6 +93,9 @@ export function drawBody(
   }
 
   ctx.strokeStyle = `hsl(0, 0%, ${String(ORGANELLE_OUTLINE_LIGHTNESS * brightness)}%)`;
+  // The thrusters are the organelles that push, in genome order, the order
+  // of `thrusterSignals`.
+  let thrusterIndex = 0;
   for (const organelle of body.organelles) {
     // The per-type palette grows with the roster (`docs/vision.md`:
     // chloroplast green, thruster red). An organelle sits at the body's
@@ -112,7 +116,9 @@ export function drawBody(
       organelle.radius * ORGANELLE_OUTLINE_MAX_SHARE,
     );
     if (organelle.type === "thruster") {
-      drawThruster(ctx, body, organelle, x, y, brightness);
+      const signal =
+        body.thrusterSignals?.[thrusterIndex++] ?? organelle.drive ?? 0;
+      drawThruster(ctx, body, organelle, signal, x, y, brightness);
       continue;
     }
     ctx.beginPath();
@@ -125,12 +131,14 @@ export function drawBody(
 /**
  * A thruster: a wedge whose tip points along its world-frame thrust, with a
  * trail behind it of `signal × radius × THRUSTER_TRAIL_FACTOR`. The signal is
- * its `drive`, until a synapse wires `power`. Turns with the body through the axis.
+ * the thruster's live one, its `drive` for a shape that carries none. Turns
+ * with the body through the axis.
  */
 function drawThruster(
   ctx: CanvasRenderingContext2D,
   body: BodyShape,
   organelle: BodyShape["organelles"][number],
+  signal: number,
   x: number,
   y: number,
   brightness: number,
@@ -145,7 +153,7 @@ function drawThruster(
   const px = -direction.y;
   const py = direction.x;
 
-  const trail = (organelle.drive ?? 0) * r * THRUSTER_TRAIL_FACTOR;
+  const trail = signal * r * THRUSTER_TRAIL_FACTOR;
   if (trail > 0) {
     const fill = ctx.fillStyle;
     ctx.fillStyle = `hsla(${String(THRUSTER_HUE)}, ${String(THRUSTER_SATURATION)}%, ${String(THRUSTER_LIGHTNESS * brightness)}%, ${String(THRUSTER_TRAIL_ALPHA)})`;

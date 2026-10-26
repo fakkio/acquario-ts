@@ -3,6 +3,7 @@ import {describe, expect, it} from "vitest";
 import {
   BODY_COST_COEFFICIENT,
   C_NEURON,
+  C_SYNAPSE,
   EXISTENCE_COST,
   K_CAP_ENERGY,
   K_CHLORO,
@@ -23,8 +24,8 @@ import {
   applyRespiration,
   type DiscReading,
 } from "./metabolism";
-import {BASELINE_GENOME} from "./genome";
-import {ORGANELLE_TYPES} from "./organelles";
+import {BASELINE_GENOME, type SynapseGene} from "./genome";
+import {BODY_ID, ORGANELLE_TYPES} from "./organelles";
 import {Organism, bodyArea, energyCap, type Diffusible} from "./organism";
 import {createRngStream} from "./rng";
 import {bearerAt, carrierAt, organismAt} from "./testing";
@@ -596,6 +597,44 @@ describe("maintenanceBreakdown", () => {
       BODY_COST_COEFFICIENT * Math.PI * (0.1 * 0.1 + 0.2 * 0.2),
       12,
     );
+  });
+
+  it("charges c_synapse per Synapse Gene, and c_synapse is c_neuron", () => {
+    expect(C_SYNAPSE).toBe(C_NEURON);
+    const wire = (innovationId: number): SynapseGene => ({
+      innovationId,
+      source: {id: BODY_ID, port: "light"},
+      destination: {id: 1, port: "power"},
+      weight: 1,
+    });
+    const build = (synapses: number) =>
+      new Organism({
+        x: 0,
+        y: 0,
+        genome: {
+          ...BASELINE_GENOME,
+          genes: [
+            {
+              type: "thruster",
+              innovationId: 1,
+              radius: 0.05,
+              x: 0,
+              y: 0,
+              orientation: {cos: 1, sin: 0},
+              drive: 0.5,
+            },
+            ...Array.from({length: synapses}, (_, i) => wire(i + 2)),
+          ],
+        },
+        rng: createRngStream(11),
+      });
+
+    const bare = maintenanceBreakdown(build(0));
+    const wired = maintenanceBreakdown(build(3));
+
+    expect(bare.synapses).toBe(0);
+    expect(wired.synapses).toBeCloseTo(3 * C_SYNAPSE, 12);
+    expect(wired.total - bare.total).toBeCloseTo(3 * C_SYNAPSE, 12);
   });
 
   it("has no organelle terms for a body without organelles", () => {

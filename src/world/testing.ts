@@ -20,6 +20,7 @@ import {
 } from "./organism";
 import type {OrganelleTypeDeclaration} from "./organelles";
 import {createRngStream, nextRng, type RngStream} from "./rng";
+import {applyNetwork} from "./senses";
 
 /**
  * Fixtures shared between this module's test files. Not test code itself, so
@@ -215,7 +216,7 @@ export function worstExcursion(population: readonly OrganismView[]): number {
 }
 
 /**
- * `runTick`'s steps 2a through 5 — the exchange settlement's two sub-passes,
+ * `runTick`'s steps 2 through 5 — the network, the exchange settlement's two sub-passes,
  * then photosynthesis, respiration and maintenance — replicated by hand for
  * whichever test needs to seed a population and read pools without running
  * a whole world. Shared across this module's test files rather than
@@ -227,6 +228,9 @@ export function runMetabolism(
 ): Pools {
   const settlement = new ExchangeSettlement(pools);
   const request = settlement.requestPass();
+  for (const organism of population) {
+    applyNetwork(organism, request);
+  }
   for (const organism of population) {
     applyPassiveExchange(organism, request);
   }

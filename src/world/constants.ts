@@ -559,6 +559,14 @@ export const DELTA_ORGANELLE_POSITION = tunable(
 export const C_NEURON = tunable("C_NEURON", 0.01 * EXISTENCE_COST);
 
 /**
+ * What each Synapse Gene costs per tick (ADR-0037): equal to a neuron's
+ * overhead, so wiring is not free but nowhere near the cost of the tissue it
+ * connects. A tunable of its own so the harness can sweep it apart from
+ * `C_NEURON`.
+ */
+export const C_SYNAPSE = tunable("C_SYNAPSE", C_NEURON);
+
+/**
  * Stokes' law, `drag = 6πμr`, with the medium's viscosity μ ≡ 1: the shape of
  * the drag law, fixed and not tuned. Motion divides every force by it times
  * the body's radius, and `G` below is derived from it.

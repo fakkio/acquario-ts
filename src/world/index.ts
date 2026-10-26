@@ -1,5 +1,11 @@
 export {AQUARIUM_AREA, AQUARIUM_HEIGHT, AQUARIUM_WIDTH} from "./aquarium";
-export {BASELINE_GENOME, type Genome, type Thruster} from "./genome";
+export {
+  BASELINE_GENOME,
+  isSynapseGene,
+  type Genome,
+  type SynapseEndpoint,
+  type Thruster,
+} from "./genome";
 export {DRAG_PER_RADIUS} from "./constants";
 export {ROTATIONAL_DRAG_PER_CUBE} from "./motion";
 export {
@@ -14,7 +20,9 @@ export {
 } from "./gravity";
 export {type GridOccupancy} from "./grid";
 export {
+  BODY_ID,
   DEFAULT_ROSTER,
+  INNATE_SENSES,
   ORGANELLE_TYPES,
   type OrganelleType,
 } from "./organelles";

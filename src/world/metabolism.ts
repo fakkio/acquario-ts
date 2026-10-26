@@ -1,5 +1,6 @@
 import {
   BODY_COST_COEFFICIENT,
+  C_SYNAPSE,
   EXISTENCE_COST,
   K_DIFFUSION,
   K_PHOTO,
@@ -7,6 +8,7 @@ import {
   RESPIRATION_ENERGY_YIELD,
 } from "./constants";
 import type {Environment} from "./environment";
+import {isSynapseGene} from "./genome";
 import {turn} from "./gravity";
 import {ORGANELLE_TYPES, type OrganelleTypeDeclaration} from "./organelles";
 import {
@@ -341,11 +343,13 @@ export interface MaintenanceBreakdown {
   readonly cytoplasm: number;
   readonly organelleOverheads: number;
   readonly organelleTissue: number;
+  /** `c_synapse` per Synapse Gene. */
+  readonly synapses: number;
   readonly total: number;
 }
 
 export function maintenanceBreakdown(
-  organism: Pick<OrganismView, "cytoplasmArea" | "organelles">,
+  organism: Pick<OrganismView, "cytoplasmArea" | "organelles" | "genome">,
 ): MaintenanceBreakdown {
   const cytoplasm = BODY_COST_COEFFICIENT * organism.cytoplasmArea;
   let total = EXISTENCE_COST + cytoplasm;
@@ -358,12 +362,20 @@ export function maintenanceBreakdown(
     organelleOverheads += type.overhead;
     organelleTissue += tissue;
   }
+  let synapses = 0;
+  for (const gene of organism.genome.genes) {
+    if (isSynapseGene(gene)) {
+      synapses += C_SYNAPSE;
+      total += C_SYNAPSE;
+    }
+  }
 
   return {
     existence: EXISTENCE_COST,
     cytoplasm,
     organelleOverheads,
     organelleTissue,
+    synapses,
     total,
   };
 }

@@ -1128,6 +1128,80 @@ describe("Synapse Genes (M11)", () => {
     expect(genome.genes.filter((gene) => !("type" in gene))).toEqual([synapse]);
   });
 
+  describe("a structural event keeps the wiring sound", () => {
+    const wireFor = (id: number, innovationId: number): SynapseGene => ({
+      innovationId,
+      source: {id: BODY_ID, port: "light"},
+      destination: {id, port: "power"},
+      weight: -1.5,
+    });
+    const other: OrganelleGene = {
+      ...thruster,
+      innovationId: 3,
+      x: 0.5,
+    };
+    const events = (operator: "deletion" | "split") => ({
+      roster: DEFAULT_ROSTER,
+      eventProbability: 1,
+      operatorWeights: only(operator),
+    });
+    const synapsesOf = (genome: Genome): SynapseGene[] =>
+      genome.genes.filter((gene): gene is SynapseGene => !("type" in gene));
+
+    it("removes every synapse of a deleted organelle, and only those", () => {
+      // One thruster and its wire: whatever the draw, the thruster goes.
+      const {genome} = mutateGenome(
+        wired,
+        createRngStream(5),
+        events("deletion"),
+      );
+
+      expect(genome.genes.some((gene) => "type" in gene)).toBe(false);
+      expect(synapsesOf(genome)).toEqual([]);
+    });
+
+    it("keeps the synapses of the organelles a deletion left", () => {
+      const both: Genome = {
+        ...BASELINE_GENOME,
+        genes: [thruster, other, wireFor(1, 4), wireFor(3, 5)],
+      };
+      for (let seed = 1; seed <= 20; seed++) {
+        const {genome} = mutateGenome(
+          both,
+          createRngStream(seed),
+          events("deletion"),
+        );
+        const ids = new Set(
+          genome.genes.filter((g) => "type" in g).map((g) => g.innovationId),
+        );
+        for (const wire of synapsesOf(genome)) {
+          expect(ids.has(wire.destination.id)).toBe(true);
+        }
+        expect(synapsesOf(genome)).toHaveLength(ids.size);
+      }
+    });
+
+    it("copies each incoming synapse of a split thruster to both pieces", () => {
+      const {genome} = mutateGenome(wired, createRngStream(5), events("split"));
+      const pieces = genome.genes.filter(
+        (gene): gene is OrganelleGene => "type" in gene,
+      );
+      const wires = synapsesOf(genome);
+
+      expect(pieces).toHaveLength(2);
+      expect(wires).toHaveLength(2);
+      expect(wires.map(({destination}) => destination.id).sort()).toEqual(
+        pieces.map(({innovationId}) => innovationId).sort(),
+      );
+      for (const wire of wires) {
+        expect(wire.weight).toBe(synapse.weight);
+        expect(wire.source).toEqual(synapse.source);
+        expect(wire.destination.port).toBe("power");
+      }
+      expect(new Set(wires.map(({innovationId}) => innovationId)).size).toBe(2);
+    });
+  });
+
   describe("minting", () => {
     const provisional: Genome = {
       ...BASELINE_GENOME,

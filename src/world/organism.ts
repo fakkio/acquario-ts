@@ -21,7 +21,12 @@ import {
 } from "./genome";
 import {worldAxis, type BodyAxis, type LayoutMoments} from "./gravity";
 import {foldString} from "./hash";
-import type {OrganelleType, OrganelleTypeDeclaration} from "./organelles";
+import {compileNetwork, type CompiledNetwork} from "./network";
+import {
+  ORGANELLE_TYPES,
+  type OrganelleType,
+  type OrganelleTypeDeclaration,
+} from "./organelles";
 import {deriveChildStream, nextRng, type RngStream} from "./rng";
 
 /**
@@ -91,6 +96,9 @@ export interface OrganismView {
   readonly thrusters: readonly Thruster[];
   /** Each thruster's signal, in the order of `thrusters` (`Organism.thrusterSignals`). */
   readonly thrusterSignals: readonly number[];
+  /** The seven Innate Senses as the network last read them, in
+   * `INNATE_SENSES`' order (`Organism.senses`). */
+  readonly senses: readonly number[];
   /** The Body Axis (`gravity.ts`): the cosine and sine of the body frame's
    * angle in the world. Read-only here; the motion step turns it. */
   readonly axis: Readonly<BodyAxis>;
@@ -223,10 +231,15 @@ export class Organism {
    * Each thruster's signal in `[0, 1]`, in the order of `body.thrusters`:
    * the state the Thrust Cost and the motion step read, born at the
    * thruster's `drive`. Mutable like `x`/`y`, since the tick will set it.
-   * It folds into the state hash in the ticket that makes the tick write it
-   * (ADR-0037): until then it is a function of the genome.
+   * Step 2 (`applyNetwork`) sets it; it folds into the state hash.
    */
   readonly thrusterSignals: number[];
+  /** The Innate Senses as the last `applyNetwork` read them, the first seven
+   * slots of the signal array. Not state: each tick rewrites it from the
+   * committed state, so it stays out of the hash. */
+  readonly senses: number[] = [0, 0, 0, 0, 0, 0, 0];
+  /** The wiring compiled once with the body: a function of the genome. */
+  readonly network: CompiledNetwork;
   private readonly body: Body;
 
   constructor(init: OrganismInit) {
@@ -238,6 +251,11 @@ export class Organism {
       : worldAxis();
     this.body = deriveBody(init.genome, init.declarations);
     this.thrusterSignals = this.body.thrusters.map(({drive}) => drive);
+    this.network = compileNetwork(
+      init.genome.genes,
+      this.body.organelles,
+      init.declarations ?? ORGANELLE_TYPES,
+    );
     this.rng = init.rng;
     this.generation = init.generation ?? 0;
     this.energy = init.energy ?? 0;
@@ -535,8 +553,9 @@ export function placeFounders(
  * through the gene that holds it, so the world's counter itself stays out
  * (`hashState`).
  *
- * The Body Axis folds in last, a cosine and a sine: it is state the next
- * tick reads (M8).
+ * The Body Axis folds in next, a cosine and a sine: it is state the next
+ * tick reads (M8). Each thruster's signal folds in last, in genome order:
+ * the motion step reads it, and a body with no thruster adds nothing.
  *
  * The four internal stores fold in too, per the rule M2 adds beside
  * `hashState`: what enters the hash is what the next tick *reads*, and
@@ -563,9 +582,13 @@ export function foldPopulation(
         genes += `|${String(gene.drive)}`;
       }
     }
+    let signals = "";
+    for (const signal of organism.thrusterSignals) {
+      signals += `|${String(signal)}`;
+    }
     folded = foldString(
       folded,
-      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}|${String(organism.axis.cos)}|${String(organism.axis.sin)}`,
+      `${String(organism.x)}|${String(organism.y)}|${String(genome.cytoplasmRadius)}|${String(genome.mitosisEnergyThreshold)}|${String(genome.childAllocationRatio)}|${String(genome.lineageHue)}|${String(organism.rng.state)}|${String(organism.energy)}|${String(organism.oxygen)}|${String(organism.carbonDioxide)}|${String(organism.food)}${genes}|${String(organism.axis.cos)}|${String(organism.axis.sin)}${signals}`,
     );
   }
 

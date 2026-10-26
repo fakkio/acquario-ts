@@ -1,18 +1,21 @@
 import {
   AQUARIUM_AREA,
+  BODY_ID,
   birthCosts,
   bodyAreaOfRadius,
   buoyantTorque,
   buoyantWeight,
   DRAG_PER_RADIUS,
   energyCap,
+  INNATE_SENSES,
+  isSynapseGene,
   maintenanceBreakdown,
   ORGANELLE_TYPES,
   restingDepth,
   ROTATIONAL_DRAG_PER_CUBE,
   turn,
-  type BodyAxis,
   type OrganelleType,
+  type SynapseEndpoint,
   type OrganismView,
   type Pools,
   type Resource,
@@ -106,6 +109,16 @@ const thrustLines = (organism: OrganismView): string[] => {
     `  thrust turn rate    ${signed(turnRate)} rad/tick`,
   ];
 };
+
+/** A synapse endpoint as the table prints it: `body.light`, `7.power`. */
+const endpointText = ({id, port}: SynapseEndpoint): string =>
+  `${id === BODY_ID ? "body" : String(id)}.${port}`;
+
+/** The Innate Senses as the network read them this tick, one line each. */
+const senseLines = (organism: OrganismView): string[] =>
+  INNATE_SENSES.map(
+    (name, i) => `  ${name.padEnd(7)}${fixed(organism.senses[i])}`,
+  );
 
 const restingDepthText = (organism: OrganismView): string => {
   const resting = restingDepth(organism.moments);
@@ -221,7 +234,12 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
   table.style.marginTop = "6px";
-  container.append(summary, table);
+  const synapseTable = document.createElement("table");
+  synapseTable.style.borderCollapse = "collapse";
+  synapseTable.style.marginTop = "6px";
+  const organelleHeader = document.createElement("pre");
+  organelleHeader.style.margin = "6px 0 0";
+  container.append(summary, synapseTable, organelleHeader, table);
 
   let tableFor: OrganismView | null = null;
   // The two columns that change every tick, by organelle id, refilled from
@@ -235,15 +253,39 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   let worldCells: {
     cell: HTMLTableCellElement;
     thruster: Thruster;
+    index: number;
+    signal: HTMLTableCellElement;
+    force: HTMLTableCellElement;
+    torque: HTMLTableCellElement;
+  }[] = [];
+  // The synapse table's last column, the signal each synapse carries this
+  // tick, refilled with the rest of the readings.
+  let carriedCells: {
+    cell: HTMLTableCellElement;
+    source: SynapseEndpoint;
+    weight: number;
   }[] = [];
 
   const fillReadings = (
     flows: TickFlows | null,
-    axis: Readonly<BodyAxis>,
+    organism: OrganismView,
   ): void => {
-    for (const {cell, thruster} of worldCells) {
-      const world = turn(axis, thruster.dx, thruster.dy);
+    for (const {cell, thruster, index, signal, force, torque} of worldCells) {
+      const world = turn(organism.axis, thruster.dx, thruster.dy);
       cell.textContent = `${fixed(fromVertical(world.x, world.y), 1)}°`;
+      const live = organism.thrusterSignals[index];
+      const push = thrustOf(thruster, live);
+      signal.textContent = fixed(live);
+      force.textContent = fixed(push.magnitude, 5);
+      torque.textContent = signed(push.torque);
+    }
+    for (const {cell, source, weight} of carriedCells) {
+      const sense =
+        source.id === BODY_ID
+          ? INNATE_SENSES.indexOf(source.port as never)
+          : -1;
+      cell.textContent =
+        sense < 0 ? "" : signed(weight * organism.senses[sense]);
     }
     for (const [id, cells] of readingCells) {
       const reading = flows?.discs.find((disc) => disc.innovationId === id);
@@ -252,10 +294,49 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
     }
   };
 
+  const buildSynapseTable = (organism: OrganismView): void => {
+    const synapses = organism.genome.genes.filter(isSynapseGene);
+    if (synapses.length === 0) {
+      return;
+    }
+    const head = synapseTable.insertRow();
+    for (const title of ["id", "source", "destination", "weight", "carries"]) {
+      const cell = document.createElement("th");
+      cell.textContent = title;
+      cell.style.textAlign = "right";
+      cell.style.padding = "0 6px";
+      head.appendChild(cell);
+    }
+    for (const synapse of synapses) {
+      const row = synapseTable.insertRow();
+      const cells = [
+        String(synapse.innovationId),
+        endpointText(synapse.source),
+        endpointText(synapse.destination),
+        signed(synapse.weight),
+        "",
+      ].map((value) => {
+        const cell = row.insertCell();
+        cell.textContent = value;
+        cell.style.textAlign = "right";
+        cell.style.padding = "0 6px";
+        return cell;
+      });
+      carriedCells.push({
+        cell: cells[4],
+        source: synapse.source,
+        weight: synapse.weight,
+      });
+    }
+  };
+
   const rebuildTable = (organism: OrganismView): void => {
     table.replaceChildren();
+    synapseTable.replaceChildren();
     readingCells = new Map();
     worldCells = [];
+    carriedCells = [];
+    buildSynapseTable(organism);
     if (organism.organelles.length === 0) {
       tableFor = organism;
       return;
@@ -324,13 +405,15 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
           : undefined;
       if (thrusterAt !== undefined) {
         const thruster = organism.thrusters[thrusterAt];
-        const signal = organism.thrusterSignals[thrusterAt];
-        const push = thrustOf(thruster, signal);
         thrustCells[0].textContent = `${fixed(fromVertical(thruster.dx, thruster.dy), 1)}°`;
-        thrustCells[2].textContent = fixed(signal);
-        thrustCells[3].textContent = fixed(push.magnitude, 5);
-        thrustCells[4].textContent = signed(push.torque);
-        worldCells.push({cell: thrustCells[1], thruster});
+        worldCells.push({
+          cell: thrustCells[1],
+          thruster,
+          index: thrusterAt,
+          signal: thrustCells[2],
+          force: thrustCells[3],
+          torque: thrustCells[4],
+        });
       }
     }
     tableFor = organism;
@@ -348,9 +431,12 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
 
       if (selection.kind === "dead") {
         summary.textContent = `Died at tick ${String(selection.tick)}`;
+        organelleHeader.textContent = "";
         table.replaceChildren();
+        synapseTable.replaceChildren();
         readingCells = new Map();
         worldCells = [];
+        carriedCells = [];
         tableFor = null;
         return;
       }
@@ -361,6 +447,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       for (const organelle of organism.organelles) {
         organelleArea += bodyAreaOfRadius(organelle.radius);
       }
+      const synapses = organism.genome.genes.filter(isSynapseGene).length;
       const text = [
         `Generation ${String(organism.generation)}`,
         "",
@@ -387,6 +474,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         `  cytoplasm           ${fixed(maintenance.cytoplasm, 5)}`,
         `  organelle overheads ${fixed(maintenance.organelleOverheads, 5)}`,
         `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
+        `  synapses            ${fixed(maintenance.synapses, 5)}`,
         "",
         flows ? "Stores (last tick)" : "Stores",
         `  energy ${energyStore(organism)}`,
@@ -398,16 +486,23 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         `  CO₂    ${concentration(organism, pools, "carbonDioxide")}`,
         flowsOf(flows, "carbonDioxide"),
         "",
-        `Organelles (${String(organism.organelles.length)})`,
+        "Senses (as the network read them)",
+        ...senseLines(organism),
+        "",
+        `Synapses (${String(synapses)})`,
       ].join("\n");
       if (summary.textContent !== text) {
         summary.textContent = text;
+      }
+      const header = `Organelles (${String(organism.organelles.length)})`;
+      if (organelleHeader.textContent !== header) {
+        organelleHeader.textContent = header;
       }
 
       if (tableFor !== organism) {
         rebuildTable(organism);
       }
-      fillReadings(flows, organism.axis);
+      fillReadings(flows, organism);
     },
   };
 }

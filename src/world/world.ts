@@ -38,6 +38,7 @@ import {
   type PopulationDraw,
 } from "./organism";
 import {createRngStream, type RngStream} from "./rng";
+import {applyNetwork} from "./senses";
 import {resolveCollisions, worstPenetration} from "./separation";
 
 /**
@@ -352,7 +353,11 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   // it is running for. That restriction is what makes the phase
   // order-independent by construction, and it is the whole reason the
   // metabolic core is unit-testable against one organism and a snapshot.
-  // 2. Passive exchange, in the two sub-passes ADR-0016 requires: 2a
+  // 2. The network (ADR-0031), first of all, from the state the last tick
+  //    committed: each organism reads its Innate Senses and sets its
+  //    thrusters' signals, writing only to itself. It reads no pool, so it
+  //    needs no sub-pass, and the flows below read the signals it sets.
+  //    Passive exchange, in the two sub-passes ADR-0016 requires: 2a
   //    every organism registers the flux it wants against the same
   //    `Environment` interface, writing nothing; between the passes the
   //    per-pool scaling factor is struck from total demand; 2b every
@@ -360,6 +365,9 @@ function runTick(state: WorldState, tracer: FlowTracer): WorldState {
   //    it. `applyPassiveExchange` does not know which sub-pass it runs
   //    in — only the `Environment` it is given each time does.
   const requestEnvironment = settlement.requestPass();
+  for (const organism of state.population) {
+    applyNetwork(organism, requestEnvironment);
+  }
   for (const organism of state.population) {
     tracer.start(organism);
     applyPassiveExchange(organism, requestEnvironment);

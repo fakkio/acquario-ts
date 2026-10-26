@@ -10,7 +10,7 @@ import {
   totalOxygen,
   type Pools,
 } from "./ledger";
-import {BRIGHT_BAND_DEPTH} from "./light";
+import {BRIGHT_BAND_DEPTH, lightAt} from "./light";
 import {
   applyMaintenance,
   applyPassiveExchange,
@@ -1653,5 +1653,70 @@ describe("the thruster in the world (M10)", () => {
   it("hashes two worlds differing only in a thruster's drive differently", () => {
     expect(hashFor(0.1)).not.toBe(hashFor(0.2));
     expect(hashFor(0.1)).toBe(hashFor(0.1));
+  });
+});
+
+describe("the Reflex in the world (M11)", () => {
+  const founders = (wired: boolean): Founder[] => [
+    {
+      x: 10,
+      y: 1,
+      genome: {
+        ...BASELINE_GENOME,
+        genes: [
+          {
+            type: "thruster",
+            x: 0,
+            y: 0,
+            radius: 0.05,
+            orientation: {cos: 0, sin: -1},
+            drive: 0.5,
+          },
+          ...(wired
+            ? [
+                {
+                  source: {id: BODY_ID, port: "light"},
+                  destination: {id: 1, port: "power"},
+                  weight: -0.5,
+                },
+              ]
+            : []),
+        ],
+      },
+    },
+  ];
+  const worldWith = (wired: boolean) =>
+    createWorld(1234, {
+      generation0: {founders: founders(wired)},
+      roster: [],
+      mortality: "off",
+      fertility: "off",
+    });
+
+  it("hashes a world whose founders carry a Reflex differently from one whose founders do not", () => {
+    for (const ticks of [0, 5]) {
+      const hashAfter = (wired: boolean) =>
+        hashState(advance(worldWith(wired), ticks * FIXED_DT_MS).world);
+
+      expect(hashAfter(true)).not.toBe(hashAfter(false));
+    }
+  });
+
+  it("sets the thruster's signal in the tick, from the light the body sat in", () => {
+    const [before] = getPopulation(worldWith(true));
+    const {world} = advance(worldWith(true), FIXED_DT_MS);
+    const [after] = getPopulation(world);
+
+    expect(before.thrusterSignals).toEqual([0.5]);
+    expect(after.thrusterSignals[0]).toBeCloseTo(
+      0.5 - 0.5 * lightAt(before.y),
+      12,
+    );
+  });
+
+  it("leaves an unwired founder's signal at its drive", () => {
+    const {world} = advance(worldWith(false), 3 * FIXED_DT_MS);
+
+    expect(getPopulation(world)[0].thrusterSignals).toEqual([0.5]);
   });
 });

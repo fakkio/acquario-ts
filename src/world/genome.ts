@@ -583,8 +583,9 @@ function mutateStructure(
   law: StructuralLaw,
 ): readonly Gene[] {
   // The events act on Organelle Genes alone: a Synapse Gene is no target of
-  // any operator yet, and is carried through after the organelles: a child an
-  // event touched holds its organelles first, then its synapses.
+  // any operator, but follows the organelle it is wired to (a deletion
+  // removes it, a split copies it). A child an event touched holds its
+  // organelles first, then its synapses.
   const organelles = organelleGenes(genes);
   if (law.roster.length === 0 && organelles.length === 0) {
     return genes;
@@ -600,24 +601,27 @@ function mutateStructure(
   let nextProvisionalId = -1;
   const provisionalId = (): number => nextProvisionalId--;
   let layout = organelles;
+  let wiring: readonly SynapseGene[] = genes.filter(isSynapseGene);
   let touched = false;
   for (let event = 0; event < events; event++) {
     const operator = pickOperator(draws.unit(), law.weights);
     const changed = applyEvent(
       operator,
       layout,
+      wiring,
       law.roster,
       draws,
       provisionalId,
       law.cytoplasmRadius,
     );
     if (changed !== null) {
-      layout = relax(changed);
+      layout = relax(changed.layout);
+      wiring = changed.wiring;
       touched = true;
     }
   }
 
-  return touched ? [...layout, ...genes.filter(isSynapseGene)] : genes;
+  return touched ? [...layout, ...wiring] : genes;
 }
 
 /** The operator a draw `u` picks, walking the weights in `OPERATORS`'
@@ -643,18 +647,26 @@ function pickOperator(u: number, weights: OperatorWeights): StructuralOperator {
   return picked;
 }
 
+/** What a structural event leaves: the organelles before relaxation, and the
+ * synapses that stay sound against them. */
+interface EventResult {
+  readonly layout: OrganelleGene[];
+  readonly wiring: readonly SynapseGene[];
+}
+
 /**
- * One structural event, before relaxation: the layout it leaves, or `null`
- * when its operator has no valid target and it does nothing.
+ * One structural event, before relaxation, or `null` when its operator has
+ * no valid target and it does nothing.
  */
 function applyEvent(
   operator: StructuralOperator,
   layout: readonly OrganelleGene[],
+  wiring: readonly SynapseGene[],
   roster: readonly OrganelleType[],
   draws: MutationDraws,
   provisionalId: () => number,
   cytoplasmRadius: number,
-): OrganelleGene[] | null {
+): EventResult | null {
   switch (operator) {
     case "parameterChange": {
       const targets = indicesWhere(
@@ -668,7 +680,10 @@ function applyEvent(
       const gene = layout[index];
       const {parameters} = ORGANELLE_TYPES[gene.type];
       const {law} = parameters[draws.index(parameters.length)];
-      return replaceAt(layout, index, [changeParameter(gene, law, draws)]);
+      return {
+        layout: replaceAt(layout, index, [changeParameter(gene, law, draws)]),
+        wiring,
+      };
     }
 
     case "insertion": {
@@ -697,27 +712,39 @@ function applyEvent(
       const drive = parameters.some(({name}) => name === "drive")
         ? DRIVE_NEW
         : undefined;
-      return [
-        ...layout,
-        {
-          type,
-          innovationId: provisionalId(),
-          radius: R_NEW,
-          x: offset.x * within,
-          y: offset.y * within,
-          ...(orientation && {
-            orientation: {cos: orientation.x, sin: orientation.y},
-          }),
-          ...(drive !== undefined && {drive}),
-        },
-      ];
+      return {
+        layout: [
+          ...layout,
+          {
+            type,
+            innovationId: provisionalId(),
+            radius: R_NEW,
+            x: offset.x * within,
+            y: offset.y * within,
+            ...(orientation && {
+              orientation: {cos: orientation.x, sin: orientation.y},
+            }),
+            ...(drive !== undefined && {drive}),
+          },
+        ],
+        wiring,
+      };
     }
 
     case "deletion": {
       if (layout.length === 0) {
         return null;
       }
-      return replaceAt(layout, draws.index(layout.length), []);
+      const index = draws.index(layout.length);
+      const {innovationId} = layout[index];
+      // A synapse never outlives an endpoint: both go as one event.
+      return {
+        layout: replaceAt(layout, index, []),
+        wiring: wiring.filter(
+          ({source, destination}) =>
+            source.id !== innovationId && destination.id !== innovationId,
+        ),
+      };
     }
 
     case "split": {
@@ -727,6 +754,7 @@ function applyEvent(
       }
       return split(
         layout,
+        wiring,
         targets[draws.index(targets.length)],
         draws,
         provisionalId,
@@ -801,10 +829,11 @@ function changeParameter(
  */
 function split(
   layout: readonly OrganelleGene[],
+  wiring: readonly SynapseGene[],
   index: number,
   draws: MutationDraws,
   provisionalId: () => number,
-): OrganelleGene[] {
+): EventResult {
   const gene = layout[index];
   const f = 0.5 + (draws.unit() + draws.unit() - 1) * SPLIT_HALF_WIDTH;
   const direction = draws.unitVector();
@@ -826,7 +855,24 @@ function split(
     x: gene.x + direction.x * firstRadius,
     y: gene.y + direction.y * firstRadius,
   };
-  return [...others.slice(0, index), first, second, ...others.slice(index)];
+  // Each incoming synapse is copied to the second piece, with the same
+  // weight, right after the original, which stays on the first.
+  const copied = wiring.flatMap((synapse) =>
+    synapse.destination.id === gene.innovationId
+      ? [
+          synapse,
+          {
+            ...synapse,
+            innovationId: provisionalId(),
+            destination: {...synapse.destination, id: second.innovationId},
+          },
+        ]
+      : [synapse],
+  );
+  return {
+    layout: [...others.slice(0, index), first, second, ...others.slice(index)],
+    wiring: copied,
+  };
 }
 
 /**
