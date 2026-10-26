@@ -145,3 +145,11 @@ Per vedere cosa succedeva nel mondo ho scritto un test di sonda con `console.log
 ---
 
 Cosa non ho verificato: la riga delle sinapsi nell'HUD, che è l'ultimo criterio del ticket. C'è un test sul calcolo, ma non l'ho vista in un browser. Fabio ha chiesto di spuntare tutto e chiudere, e l'ho fatto con le due riserve nel commento. È la terza volta che l'ultimo criterio è "l'ho visto girare" e la terza che non l'ho visto.
+
+---
+
+La nota del seed 39 sulla mappa M11 prometeva due strade: "il generatore del test resta in un regime che non amplifica, oppure il criterio va rivisto". Rileggendo il test di #100, ha preso la prima: τ in {1, 2, 5}, pesi interni entro ±2, 30 reti senza scarica e 15 con scarica a margine 1e-3. Il prototipo sulla mappa aveva trovato una rete su 400 che amplifica l'ulp fino a 1,8e-9, e il test passa anche perché non la genera. L'invariante è verificata nel regime che il test sceglie, non in quello che il prototipo esplorava.
+
+---
+
+Davanti alla rete che amplifica l'ulp fino a 1,8e-9, Fabio non ha pensato che il criterio fosse sbagliato: ha pensato che il generatore del test dovesse restare più stretto. La tolleranza 1e-9 è la promessa, il regime del generatore è dove la promessa si verifica. Restringere il generatore non è barare se lo si scrive. Fabio lo ha trovato pulito perché il commento del test dichiara la tolleranza, l'orizzonte finito e il margine delle soglie. Ma il commento non dice che il generatore evita le reti che amplificano: quel limite sta nei numeri del codice (τ in {1, 2, 5}, pesi entro ±2), non nella spiegazione.
