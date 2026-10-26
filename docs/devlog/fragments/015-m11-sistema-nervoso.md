@@ -77,3 +77,39 @@ Cosa non ho verificato: l'ispettore. Compila, il build passa, ma non l'ho guarda
 ---
 
 Il commit è durato più di due minuti. L'hook di pre-commit (lint, formattazione, typecheck) ha superato il limite del comando e l'ho dovuto aspettare in background. Non è un problema, ma un commit che sembra bloccato fa dubitare di aver rotto qualcosa.
+
+---
+
+#99 scelto da me, e anche questa volta non era una scelta: #97 e #98 erano chiusi, #100 e #101 dipendono da questo. Ho comunque letto le altre quattro bozze prima di partire, e non è servito a niente.
+
+---
+
+Il punto che nel ticket sembra un dettaglio è l'ordine: il neurone legge i segnali del tick precedente, quindi un neurone che legge un altro neurone non può aggiornarlo "in ordine di genoma" e vedere il valore nuovo. Ho spezzato l'aggiornamento in due passate: prima tutte le somme in ingresso, poi memoria e segnale. Il thruster invece va calcolato prima di tutti i neuroni, perché legge il segnale vecchio. Un'unica passata sembrava più semplice e avrebbe dato un risultato che dipende dall'ordine dei geni.
+
+---
+
+La soglia scatta dopo `tanh(memory)`: il segnale che esce è quello pre-scarica, la memoria che resta è quella già moltiplicata. Il ticket lo dice in tre righe di pseudocodice e ho letto l'ordine di quelle righe come un'istruzione. Un neurone che si scarica emette comunque il picco, ed è quello che fa il thruster a valle.
+
+---
+
+Il tipo `ParameterDeclaration` ha un nome e una legge, e fin qui la legge decideva il campo da scrivere: moltiplicativa simmetrica voleva dire raggio, additiva con limiti voleva dire `drive`. Con `τ` (moltiplicativa) e `bias` (additiva) la legge non basta più, e il campo lo decide il nome. Ho dovuto toccare anche il tetto del costo di nascita, che leggeva "moltiplicativa" come "cresce l'area". `τ` non aggiunge area né raggio, e se non lo avessi saputo il tetto avrebbe contato un'area che non esiste.
+
+---
+
+Float e cloroplasto condividevano `NEURON.parameters` per riuso, non per scelta. Appena il neurone ha preso quattro parametri nuovi, anche loro li avrebbero ereditati: un cloroplasto con `τ`. L'ha rotto un test esistente (il cloroplasto "ha le leggi del neurone"). Ho tirato fuori una costante `SHAPE_PARAMETERS`, e il test ora dice "leggi di forma". Il riuso per copia di riferimento è un accoppiamento che nessuno ha dichiarato.
+
+---
+
+Tre test miei sbagliati, non il codice. Il primo: ho dimenticato che la clamp del thruster a 1 mangia una luce con peso 1, e il confronto Riflesso contro neurone falliva per `1` contro `1.0012`. Il secondo: due neuroni in catena, e mi aspettavo `tanh(1)` mentre la catena fa `tanh(tanh(1))`. Il terzo: il test di assestamento a 9 cifre, dopo 400 tick con `τ = 20`, arrivava a 7. Ho allentato la tolleranza e non il tick, perché 9 cifre erano un numero scelto a caso.
+
+---
+
+Un test vecchio sul passo di posizione è sceso da 100 mosse su 400 semi a 75. Non è un difetto: ora l'organello neurone ha sei parametri e non due, quindi la posizione viene scelta una volta su sei invece che una su due. Ho portato i semi a 1000. L'effetto di avere più parametri è che ogni test statistico sul "passo di un parametro" ha meno campioni utili, e nessun ticket lo diceva.
+
+---
+
+La review standards ha segnalato `?? BORN_AT.tau` nel ramo del raggio. Innocuo (il raggio c'è sempre), ma letto da un altro mostra un 1 dove dovrebbe stare un raggio. L'ho corretto. Ha segnalato anche i letterali `1`, `0`, `1`, `1` nell'ispettore, che duplicavano i valori di nascita: ora usa le costanti. Ho tenuto fuori dal commit altri rilievi (un vettore di cella a sei indici, tre array paralleli per lo stato del neurone), perché sono smell e non errori, e a #100 e #101 cambieranno comunque forma.
+
+---
+
+Cosa non ho verificato: l'ispettore, di nuovo. Le colonne ci sono e un test di mondo mostra il thruster che pulsa, ma non le ho viste in un browser, ed è l'ultimo criterio. Nella tabella delle sinapsi la colonna "porta" resta vuota per una sinapsi che parte da un neurone, perché usa ancora `senseSlot`. Il ticket non lo chiedeva, ma è l'unico posto in cui si vede il cablaggio nuovo, e sembra un lavoro lasciato a metà.
