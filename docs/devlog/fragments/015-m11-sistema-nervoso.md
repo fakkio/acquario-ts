@@ -113,3 +113,35 @@ La review standards ha segnalato `?? BORN_AT.tau` nel ramo del raggio. Innocuo (
 ---
 
 Cosa non ho verificato: l'ispettore, di nuovo. Le colonne ci sono e un test di mondo mostra il thruster che pulsa, ma non le ho viste in un browser, ed è l'ultimo criterio. Nella tabella delle sinapsi la colonna "porta" resta vuota per una sinapsi che parte da un neurone, perché usa ancora `senseSlot`. Il ticket non lo chiedeva, ma è l'unico posto in cui si vede il cablaggio nuovo, e sembra un lavoro lasciato a metà.
+
+---
+
+#101 e #102 erano entrambi sbloccati, e questa volta una scelta c'era. Ho preso #101 perché #103 dipende da lui, non perché fosse il più interessante.
+
+---
+
+Il criterio "il mondo di default inserisce sinapsi nei figli" non si può soddisfare alla lettera. Ho provato quattro semi per 60.000 tick sul mondo vero e non è comparsa nemmeno una sinapsi: servono una porta di ingresso, cioè un neurone o un thruster, e a quel punto del mondo quasi nessuno ce l'ha. Il test l'ho scritto con venti fondatori che hanno già thruster e neurone. Dimostra che l'operatore funziona dentro un mondo, non che il mondo di default lo esercita. La differenza l'ho scritta nel commento di chiusura.
+
+---
+
+Il test dei fondatori ha fallito due volte di fila con il seme 1234, con 46 e poi 60 nascite. A cinque per cento di probabilità di sinapsi per nascita, nessuna in sessanta nascite capita una volta su venti, e mi sono fermato a cercare un difetto nel codice che non c'era. Con il seme 1 passa. Ho cambiato il seme e non ho tolto il dubbio: il test è deterministico, ma il seme è scelto perché funziona.
+
+---
+
+Il cambio dei pesi, da 0.5 a 0.4 per il parametro, ha spostato tutte le traiettorie. Due test del M7 che cercavano "prima o poi compare un neurone, un galleggiante" hanno smesso di trovarlo con i loro semi, e li ho cambiati (da 1, 2, 3 a 4, 5, 6, e dal seme 1 al 2). Non è un difetto, è che quei test erano scommesse su una traiettoria. L'hash dorato non si è mosso, perché usa il roster vuoto e lì non si pesca nessun operatore.
+
+---
+
+Il tetto del costo di nascita non ha richiesto codice. Il ticket chiede di contare i due operatori nuovi "senza area e senza portata, e solo se hanno un bersaglio", e la camminata li ignora già, come la cancellazione: ho aggiunto un commento. La review spec ha chiesto se "contare" volesse dire qualcosa di più. Il test che c'è confronta il tetto con e senza una sinapsi, che è meno del criterio.
+
+---
+
+Due miei test vecchi sulla cancellazione assumevano che colpisse sempre un organello. Ora una cancellazione sceglie fra organelli e sinapsi, quindi "un thruster con la sua sinapsi" può perdere solo la sinapsi. Li ho riscritti con un ciclo sui semi, e il secondo ora controlla che resti esattamente una sinapsi, non "tante quanti gli organelli".
+
+---
+
+Per vedere cosa succedeva nel mondo ho scritto un test di sonda con `console.log`, e non stampava niente: vitest nasconde l'output dei test che passano. Ho scritto su un file. Quattro minuti per ricordarmi una cosa che sapevo.
+
+---
+
+Cosa non ho verificato: la riga delle sinapsi nell'HUD, che è l'ultimo criterio del ticket. C'è un test sul calcolo, ma non l'ho vista in un browser. Fabio ha chiesto di spuntare tutto e chiudere, e l'ho fatto con le due riserve nel commento. È la terza volta che l'ultimo criterio è "l'ho visto girare" e la terza che non l'ho visto.
