@@ -27,6 +27,7 @@ export {
   type OrganelleType,
 } from "./organelles";
 export {type Pools} from "./ledger";
+export {senseSlot} from "./network";
 export {birthCosts} from "./mitosis";
 export {maintenanceBreakdown, type MaintenanceBreakdown} from "./metabolism";
 export {BRIGHT_BAND_DEPTH, isBright, lightAt} from "./light";

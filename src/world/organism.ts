@@ -230,7 +230,7 @@ export class Organism {
   /**
    * Each thruster's signal in `[0, 1]`, in the order of `body.thrusters`:
    * the state the Thrust Cost and the motion step read, born at the
-   * thruster's `drive`. Mutable like `x`/`y`, since the tick will set it.
+   * thruster's `drive`. Mutable like `x`/`y`: step 2 sets it each tick.
    * Step 2 (`applyNetwork`) sets it; it folds into the state hash.
    */
   readonly thrusterSignals: number[];

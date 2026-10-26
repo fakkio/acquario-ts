@@ -10,6 +10,7 @@ import {
   INNATE_SENSES,
   isSynapseGene,
   maintenanceBreakdown,
+  senseSlot,
   ORGANELLE_TYPES,
   restingDepth,
   ROTATIONAL_DRAG_PER_CUBE,
@@ -280,10 +281,7 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
       torque.textContent = signed(push.torque);
     }
     for (const {cell, source, weight} of carriedCells) {
-      const sense =
-        source.id === BODY_ID
-          ? INNATE_SENSES.indexOf(source.port as never)
-          : -1;
+      const sense = senseSlot(source);
       cell.textContent =
         sense < 0 ? "" : signed(weight * organism.senses[sense]);
     }

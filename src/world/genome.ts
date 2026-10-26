@@ -601,14 +601,14 @@ function mutateStructure(
   let nextProvisionalId = -1;
   const provisionalId = (): number => nextProvisionalId--;
   let layout = organelles;
-  let wiring: readonly SynapseGene[] = genes.filter(isSynapseGene);
+  let synapses: readonly SynapseGene[] = genes.filter(isSynapseGene);
   let touched = false;
   for (let event = 0; event < events; event++) {
     const operator = pickOperator(draws.unit(), law.weights);
     const changed = applyEvent(
       operator,
       layout,
-      wiring,
+      synapses,
       law.roster,
       draws,
       provisionalId,
@@ -616,12 +616,12 @@ function mutateStructure(
     );
     if (changed !== null) {
       layout = relax(changed.layout);
-      wiring = changed.wiring;
+      synapses = changed.synapses;
       touched = true;
     }
   }
 
-  return touched ? [...layout, ...wiring] : genes;
+  return touched ? [...layout, ...synapses] : genes;
 }
 
 /** The operator a draw `u` picks, walking the weights in `OPERATORS`'
@@ -651,7 +651,7 @@ function pickOperator(u: number, weights: OperatorWeights): StructuralOperator {
  * synapses that stay sound against them. */
 interface EventResult {
   readonly layout: OrganelleGene[];
-  readonly wiring: readonly SynapseGene[];
+  readonly synapses: readonly SynapseGene[];
 }
 
 /**
@@ -661,7 +661,7 @@ interface EventResult {
 function applyEvent(
   operator: StructuralOperator,
   layout: readonly OrganelleGene[],
-  wiring: readonly SynapseGene[],
+  synapses: readonly SynapseGene[],
   roster: readonly OrganelleType[],
   draws: MutationDraws,
   provisionalId: () => number,
@@ -682,7 +682,7 @@ function applyEvent(
       const {law} = parameters[draws.index(parameters.length)];
       return {
         layout: replaceAt(layout, index, [changeParameter(gene, law, draws)]),
-        wiring,
+        synapses,
       };
     }
 
@@ -727,7 +727,7 @@ function applyEvent(
             ...(drive !== undefined && {drive}),
           },
         ],
-        wiring,
+        synapses,
       };
     }
 
@@ -740,7 +740,7 @@ function applyEvent(
       // A synapse never outlives an endpoint: both go as one event.
       return {
         layout: replaceAt(layout, index, []),
-        wiring: wiring.filter(
+        synapses: synapses.filter(
           ({source, destination}) =>
             source.id !== innovationId && destination.id !== innovationId,
         ),
@@ -754,7 +754,7 @@ function applyEvent(
       }
       return split(
         layout,
-        wiring,
+        synapses,
         targets[draws.index(targets.length)],
         draws,
         provisionalId,
@@ -829,7 +829,7 @@ function changeParameter(
  */
 function split(
   layout: readonly OrganelleGene[],
-  wiring: readonly SynapseGene[],
+  synapses: readonly SynapseGene[],
   index: number,
   draws: MutationDraws,
   provisionalId: () => number,
@@ -857,7 +857,7 @@ function split(
   };
   // Each incoming synapse is copied to the second piece, with the same
   // weight, right after the original, which stays on the first.
-  const copied = wiring.flatMap((synapse) =>
+  const copied = synapses.flatMap((synapse) =>
     synapse.destination.id === gene.innovationId
       ? [
           synapse,
@@ -871,7 +871,7 @@ function split(
   );
   return {
     layout: [...others.slice(0, index), first, second, ...others.slice(index)],
-    wiring: copied,
+    synapses: copied,
   };
 }
 
