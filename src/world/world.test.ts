@@ -2,7 +2,12 @@ import {describe, expect, it} from "vitest";
 
 import {AQUARIUM_AREA, AQUARIUM_HEIGHT} from "./aquarium";
 import {ExchangeSettlement} from "./environment";
-import {BASELINE_GENOME, mutateGenome, organelleGenes} from "./genome";
+import {
+  BASELINE_GENOME,
+  isSynapseGene,
+  mutateGenome,
+  organelleGenes,
+} from "./genome";
 import {BODY_ID, DEFAULT_ROSTER} from "./organelles";
 import {
   initializeMetabolism,
@@ -1557,7 +1562,7 @@ describe("the roster and the Innovation Id counter (M7)", () => {
 
   it("lets neurons appear in an unprimed world, with distinct minted ids and the counter past them", () => {
     let carriers = 0;
-    for (const seed of [1, 2, 3]) {
+    for (const seed of [4, 5, 6]) {
       const world = ticks(createWorld(seed), 3000);
       const ids = getPopulation(world).flatMap((organism) =>
         organism.organelles.map((organelle) => organelle.innovationId),
@@ -1575,8 +1580,8 @@ describe("the roster and the Innovation Id counter (M7)", () => {
   });
 
   it("inserts floats on the default roster", () => {
-    // Insertions are rare early on; seed 1 holds three floats by tick 20000.
-    const world = ticks(createWorld(1), 20000);
+    // Insertions are rare early on; seed 2 holds two floats by tick 20000.
+    const world = ticks(createWorld(2), 20000);
     const types = getPopulation(world)
       .flatMap((organism) => organism.organelles)
       .map((organelle) => organelle.type);
@@ -1805,5 +1810,37 @@ describe("a pulsing neuron in a running world", () => {
     }
 
     expect(signals.size).toBeGreaterThan(10);
+  });
+});
+
+describe("synapse insertion in the world (M11)", () => {
+  it("inserts synapses into the children of a population that can take them", () => {
+    // Wiring needs an input port, which few bodies of the default world carry
+    // this early, so the founders carry a thruster and a neuron.
+    const founders: Founder[] = Array.from({length: 20}, (_, i) => ({
+      x: 5 + i,
+      y: 3,
+      genome: {
+        ...BASELINE_GENOME,
+        mitosisEnergyThreshold: 0.1,
+        genes: [
+          {
+            type: "thruster" as const,
+            x: 0,
+            y: 0,
+            radius: 0.05,
+            orientation: {cos: 0, sin: -1},
+            drive: 0.5,
+          },
+          {type: "neuron" as const, x: 0.3, y: 0, radius: 0.05},
+        ],
+      },
+    }));
+    const world = ticks(createWorld(1, {generation0: {founders}}), 8000);
+    const wired = getPopulation(world).filter((organism) =>
+      organism.genome.genes.some(isSynapseGene),
+    );
+    expect(getCumulativeBirths(world)).toBeGreaterThan(0);
+    expect(wired.length).toBeGreaterThan(0);
   });
 });

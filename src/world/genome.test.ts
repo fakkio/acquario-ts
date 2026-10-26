@@ -3,6 +3,8 @@ import {describe, expect, it} from "vitest";
 import {BASELINE_BODY_RADIUS} from "./aquarium";
 import {
   DELTA_CYTOPLASM_RADIUS,
+  DELTA_WEIGHT,
+  WEIGHT_MAX,
   DELTA_DRIVE,
   DRIVE_NEW,
   EPSILON_ORIENTATION,
@@ -19,6 +21,7 @@ import {
   deriveBody,
   mintInnovationIds,
   mutateGenome,
+  OPERATOR_WEIGHTS,
   organelleGenes,
   type Genome,
   type MutationOptions,
@@ -670,12 +673,19 @@ describe("the structural mutation law's invariant (ADR-0028, ADR-0034)", () => {
   }[] = [
     {name: "the default law", options: {}},
     {name: "every trial an event", options: {eventProbability: 1}},
-    ...(["parameterChange", "insertion", "deletion", "split"] as const).map(
-      (operator) => ({
-        name: `only ${operator}`,
-        options: {eventProbability: 1, operatorWeights: only(operator)},
-      }),
-    ),
+    ...(
+      [
+        "parameterChange",
+        "insertion",
+        "deletion",
+        "split",
+        "weightChange",
+        "synapseInsertion",
+      ] as const
+    ).map((operator) => ({
+      name: `only ${operator}`,
+      options: {eventProbability: 1, operatorWeights: only(operator)},
+    })),
   ];
   const STREAMS = 150;
 
@@ -848,6 +858,8 @@ function only(operator: keyof OperatorWeights): OperatorWeights {
     insertion: 0,
     deletion: 0,
     split: 0,
+    weightChange: 0,
+    synapseInsertion: 0,
     [operator]: 1,
   };
 }
@@ -1122,6 +1134,8 @@ describe("Synapse Genes (M11)", () => {
         insertion: 0,
         deletion: 0,
         split: 0,
+        weightChange: 0,
+        synapseInsertion: 0,
       },
     });
 
@@ -1148,16 +1162,23 @@ describe("Synapse Genes (M11)", () => {
     const synapsesOf = (genome: Genome): SynapseGene[] =>
       genome.genes.filter((gene): gene is SynapseGene => !("type" in gene));
 
-    it("removes every synapse of a deleted organelle, and only those", () => {
-      // One thruster and its wire: whatever the draw, the thruster goes.
-      const {genome} = mutateGenome(
-        wired,
-        createRngStream(5),
-        events("deletion"),
-      );
+    it("removes every synapse of a deleted organelle", () => {
+      // One thruster and its wire: a deletion takes either the wire alone or
+      // the thruster and the wire as one event, never the thruster alone.
+      let thrusterDeleted = false;
+      for (let seed = 0; seed < 20; seed++) {
+        const {genome} = mutateGenome(
+          wired,
+          createRngStream(seed),
+          events("deletion"),
+        );
+        if (!genome.genes.some((gene) => "type" in gene)) {
+          thrusterDeleted = true;
+          expect(synapsesOf(genome)).toEqual([]);
+        }
+      }
 
-      expect(genome.genes.some((gene) => "type" in gene)).toBe(false);
-      expect(synapsesOf(genome)).toEqual([]);
+      expect(thrusterDeleted).toBe(true);
     });
 
     it("keeps the synapses of the organelles a deletion left", () => {
@@ -1177,7 +1198,8 @@ describe("Synapse Genes (M11)", () => {
         for (const wire of synapsesOf(genome)) {
           expect(ids.has(wire.destination.id)).toBe(true);
         }
-        expect(synapsesOf(genome)).toHaveLength(ids.size);
+        // One event removes one wire, or one organelle with its own wire.
+        expect(synapsesOf(genome)).toHaveLength(1);
       }
     });
 
@@ -1459,5 +1481,219 @@ describe("the neuron's CTRNN parameters (M11)", () => {
     for (const count of Object.values(moved)) {
       expect(count).toBeGreaterThan(20);
     }
+  });
+});
+
+describe("the synapse operators (ADR-0037)", () => {
+  const aThruster: OrganelleGene = {
+    type: "thruster",
+    innovationId: 1,
+    radius: 0.1,
+    x: 0,
+    y: 0,
+    orientation: {cos: 1, sin: 0},
+    drive: 0.5,
+  };
+  const aNeuron: OrganelleGene = {
+    type: "neuron",
+    innovationId: 2,
+    radius: 0.1,
+    x: 0.5,
+    y: 0,
+  };
+  const forced = (operator: keyof OperatorWeights): MutationOptions => ({
+    roster: DEFAULT_ROSTER,
+    eventProbability: 1,
+    operatorWeights: only(operator),
+  });
+  const synapsesOf = (genome: Genome): SynapseGene[] =>
+    genome.genes.filter((gene): gene is SynapseGene => !("type" in gene));
+  const withGenes = (genes: Genome["genes"]): Genome => ({
+    ...BASELINE_GENOME,
+    genes,
+  });
+
+  it("walks the old four first, then the weight change and the synapse insertion", () => {
+    const weights = Object.keys(OPERATOR_WEIGHTS);
+
+    expect(weights).toEqual([
+      "parameterChange",
+      "insertion",
+      "deletion",
+      "split",
+      "weightChange",
+      "synapseInsertion",
+    ]);
+    expect(OPERATOR_WEIGHTS).toEqual({
+      parameterChange: 0.4,
+      insertion: 0.2,
+      deletion: 0.2,
+      split: 0.1,
+      weightChange: 0.1,
+      synapseInsertion: 0.2,
+    });
+  });
+
+  describe("synapse insertion", () => {
+    it("does nothing in a genome with no input port", () => {
+      const float: OrganelleGene = {...aNeuron, type: "float"};
+      for (const genome of [BASELINE_GENOME, withGenes([float])]) {
+        for (let seed = 0; seed < 20; seed++) {
+          const child = mutateGenome(
+            genome,
+            createRngStream(seed),
+            forced("synapseInsertion"),
+          ).genome;
+
+          expect(child.genes).toBe(genome.genes);
+        }
+      }
+    });
+
+    it("wires a body sense or a neuron's out to power or in, born within a step of zero", () => {
+      const genome = withGenes([aThruster, aNeuron]);
+      for (let seed = 0; seed < 100; seed++) {
+        const child = mutateGenome(
+          genome,
+          createRngStream(seed),
+          forced("synapseInsertion"),
+        ).genome;
+        const [added] = synapsesOf(child);
+
+        expect(child.genes).toHaveLength(3);
+        expect(
+          added.source.id === BODY_ID
+            ? INNATE_SENSES.includes(added.source.port as never)
+            : added.source.id === 2 && added.source.port === "out",
+        ).toBe(true);
+        expect(
+          (added.destination.id === 1 && added.destination.port === "power") ||
+            (added.destination.id === 2 && added.destination.port === "in"),
+        ).toBe(true);
+        expect(Math.abs(added.weight)).toBeLessThanOrEqual(DELTA_WEIGHT);
+        expect(added.innovationId).toBeLessThan(0);
+      }
+    });
+
+    it("reaches every source and every destination, and can repeat an existing pair", () => {
+      const genome = withGenes([aThruster, aNeuron]);
+      const sources = new Set<string>();
+      const destinations = new Set<string>();
+      let duplicated = false;
+      const existing = {
+        innovationId: 3,
+        source: {id: BODY_ID, port: "energy"},
+        destination: {id: 1, port: "power"},
+        weight: 1,
+      };
+      for (let seed = 0; seed < 600; seed++) {
+        const {source, destination} = synapsesOf(
+          mutateGenome(
+            genome,
+            createRngStream(seed),
+            forced("synapseInsertion"),
+          ).genome,
+        )[0];
+        sources.add(`${String(source.id)}.${source.port}`);
+        destinations.add(`${String(destination.id)}.${destination.port}`);
+
+        const [first, second] = synapsesOf(
+          mutateGenome(
+            withGenes([aThruster, aNeuron, existing]),
+            createRngStream(seed),
+            forced("synapseInsertion"),
+          ).genome,
+        );
+        duplicated ||=
+          second.source.id === first.source.id &&
+          second.source.port === first.source.port &&
+          second.destination.id === first.destination.id &&
+          second.destination.port === first.destination.port;
+      }
+
+      expect(sources.size).toBe(INNATE_SENSES.length + 1);
+      expect([...destinations].sort()).toEqual(["1.power", "2.in"]);
+      expect(duplicated).toBe(true);
+    });
+  });
+
+  describe("weight change", () => {
+    const wire = (weight: number): SynapseGene => ({
+      innovationId: 3,
+      source: {id: BODY_ID, port: "light"},
+      destination: {id: 1, port: "power"},
+      weight,
+    });
+
+    it("does nothing without a synapse", () => {
+      const genome = withGenes([aThruster]);
+
+      expect(
+        mutateGenome(genome, createRngStream(1), forced("weightChange")).genome
+          .genes,
+      ).toBe(genome.genes);
+    });
+
+    it("moves one weight by at most a step, and never out of [−4, 4]", () => {
+      for (const start of [0, 1, -3.9, 3.9, 4, -4]) {
+        for (let seed = 0; seed < 100; seed++) {
+          const [moved] = synapsesOf(
+            mutateGenome(
+              withGenes([aThruster, wire(start)]),
+              createRngStream(seed),
+              forced("weightChange"),
+            ).genome,
+          );
+
+          expect(Math.abs(moved.weight - start)).toBeLessThanOrEqual(
+            DELTA_WEIGHT + 1e-12,
+          );
+          expect(Math.abs(moved.weight)).toBeLessThanOrEqual(WEIGHT_MAX);
+        }
+      }
+    });
+  });
+
+  describe("deletion", () => {
+    it("can target a synapse, leaving the organelles", () => {
+      const wire: SynapseGene = {
+        innovationId: 3,
+        source: {id: BODY_ID, port: "light"},
+        destination: {id: 1, port: "power"},
+        weight: 1,
+      };
+      let synapseGone = 0;
+      let organelleGone = 0;
+      for (let seed = 0; seed < 100; seed++) {
+        const child = mutateGenome(
+          withGenes([aThruster, wire]),
+          createRngStream(seed),
+          forced("deletion"),
+        ).genome;
+        if (child.genes.some((gene) => "type" in gene)) {
+          synapseGone++;
+          expect(synapsesOf(child)).toEqual([]);
+        } else {
+          organelleGone++;
+        }
+      }
+
+      expect(synapseGone).toBeGreaterThan(0);
+      expect(organelleGone).toBeGreaterThan(0);
+    });
+  });
+
+  it("prices the same Birth Cost Ceiling under the six operators as under M7's four", () => {
+    const wire: SynapseGene = {
+      innovationId: 3,
+      source: {id: BODY_ID, port: "light"},
+      destination: {id: 2, port: "in"},
+      weight: 1,
+    };
+    const bare = withGenes([aThruster, aNeuron]);
+
+    expect(
+      birthCostCeiling(withGenes([aThruster, aNeuron, wire]), DEFAULT_ROSTER),
+    ).toBe(birthCostCeiling(bare, DEFAULT_ROSTER));
   });
 });

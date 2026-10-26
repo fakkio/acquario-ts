@@ -6,6 +6,7 @@ import {createDeathEffects} from "./app/deathEffects";
 import {
   foldCarrierStatistics,
   foldGeneStatistics,
+  foldSynapseStatistics,
   type CarrierStat,
   type GeneStat,
 } from "./app/geneStatistics";
@@ -228,6 +229,11 @@ const updateHud = (currentWorld: World, fps: number): void => {
       formatCarrier(carrierStats[type]),
     );
   }
+  hud.setField(
+    "carriers.synapse",
+    "synapse carriers (fraction × count)",
+    formatCarrier(foldSynapseStatistics(population)),
+  );
 };
 
 const deathEffects = createDeathEffects();

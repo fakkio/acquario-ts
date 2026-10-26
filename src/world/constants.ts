@@ -493,15 +493,22 @@ export const STRUCTURAL_EVENT_PROBABILITY = tunable(
  * The structural operators' rate weights: an event picks its operator in
  * proportion to them, before it picks a target. #58's starting values, not
  * derived: insertion and deletion weigh the same, so structure does not
- * accumulate from a rate imbalance alone, and half of all events reshape an
- * organelle rather than add or remove one. The rates set how often each
+ * accumulate from a rate imbalance alone, and parameter change takes the
+ * largest share. The rates set how often each
  * event happens, never how far one can grow the body, so the Birth Cost
  * Ceiling does not read them.
  */
-export const PARAMETER_CHANGE_WEIGHT = tunable("PARAMETER_CHANGE_WEIGHT", 0.5);
+export const PARAMETER_CHANGE_WEIGHT = tunable("PARAMETER_CHANGE_WEIGHT", 0.4);
 export const INSERTION_WEIGHT = tunable("INSERTION_WEIGHT", 0.2);
 export const DELETION_WEIGHT = tunable("DELETION_WEIGHT", 0.2);
 export const SPLIT_WEIGHT = tunable("SPLIT_WEIGHT", 0.1);
+/** M11's two operators (ADR-0037), appended after M7's four. An event with
+ * no target does nothing, and few bodies carry an input port. */
+export const WEIGHT_CHANGE_WEIGHT = tunable("WEIGHT_CHANGE_WEIGHT", 0.1);
+export const SYNAPSE_INSERTION_WEIGHT = tunable(
+  "SYNAPSE_INSERTION_WEIGHT",
+  0.2,
+);
 
 /**
  * `w`, the half-width of a Split's triangular bell, `f = 0.5 + (u₁ + u₂ −
@@ -565,6 +572,12 @@ export const C_NEURON = tunable("C_NEURON", 0.01 * EXISTENCE_COST);
  * `C_NEURON`.
  */
 export const C_SYNAPSE = tunable("C_SYNAPSE", C_NEURON);
+
+/** A synapse's weight step, and the bound of its additive clamped law,
+ * `[−WEIGHT_MAX, WEIGHT_MAX]` (ADR-0037). A new synapse is born at `u·DELTA_WEIGHT`
+ * with `u` signed. */
+export const DELTA_WEIGHT = tunable("DELTA_WEIGHT", 0.25);
+export const WEIGHT_MAX = tunable("WEIGHT_MAX", 4);
 
 /**
  * Stokes' law, `drag = 6πμr`, with the medium's viscosity μ ≡ 1: the shape of

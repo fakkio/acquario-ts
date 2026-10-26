@@ -132,6 +132,8 @@ function splitOf(genome: Genome, seed: number): Genome {
       insertion: 0,
       deletion: 0,
       split: 1,
+      weightChange: 0,
+      synapseInsertion: 0,
     },
   });
   return mintInnovationIds(split, 1000).genome;

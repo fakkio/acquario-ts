@@ -1,7 +1,11 @@
 import {describe, expect, it} from "vitest";
 
 import {BASELINE_GENOME, NO_MOMENTS, type OrganismView} from "../world";
-import {foldCarrierStatistics, foldGeneStatistics} from "./geneStatistics";
+import {
+  foldCarrierStatistics,
+  foldGeneStatistics,
+  foldSynapseStatistics,
+} from "./geneStatistics";
 
 /** Only the genes and the body radius matter to this fold; the rest of
  * `OrganismView` is filled with placeholders no test here reads. */
@@ -132,5 +136,40 @@ describe("foldCarrierStatistics", () => {
     const population = [organismView({organelles: [neuron(1)]})];
 
     expect(foldCarrierStatistics(population, [])).toEqual({});
+  });
+});
+
+describe("foldSynapseStatistics", () => {
+  const wire = (innovationId: number) => ({
+    innovationId,
+    source: {id: 0, port: "light"},
+    destination: {id: 1, port: "in"},
+    weight: 1,
+  });
+  const wired = (count: number): OrganismView =>
+    organismView({
+      genome: {
+        ...BASELINE_GENOME,
+        genes: Array.from({length: count}, (_, i) => wire(i + 2)),
+      },
+    });
+
+  it("reads zero for an empty population and for one with no synapse", () => {
+    const none = {fraction: 0, meanCountPerCarrier: 0};
+
+    expect(foldSynapseStatistics([])).toEqual(none);
+    expect(foldSynapseStatistics([organismView({})])).toEqual(none);
+  });
+
+  it("counts the fraction carrying at least one and the mean count per carrier", () => {
+    const stats = foldSynapseStatistics([
+      wired(1),
+      wired(3),
+      wired(0),
+      wired(0),
+    ]);
+
+    expect(stats.fraction).toBeCloseTo(0.5);
+    expect(stats.meanCountPerCarrier).toBeCloseTo(2);
   });
 });

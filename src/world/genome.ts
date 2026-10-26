@@ -6,6 +6,7 @@ import {
   DELTA_CYTOPLASM_RADIUS,
   DELTA_LINEAGE_HUE,
   DELTA_MITOSIS_ENERGY_THRESHOLD,
+  DELTA_WEIGHT,
   DISCHARGE_FACTOR_NEW,
   DRIVE_NEW,
   INSERTION_WEIGHT,
@@ -18,10 +19,15 @@ import {
   STRUCTURAL_EVENT_PROBABILITY,
   TAU_NEW,
   THRESHOLD_NEW,
+  SYNAPSE_INSERTION_WEIGHT,
+  WEIGHT_CHANGE_WEIGHT,
+  WEIGHT_MAX,
 } from "./constants";
 import {layoutMoments, type LayoutMoments} from "./gravity";
 import {makeRoom, reach, relax} from "./layout";
 import {
+  BODY_ID,
+  INNATE_SENSES,
   ORGANELLE_TYPES,
   type OrganelleType,
   type OrganelleTypeDeclaration,
@@ -228,15 +234,18 @@ export interface MutationOptions {
 }
 
 /**
- * The structural operators M7 knows (ADR-0028), in the order an event's
+ * The structural operators (ADR-0028, ADR-0037), in the order an event's
  * operator draw walks their weights: part of the law, like the header's
- * draw order. The weight change and the synapse insertion are M11's.
+ * draw order. M7's four come first and M11's weight change and synapse
+ * insertion after them, so the old four keep their order in the walk.
  */
 const OPERATORS = [
   "parameterChange",
   "insertion",
   "deletion",
   "split",
+  "weightChange",
+  "synapseInsertion",
 ] as const;
 
 export type StructuralOperator = (typeof OPERATORS)[number];
@@ -249,6 +258,8 @@ export const OPERATOR_WEIGHTS: OperatorWeights = {
   insertion: INSERTION_WEIGHT,
   deletion: DELETION_WEIGHT,
   split: SPLIT_WEIGHT,
+  weightChange: WEIGHT_CHANGE_WEIGHT,
+  synapseInsertion: SYNAPSE_INSERTION_WEIGHT,
 };
 
 /** Whether an id is a child-local provisional one, not yet minted. The one
@@ -598,10 +609,10 @@ function mutateStructure(
   draws: MutationDraws,
   law: StructuralLaw,
 ): readonly Gene[] {
-  // The events act on Organelle Genes alone: a Synapse Gene is no target of
-  // any operator, but follows the organelle it is wired to (a deletion
-  // removes it, a split copies it). A child an event touched holds its
-  // organelles first, then its synapses.
+  // A Synapse Gene follows the organelle it is wired to (a deletion removes
+  // it, a split copies it), and is a target of the deletion and the weight
+  // change itself. A child an event touched holds its organelles first, then
+  // its synapses.
   const organelles = organelleGenes(genes);
   if (law.roster.length === 0 && organelles.length === 0) {
     return genes;
@@ -759,10 +770,19 @@ function applyEvent(
     }
 
     case "deletion": {
-      if (layout.length === 0) {
+      // Over every structural gene, the organelles first and then the
+      // synapses, the order a touched child holds them in.
+      const count = layout.length + synapses.length;
+      if (count === 0) {
         return null;
       }
-      const index = draws.index(layout.length);
+      const index = draws.index(count);
+      if (index >= layout.length) {
+        return {
+          layout: [...layout],
+          synapses: replaceAt(synapses, index - layout.length, []),
+        };
+      }
       const {innovationId} = layout[index];
       // A synapse never outlives an endpoint: both go as one event.
       return {
@@ -771,6 +791,49 @@ function applyEvent(
           ({source, destination}) =>
             source.id !== innovationId && destination.id !== innovationId,
         ),
+      };
+    }
+
+    case "weightChange": {
+      if (synapses.length === 0) {
+        return null;
+      }
+      const index = draws.index(synapses.length);
+      const gene = synapses[index];
+      const weight = Math.min(
+        WEIGHT_MAX,
+        Math.max(-WEIGHT_MAX, gene.weight + draws.signed() * DELTA_WEIGHT),
+      );
+      return {
+        layout: [...layout],
+        synapses: replaceAt(synapses, index, [{...gene, weight}]),
+      };
+    }
+
+    case "synapseInsertion": {
+      const destinations = portsOf(layout, "inputPorts");
+      if (destinations.length === 0) {
+        return null;
+      }
+      const sources = [
+        ...INNATE_SENSES.map((port) => ({id: BODY_ID, port})),
+        ...portsOf(layout, "outputPorts"),
+      ];
+      // The pair is drawn source first, and the duplicate of an existing one
+      // is kept (ADR-0037).
+      const source = sources[draws.index(sources.length)];
+      const destination = destinations[draws.index(destinations.length)];
+      return {
+        layout: [...layout],
+        synapses: [
+          ...synapses,
+          {
+            innovationId: provisionalId(),
+            source,
+            destination,
+            weight: draws.signed() * DELTA_WEIGHT,
+          },
+        ],
       };
     }
 
@@ -788,6 +851,20 @@ function applyEvent(
       );
     }
   }
+}
+
+/** Every port of the given kind the organelles declare, in genome order and
+ * then in declaration order. */
+function portsOf(
+  layout: readonly OrganelleGene[],
+  kind: "inputPorts" | "outputPorts",
+): SynapseEndpoint[] {
+  return layout.flatMap((gene) =>
+    (ORGANELLE_TYPES[gene.type][kind] ?? []).map((port) => ({
+      id: gene.innovationId,
+      port,
+    })),
+  );
 }
 
 /** The neuron's CTRNN parameters at birth (ADR-0037), by the gene field. */
@@ -1016,7 +1093,9 @@ interface PricedBody {
  * - a Cartesian step: `δ·r` of reach;
  * - a Split of a valid target: no area, `2(√2 − 1)·r` of reach, and two
  *   pieces of at most `r·√(½ + w)` and `r·√(½ − w)` for later events;
- * - a deletion adds nothing and is left out.
+ * - a deletion adds nothing and is left out;
+ * - a weight change and a synapse insertion add no area and no reach, and are
+ *   left out like it: the body the ceiling prices is unchanged (ADR-0034).
  */
 function worstCaseBody(
   body: PricedBody,

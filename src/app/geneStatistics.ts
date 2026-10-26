@@ -1,4 +1,4 @@
-import type {OrganelleType, OrganismView} from "../world";
+import {isSynapseGene, type OrganelleType, type OrganismView} from "../world";
 
 export interface GeneStat {
   readonly mean: number;
@@ -100,4 +100,27 @@ export function foldCarrierStatistics(
     };
   }
   return statistics;
+}
+
+/**
+ * The same fold over Synapse Genes, which have no type to key on: the
+ * fraction of the population carrying at least one synapse and the mean
+ * count per carrier.
+ */
+export function foldSynapseStatistics(
+  population: readonly OrganismView[],
+): CarrierStat {
+  let carriers = 0;
+  let synapses = 0;
+  for (const organism of population) {
+    const count = organism.genome.genes.filter(isSynapseGene).length;
+    if (count > 0) {
+      carriers += 1;
+      synapses += count;
+    }
+  }
+  return {
+    fraction: population.length === 0 ? 0 : carriers / population.length,
+    meanCountPerCarrier: carriers === 0 ? 0 : synapses / carriers,
+  };
 }
