@@ -24,6 +24,9 @@ import {applyNetwork} from "./senses";
 // either side of a threshold would make one piece fire a tick before the
 // original. So the invariant is checked within 1e-9, over a finite horizon,
 // and the discharging networks keep every threshold a margin from its memory.
+// The generator stays in a regime that does not amplify (short τ, bounded
+// weights): a strong cycle with τ near 1 can push the gap past 1e-9, and
+// those networks are left out on purpose, not found to pass.
 const TICKS = 500;
 const TOLERANCE = 1e-9;
 const MARGIN = 1e-3;
