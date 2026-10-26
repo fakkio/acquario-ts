@@ -873,7 +873,9 @@ function changeParameter(
  * inside the `2(√2 − 1)·r` the ceiling prices.
  *
  * The first piece keeps the original's id and its place in the genome; the
- * second gets a new id and the place right after it.
+ * second gets a new id and the place right after it. The synapses touching
+ * the organelle are rewritten so the split is neutral (ADR-0037): incoming
+ * copied, outgoing divided `f`/`1−f`, a self-synapse turned into four.
  */
 function split(
   layout: readonly OrganelleGene[],
@@ -903,20 +905,52 @@ function split(
     x: gene.x + direction.x * firstRadius,
     y: gene.y + direction.y * firstRadius,
   };
-  // Each incoming synapse is copied to the second piece, with the same
-  // weight, right after the original, which stays on the first.
-  const copied = synapses.flatMap((synapse) =>
-    synapse.destination.id === gene.innovationId
-      ? [
-          synapse,
-          {
-            ...synapse,
-            innovationId: provisionalId(),
-            destination: {...synapse.destination, id: second.innovationId},
-          },
-        ]
-      : [synapse],
-  );
+  // The synapse law of ADR-0037, which makes a split of a neuron neutral:
+  // an incoming synapse is copied to the second piece at the same weight, an
+  // outgoing one is divided `f·w` / `(1−f)·w` between the pieces, and a
+  // self-synapse becomes the four that give each piece what the original
+  // received. Every new synapse is placed right after the one it came from.
+  const id = gene.innovationId;
+  const weights = [f, 1 - f];
+  const pieces = [id, second.innovationId] as const;
+  const copied = synapses.flatMap((synapse): SynapseGene[] => {
+    const incoming = synapse.destination.id === id;
+    const outgoing = synapse.source.id === id;
+    if (incoming && outgoing) {
+      return pieces.flatMap((from, i) =>
+        pieces.map((to, j) => ({
+          ...synapse,
+          innovationId:
+            i === 0 && j === 0 ? synapse.innovationId : provisionalId(),
+          source: {...synapse.source, id: from},
+          destination: {...synapse.destination, id: to},
+          weight: weights[i] * synapse.weight,
+        })),
+      );
+    }
+    if (incoming) {
+      return [
+        synapse,
+        {
+          ...synapse,
+          innovationId: provisionalId(),
+          destination: {...synapse.destination, id: second.innovationId},
+        },
+      ];
+    }
+    if (outgoing) {
+      return [
+        {...synapse, weight: f * synapse.weight},
+        {
+          ...synapse,
+          innovationId: provisionalId(),
+          source: {...synapse.source, id: second.innovationId},
+          weight: (1 - f) * synapse.weight,
+        },
+      ];
+    }
+    return [synapse];
+  });
   return {
     layout: [...others.slice(0, index), first, second, ...others.slice(index)],
     synapses: copied,

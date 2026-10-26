@@ -87,7 +87,7 @@ The structural gene describing one **Synapse**: a source output **Port**, a dest
 _Avoid_: connection gene, edge, link
 
 **Split**:
-The v0.2 duplication operator, which divides rather than copies: one organelle becomes two whose areas sum to the original's, incoming synapses copied to both, outgoing ones divided between them. Exactly neutral for a neuron, area-conserving for any organelle.
+The v0.2 duplication operator, which divides rather than copies: one organelle becomes two whose areas sum to the original's, incoming synapses copied to both, outgoing ones divided between them. Neutral in arithmetic for a neuron (within floating-point tolerance in a run), area-conserving for any organelle.
 _Avoid_: duplication (in prose it is fine; the operator is a split), copy, fission, clone
 
 **Body Radius**:

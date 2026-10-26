@@ -1202,6 +1202,120 @@ describe("Synapse Genes (M11)", () => {
     });
   });
 
+  describe("the split of a wired neuron (ADR-0037)", () => {
+    const pieceOf = (genome: Genome): OrganelleGene[] =>
+      genome.genes.filter((gene): gene is OrganelleGene => "type" in gene);
+    const wiresOf = (genome: Genome): SynapseGene[] =>
+      genome.genes.filter((gene): gene is SynapseGene => !("type" in gene));
+    const splitNeuron = (genes: Genome["genes"]): Genome =>
+      mutateGenome({...BASELINE_GENOME, genes}, createRngStream(5), {
+        roster: [],
+        eventProbability: 1,
+        operatorWeights: only("split"),
+      }).genome;
+    const aNeuron: OrganelleGene = {
+      type: "neuron",
+      innovationId: 1,
+      radius: 0.2,
+      x: 0,
+      y: 0,
+      tau: 3,
+      bias: 0.5,
+      threshold: 2,
+      dischargeFactor: 0.25,
+    };
+    const wire = (
+      source: SynapseGene["source"],
+      destination: SynapseGene["destination"],
+      weight: number,
+    ): SynapseGene => ({innovationId: 2, source, destination, weight});
+    const share = (genome: Genome): number => {
+      const [first] = pieceOf(genome);
+      return (first.radius * first.radius) / (aNeuron.radius * aNeuron.radius);
+    };
+
+    it("copies an incoming synapse to both pieces at the same weight, and gives both the parameters", () => {
+      const genome = splitNeuron([
+        aNeuron,
+        wire({id: BODY_ID, port: "light"}, {id: 1, port: "in"}, 1.5),
+      ]);
+      const [first, second] = pieceOf(genome);
+
+      expect(
+        wiresOf(genome).map(({destination, weight}) => [
+          destination.id,
+          weight,
+        ]),
+      ).toEqual([
+        [first.innovationId, 1.5],
+        [second.innovationId, 1.5],
+      ]);
+      expect([second.tau, second.bias, second.threshold]).toEqual([3, 0.5, 2]);
+      expect(second.dischargeFactor).toBe(0.25);
+    });
+
+    it("divides an outgoing synapse into f·w and (1−f)·w", () => {
+      const genome = splitNeuron([
+        aNeuron,
+        wire({id: 1, port: "out"}, {id: 9, port: "power"}, -2),
+      ]);
+      const [first, second] = pieceOf(genome);
+      const f = share(genome);
+      const [near, far] = wiresOf(genome);
+
+      expect([near.source.id, far.source.id]).toEqual([
+        first.innovationId,
+        second.innovationId,
+      ]);
+      expect(near.weight).toBeCloseTo(-2 * f, 12);
+      expect(far.weight).toBeCloseTo(-2 * (1 - f), 12);
+    });
+
+    it("turns a self-synapse into the four ADR-0037 gives", () => {
+      const genome = splitNeuron([
+        aNeuron,
+        wire({id: 1, port: "out"}, {id: 1, port: "in"}, 2),
+      ]);
+      const [first, second] = pieceOf(genome);
+      const f = share(genome);
+      const ids = [first.innovationId, second.innovationId];
+
+      const four = wiresOf(genome).map(({source, destination, weight}) => ({
+        from: ids.indexOf(source.id),
+        to: ids.indexOf(destination.id),
+        weight,
+      }));
+
+      expect(four).toHaveLength(4);
+      expect(
+        new Set(four.map(({from, to}) => String(from) + String(to))).size,
+      ).toBe(4);
+      for (const {from, to, weight} of four) {
+        expect(from).toBeGreaterThanOrEqual(0);
+        expect(to).toBeGreaterThanOrEqual(0);
+        expect(weight).toBeCloseTo((from === 0 ? f : 1 - f) * 2, 12);
+      }
+    });
+
+    it("gives every new synapse a provisional id that minting resolves", () => {
+      const genome = splitNeuron([
+        aNeuron,
+        wire({id: 1, port: "out"}, {id: 1, port: "in"}, 2),
+      ]);
+
+      expect(
+        wiresOf(genome).filter(({innovationId}) => innovationId < 0),
+      ).toHaveLength(3);
+      const minted = mintInnovationIds(genome, 10).genome;
+      const ids = new Set(minted.genes.map(({innovationId}) => innovationId));
+      expect(ids.size).toBe(minted.genes.length);
+      for (const {source, destination} of wiresOf(minted)) {
+        expect(ids.has(source.id)).toBe(true);
+        expect(ids.has(destination.id)).toBe(true);
+      }
+    });
+  });
+
   describe("minting", () => {
     const provisional: Genome = {
       ...BASELINE_GENOME,
