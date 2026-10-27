@@ -169,3 +169,23 @@ Risultato su 40 corpi e 150k tick: profondità media 8,27 misurata contro 7,60 p
 ---
 
 Una cosa che il ticket non diceva: gli Innovation Id dei fondatori li conia il mondo in ordine di piazzamento, e la sinapsi deve nominare il propulsore del proprio corpo. Con 40 fondatori l'id del propulsore è `1 + 2i`, e l'ho scritto a mano nel generatore dei geni. Funziona perché ogni fondatore ha esattamente due geni; basta un terzo gene e gli id slittano senza che nulla se ne accorga.
+
+---
+
+#103, il ticket che chiude la lista, ed è stato il più corto: la sezione 2 è una copia della lettura della Reference World di `thrusters` con altre colonne. Il risultato è un elenco di zeri. Zero portatori di sinapsi su 4.976 letture, zero Reflex, zero catene, e la quota di spesa delle sinapsi che il ticket chiedeva di misurare "per sapere se `c_synapse` è troppo alto" non esiste: nessun portatore su cui dividere. Ho dovuto far stampare un trattino al posto di NaN%.
+
+---
+
+Previsione contro numero. "Wired thrusters are almost absent" è vera nel modo più povero possibile: non è "quasi assente", è assente, e con zero non si distingue la deriva dalla selezione. Lo stesso per "Reflex a livello di deriva". Con un evento per nascita, sei generazioni e un evento su sei che è un'inserzione di sinapsi, quasi tutte spese su corpi senza porta di ingresso, la prova che il mondo non seleziona il cablaggio non è che il cablaggio è raro: è che non c'è.
+
+---
+
+Dove la realtà ha contraddetto il piano: i neuroni. La previsione era "scendono verso `r_min`", e la lettura è 2,00 × `r_min` esatto, nessuno sul pavimento, su 172 neuroni. 2,00 è `r_new`: non si sono mossi dalla nascita. In M7 il neurone che non fa nulla paga solo overhead e area, e sembrava ovvio che la selezione lo stringesse. In sei generazioni la pressione non ha avuto il tempo di muovere nemmeno un passo. La previsione era giusta come direzione e sbagliata come orizzonte.
+
+---
+
+Overlap: lontano dalle nascite il peggiore è 0,505 al seed 10, appena sopra il tetto 0,5 di M1. L'ho stampato e non l'ho commentato, perché la regola è riportare e non vincolare. Non ho controllato se M10 leggeva lo stesso valore. È un numero che qualcuno dovrà confrontare prima di dire che M11 non ha spostato niente.
+
+---
+
+Lo strumento ha una pigrizia che riconosco: una catena conta una volta per coppia di sinapsi che condividono il neurone, non una volta per neurone. Con zero catene la differenza non si vede. Se un giorno ne apparisse una vera, la scelta di come contarla deciderebbe se si legge "una" o "quattro".
