@@ -3,6 +3,7 @@ import {
   measureReflexProfile,
   reportReflexProfile,
 } from "./calibration/nervousSystem";
+import {reportNervousSystemOnReferenceWorld} from "./calibration/nervousSystemWorld";
 import {reportTheWorldMeasured} from "./calibration/worldHeader";
 
 /**
@@ -17,6 +18,7 @@ function main(): void {
 
   reportTheWorldMeasured();
   reportReflexProfile(measureReflexProfile());
+  reportNervousSystemOnReferenceWorld();
 
   console.log(rendered().trimEnd());
 }
