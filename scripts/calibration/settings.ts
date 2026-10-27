@@ -228,3 +228,29 @@ export const THRUSTER_ORBIT_PERIODS = setting("THRUSTER_ORBIT_PERIODS", 3);
  * generations: slower than that a body is not orbiting in its lifetime. A
  * tangential thruster at the rim turns at about 2e-4. */
 export const THRUSTER_SPIN_RATE = setting("THRUSTER_SPIN_RATE", 1e-4);
+
+/**
+ * M11's hand-wired Reflex on a Fixed Population (#102): a thruster whose
+ * `power` reads the body's `light` through a negative weight. The signal is
+ * `clamp(drive + w·I(y), 0, 1)`, zero above the depth where `drive + w·I`
+ * crosses zero, so the pair is chosen to put that stopping depth inside the
+ * Bright Zone: `drive = 0.5` and `w = −4` stop at `I = 0.125`, about nine
+ * radii down.
+ */
+export const NERVOUS_SYSTEM_DRIVE = setting("NERVOUS_SYSTEM_DRIVE", 0.5);
+export const NERVOUS_SYSTEM_WEIGHT = setting("NERVOUS_SYSTEM_WEIGHT", -4);
+
+/** Long enough for the profile to relax with its second half sampled. */
+export const NERVOUS_SYSTEM_TICKS = setting("NERVOUS_SYSTEM_TICKS", 150_000);
+
+/** How many Reflex carriers the population places. */
+export const NERVOUS_SYSTEM_BODIES = setting("NERVOUS_SYSTEM_BODIES", 40);
+
+/** How often the population's depths are read. */
+export const NERVOUS_SYSTEM_SAMPLE_EVERY = setting(
+  "NERVOUS_SYSTEM_SAMPLE_EVERY",
+  100,
+);
+
+/** The depth histogram's bin width, in baseline radii. */
+export const NERVOUS_SYSTEM_BIN_WIDTH = setting("NERVOUS_SYSTEM_BIN_WIDTH", 1);

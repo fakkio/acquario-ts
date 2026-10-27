@@ -44,6 +44,7 @@
     "dev": "vite",
     "done-criteria": "node --import ./scripts/ts-esm-resolver.mjs scripts/doneCriteria.ts",
     "lint": "eslint .",
+    "nervous-system": "node --import ./scripts/ts-esm-resolver.mjs scripts/nervous-system.ts",
     "neuron": "node --import ./scripts/ts-esm-resolver.mjs scripts/neuron.ts",
     "prepare": "husky",
     "preview": "vite preview",
