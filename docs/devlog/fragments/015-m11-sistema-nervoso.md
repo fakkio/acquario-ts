@@ -153,3 +153,19 @@ La nota del seed 39 sulla mappa M11 prometeva due strade: "il generatore del tes
 ---
 
 Davanti alla rete che amplifica l'ulp fino a 1,8e-9, Fabio non ha pensato che il criterio fosse sbagliato: ha pensato che il generatore del test dovesse restare più stretto. La tolleranza 1e-9 è la promessa, il regime del generatore è dove la promessa si verifica. Restringere il generatore non è barare se lo si scrive. Fabio lo ha trovato pulito perché il commento del test dichiara la tolleranza, l'orizzonte finito e il margine delle soglie. Ma il commento non dice che il generatore evita le reti che amplificano: quel limite sta nei numeri del codice (τ in {1, 2, 5}, pesi entro ±2), non nella spiegazione.
+
+---
+
+Per #102 ho preso il ticket senza scegliere davvero: #103 era bloccato da lui e da #101, quindi #102 era l'unico sbloccato. Il primo riflesso cablato a mano del mondo è una sinapsi dalla luce alla potenza di un propulsore, con peso -4 e `drive` 0,5. Sopra i 9 raggi di profondità il segnale è zero, sotto spinge verso l'alto.
+
+---
+
+La previsione è la forma chiusa del profilo costante, `exp(-y/L)`, generalizzata: con una forza che dipende dalla profondità il flusso nullo tra le pareti dà `p(y) ∝ exp(-Φ(y))`, con `Φ` l'integrale della velocità diviso `D`. Sopra la profondità di arresto la velocità è zero, quindi il profilo è piatto. Sotto, decade. Nel codice l'ho integrata sulla tabella della luce invece di scrivere la formula, così il clamp a 1 e le pareti non richiedono casi separati.
+
+---
+
+Risultato su 40 corpi e 150k tick: profondità media 8,27 misurata contro 7,60 prevista, 57,7% dei corpi sopra la profondità di arresto contro 63,9%. La parte piatta c'è, circa 7% per fascia contro 8,0%. La coda sotto i 9 raggi è più pesante del previsto (0,4% oltre i 23 contro 0,1%). I corpi stanno più in basso della teoria, come già per i propulsori di M10. Ho scritto "probabilmente la separazione tra 40 corpi ammassati" e non l'ho verificato.
+
+---
+
+Una cosa che il ticket non diceva: gli Innovation Id dei fondatori li conia il mondo in ordine di piazzamento, e la sinapsi deve nominare il propulsore del proprio corpo. Con 40 fondatori l'id del propulsore è `1 + 2i`, e l'ho scritto a mano nel generatore dei geni. Funziona perché ogni fondatore ha esattamente due geni; basta un terzo gene e gli id slittano senza che nulla se ne accorga.
