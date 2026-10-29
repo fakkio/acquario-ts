@@ -231,7 +231,8 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   container.style.color = "#fff";
   container.style.fontFamily = "monospace";
   container.style.fontSize = "12px";
-  container.style.pointerEvents = "none";
+  // The panel scrolls and its sections fold, so it takes the pointer.
+  container.style.pointerEvents = "auto";
   container.style.display = "none";
   document.body.appendChild(container);
 
@@ -240,13 +241,56 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
   summary.style.whiteSpace = "pre-wrap";
   const table = document.createElement("table");
   table.style.borderCollapse = "collapse";
-  table.style.marginTop = "6px";
   const synapseTable = document.createElement("table");
   synapseTable.style.borderCollapse = "collapse";
-  synapseTable.style.marginTop = "6px";
-  const organelleHeader = document.createElement("pre");
-  organelleHeader.style.margin = "6px 0 0";
-  container.append(summary, synapseTable, organelleHeader, table);
+
+  // One folding section per block. The `<details>` are built once and only
+  // their text is refilled, so a section keeps its open state, and the panel
+  // its scroll, across ticks and across selections.
+  const makeSection = (open: boolean) => {
+    const details = document.createElement("details");
+    details.open = open;
+    details.style.marginTop = "6px";
+    const title = document.createElement("summary");
+    title.style.cursor = "pointer";
+    title.style.fontWeight = "bold";
+    details.appendChild(title);
+    return {details, title};
+  };
+  const textSection = (open: boolean) => {
+    const section = makeSection(open);
+    const body = document.createElement("pre");
+    body.style.margin = "0";
+    body.style.whiteSpace = "pre-wrap";
+    section.details.appendChild(body);
+    return {...section, body};
+  };
+  const setText = (element: HTMLElement, text: string): void => {
+    if (element.textContent !== text) {
+      element.textContent = text;
+    }
+  };
+  const genesSection = textSection(true);
+  const bodySection = textSection(true);
+  const mitosisSection = textSection(true);
+  const maintenanceSection = textSection(false);
+  const storesSection = textSection(true);
+  const sensesSection = textSection(false);
+  const synapsesSection = makeSection(false);
+  synapsesSection.details.appendChild(synapseTable);
+  const organellesSection = makeSection(false);
+  organellesSection.details.appendChild(table);
+  const sections = [
+    genesSection,
+    bodySection,
+    mitosisSection,
+    maintenanceSection,
+    storesSection,
+    sensesSection,
+    synapsesSection,
+    organellesSection,
+  ];
+  container.append(summary, ...sections.map(({details}) => details));
 
   let tableFor: OrganismView | null = null;
   // The two columns that change every tick, by organelle id, refilled from
@@ -477,16 +521,22 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
 
       if (selection.kind === "dead") {
         summary.textContent = `Died at tick ${String(selection.tick)}`;
-        organelleHeader.textContent = "";
+        for (const {details} of sections) {
+          details.style.display = "none";
+        }
         table.replaceChildren();
         synapseTable.replaceChildren();
         readingCells = new Map();
         worldCells = [];
+        neuronCells = [];
         carriedCells = [];
         tableFor = null;
         return;
       }
 
+      for (const {details} of sections) {
+        details.style.display = "";
+      }
       const organism = selection.organism;
       const maintenance = maintenanceBreakdown(organism);
       let organelleArea = 0;
@@ -494,56 +544,77 @@ export function mountInspector(roster: readonly OrganelleType[]): Inspector {
         organelleArea += bodyAreaOfRadius(organelle.radius);
       }
       const synapses = organism.genome.genes.filter(isSynapseGene).length;
-      const text = [
-        `Generation ${String(organism.generation)}`,
-        "",
-        "Genes",
-        `  cytoplasm radius    ${fixed(organism.cytoplasmRadius)}`,
-        `  mitosis threshold   ${fixed(organism.mitosisEnergyThreshold)}`,
-        `  child allocation    ${fixed(organism.childAllocationRatio)}`,
-        `  lineage hue         ${fixed(organism.lineageHue)}`,
-        "",
-        "Body",
-        `  body radius         ${fixed(organism.bodyRadius)}`,
-        `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
-        `  organelle areas     ${fixed(organelleArea)}`,
-        `  buoyant weight      ${buoyantWeightText(organism)}`,
-        `  body axis           ${axisText(organism)}`,
-        ...thrustLines(organism),
-        `  resting depth       ${restingDepthText(organism)}`,
-        "",
-        "Mitosis",
-        ...mitosisProgress(organism, roster),
-        "",
+      setText(summary, `Generation ${String(organism.generation)}`);
+
+      setText(genesSection.title, "Genes");
+      setText(
+        genesSection.body,
+        [
+          `  cytoplasm radius    ${fixed(organism.cytoplasmRadius)}`,
+          `  mitosis threshold   ${fixed(organism.mitosisEnergyThreshold)}`,
+          `  child allocation    ${fixed(organism.childAllocationRatio)}`,
+          `  lineage hue         ${fixed(organism.lineageHue)}`,
+        ].join("\n"),
+      );
+
+      setText(bodySection.title, "Body");
+      setText(
+        bodySection.body,
+        [
+          `  body radius         ${fixed(organism.bodyRadius)}`,
+          `  cytoplasm area      ${fixed(organism.cytoplasmArea)}`,
+          `  organelle areas     ${fixed(organelleArea)}`,
+          `  buoyant weight      ${buoyantWeightText(organism)}`,
+          `  body axis           ${axisText(organism)}`,
+          ...thrustLines(organism),
+          `  resting depth       ${restingDepthText(organism)}`,
+        ].join("\n"),
+      );
+
+      setText(mitosisSection.title, "Mitosis");
+      setText(
+        mitosisSection.body,
+        mitosisProgress(organism, roster).join("\n"),
+      );
+
+      setText(
+        maintenanceSection.title,
         `Maintenance${fixed(maintenance.total, 5)} / tick`,
-        `  c₀                  ${fixed(maintenance.existence, 5)}`,
-        `  cytoplasm           ${fixed(maintenance.cytoplasm, 5)}`,
-        `  organelle overheads ${fixed(maintenance.organelleOverheads, 5)}`,
-        `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
-        `  synapses            ${fixed(maintenance.synapses, 5)}`,
-        "",
-        flows ? "Stores (last tick)" : "Stores",
-        `  energy ${energyStore(organism)}`,
-        flowsOf(flows, "energy"),
-        `  food   ${concentration(organism, pools, "food")}`,
-        flowsOf(flows, "food"),
-        `  O₂     ${concentration(organism, pools, "oxygen")}`,
-        flowsOf(flows, "oxygen"),
-        `  CO₂    ${concentration(organism, pools, "carbonDioxide")}`,
-        flowsOf(flows, "carbonDioxide"),
-        "",
-        "Senses (as the network read them)",
-        ...senseLines(organism),
-        "",
-        `Synapses (${String(synapses)})`,
-      ].join("\n");
-      if (summary.textContent !== text) {
-        summary.textContent = text;
-      }
-      const header = `Organelles (${String(organism.organelles.length)})`;
-      if (organelleHeader.textContent !== header) {
-        organelleHeader.textContent = header;
-      }
+      );
+      setText(
+        maintenanceSection.body,
+        [
+          `  c₀                  ${fixed(maintenance.existence, 5)}`,
+          `  cytoplasm           ${fixed(maintenance.cytoplasm, 5)}`,
+          `  organelle overheads ${fixed(maintenance.organelleOverheads, 5)}`,
+          `  organelle tissue    ${fixed(maintenance.organelleTissue, 5)}`,
+          `  synapses            ${fixed(maintenance.synapses, 5)}`,
+        ].join("\n"),
+      );
+
+      setText(storesSection.title, flows ? "Stores (last tick)" : "Stores");
+      setText(
+        storesSection.body,
+        [
+          `  energy ${energyStore(organism)}`,
+          flowsOf(flows, "energy"),
+          `  food   ${concentration(organism, pools, "food")}`,
+          flowsOf(flows, "food"),
+          `  O₂     ${concentration(organism, pools, "oxygen")}`,
+          flowsOf(flows, "oxygen"),
+          `  CO₂    ${concentration(organism, pools, "carbonDioxide")}`,
+          flowsOf(flows, "carbonDioxide"),
+        ].join("\n"),
+      );
+
+      setText(sensesSection.title, "Senses (as the network read them)");
+      setText(sensesSection.body, senseLines(organism).join("\n"));
+
+      setText(synapsesSection.title, `Synapses (${String(synapses)})`);
+      setText(
+        organellesSection.title,
+        `Organelles (${String(organism.organelles.length)})`,
+      );
 
       if (tableFor !== organism) {
         rebuildTable(organism);
